@@ -96,6 +96,9 @@ target("nxui")
     add_files("lib/nxui/src/widgets/*.cpp")
     add_files("lib/nxui/src/focus/*.cpp")
     add_files("lib/nxui/src/core/Font.cpp")
+    -- Shared by both backends: the 3D quad primitive is pure geometry ending in
+    -- addVertex, so a single copy keeps the deko3d and SDL2 paths identical.
+    add_files("lib/nxui/src/core/Renderer_quad3d.cpp")
 
     if get_config("backend") == "sdl2" then
         add_defines("NXUI_BACKEND_SDL2", {public = true})

@@ -15,7 +15,9 @@ Renderer::Renderer(GpuDevice& gpu) : m_gpu(gpu) {
     m_vtxBase = m_vtxBuf.data();
 }
 
-Renderer::~Renderer() {}
+Renderer::~Renderer() {
+    if (m_whiteSdlTex) SDL_DestroyTexture(m_whiteSdlTex);
+}
 
 // The draw journal exists to explain artifacts in the deko3d command stream.
 // The SDL2 backend records no command list of its own, so these are stubs that
@@ -29,6 +31,27 @@ std::string Renderer::formatDrawJournal() const {
 }
 
 bool Renderer::initialize() {
+    // Flat-colour geometry uses a real opaque pixel rather than a null texture.
+    // SDL_RenderGeometry accepts null by contract, but some render backends
+    // silently drop such triangles; a white pixel modulated by the vertex colour
+    // is the same draw and is portable. This is also drawQuad3D's blank-case
+    // fallback (requirement Q1).
+    m_whiteSdlTex = SDL_CreateTexture(m_gpu.sdlRenderer(),
+                                      SDL_PIXELFORMAT_ABGR8888,
+                                      SDL_TEXTUREACCESS_STATIC, 1, 1);
+    if (!m_whiteSdlTex) {
+        std::fprintf(stderr, "[Renderer-SDL2] white texture: %s\n", SDL_GetError());
+        return false;
+    }
+    const uint32_t white = 0xFFFFFFFFu;
+    SDL_SetTextureBlendMode(m_whiteSdlTex, SDL_BLENDMODE_BLEND);
+    if (SDL_UpdateTexture(m_whiteSdlTex, nullptr, &white, sizeof(white)) != 0) {
+        std::fprintf(stderr, "[Renderer-SDL2] white texture upload: %s\n", SDL_GetError());
+        SDL_DestroyTexture(m_whiteSdlTex);
+        m_whiteSdlTex = nullptr;
+        return false;
+    }
+
     std::printf("[Renderer-SDL2] Init complete (no shaders)\n");
     return true;
 }
@@ -73,7 +96,9 @@ void Renderer::flush() {
             verts[j].tex_coord = {v.u, v.v};
         }
 
-        SDL_Texture* tex = m_texturing ? m_boundTex : nullptr;
+        // A real white pixel makes flat-colour geometry deterministic on every
+        // SDL render backend. Vertex colour carries the actual fill/gradient.
+        SDL_Texture* tex = (m_texturing && m_boundTex) ? m_boundTex : m_whiteSdlTex;
         SDL_RenderGeometry(sdlRen, tex, verts, 3, nullptr, 0);
     }
 

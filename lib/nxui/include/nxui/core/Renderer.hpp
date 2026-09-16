@@ -247,6 +247,38 @@ public:
                                float radius, const Color& tint = Color::white());
     void drawText(const std::string& text, const Vec2& pos, Font* font, const Color& color, float scale = 1.f);
 
+    // 3D quads
+    //
+    // A pinhole camera at the origin looking down +Z, with Y up in view space,
+    // projected on the CPU. Vertex2D carries no depth and the pipeline has no
+    // depth buffer, so these emit ordinary screen-space triangles into the same
+    // batch as every other draw: correctness depends entirely on the caller's
+    // draw order, painting far to near.
+    //
+    // Positions are in world units. A perspective-correct textured quad needs
+    // subdivision because the vertex format cannot carry w, so the mapping is
+    // corrected geometrically instead - see drawQuad3D.
+    static constexpr float kFocal = 900.f;   // pixels, over a 720-tall layout
+    static constexpr float kNearZ = 0.05f;
+
+    // Projects one world-space point to layout-space pixels. Returns false for
+    // a non-finite point or one on/behind the near plane.
+    bool project3D(const Vec3& p, Vec2& out) const;
+
+    // A textured quad in world space, subdivided so affine interpolation stays
+    // close enough to projective to be invisible.
+    //
+    // `corners` is ordered top-left, top-right, bottom-right, bottom-left.
+    // A null `tex` fills with flat colour. `strips` is the horizontal
+    // subdivision, clamped to [1, 32]; the vertical subdivision is chosen from
+    // how much the quad's depth actually varies. `alphaTop`/`alphaBottom`
+    // multiply the tint's alpha to give a vertical gradient, which is what
+    // draws a reflection. `flipV` mirrors the texture vertically. `uv`, when
+    // given, is the {u0, v0, u1, v1} sub-rect to sample.
+    void drawQuad3D(const Texture* tex, const Vec3 corners[4], const Color& tint,
+                    float alphaTop = 1.f, float alphaBottom = 1.f,
+                    bool flipV = false, int strips = 1, const float uv[4] = nullptr);
+
     // Post-processing
     void captureToOffscreen(bool reuseIfValid = false);
     void captureToOffscreenSharp();
@@ -396,7 +428,7 @@ private:
     // Identifies which emission helper is currently adding vertices, so a bad
     // coordinate can be attributed to a caller rather than guessed at.
     enum class EmitSite : uint16_t {
-        None = 0, Quad, QuadGrad, RoundedMasked, RoundedOutline,
+        None = 0, Quad, QuadGrad, Quad3D, RoundedMasked, RoundedOutline,
         Circle, Triangle, Line, Text, Offscreen, Glass, Blur,
     };
     EmitSite m_emitSite = EmitSite::None;
@@ -482,9 +514,14 @@ private:
 #endif
 
 #ifdef NXUI_BACKEND_SDL2
-    // SDL2 backend: textures tracked by slot for binding
+    // SDL2 backend: textures tracked by slot for binding.
     std::vector<SDL_Texture*> m_texSlots;
     SDL_Texture* m_boundTex = nullptr;
+
+    // 1x1 opaque white fallback for flat-colour geometry. SDL documents that
+    // SDL_RenderGeometry accepts a null texture, but not every backend actually
+    // draws those triangles; modulating a real white pixel is deterministic.
+    SDL_Texture* m_whiteSdlTex = nullptr;
 
     // Vertex buffer (CPU-side for SDL2)
     std::vector<Vertex2D> m_vtxBuf;

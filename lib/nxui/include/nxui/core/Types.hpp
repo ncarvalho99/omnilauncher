@@ -35,6 +35,21 @@ struct Vec2 {
     static Vec2 lerp(const Vec2& a, const Vec2& b, float t) { return a + (b - a) * t; }
 };
 
+// World-space point for the 3D quad primitive. The renderer projects these on
+// the CPU; nothing in the vertex format or the pipeline carries depth, so this
+// is a geometry helper rather than the start of a 3D scene graph.
+struct Vec3 {
+    float x = 0.f, y = 0.f, z = 0.f;
+    Vec3() = default;
+    Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+
+    Vec3 operator+(const Vec3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vec3 operator-(const Vec3& o) const { return {x - o.x, y - o.y, z - o.z}; }
+    Vec3 operator*(float s) const { return {x * s, y * s, z * s}; }
+
+    static Vec3 lerp(const Vec3& a, const Vec3& b, float t) { return a + (b - a) * t; }
+};
+
 struct Rect {
     float x = 0, y = 0, width = 0, height = 0;
     Rect() = default;

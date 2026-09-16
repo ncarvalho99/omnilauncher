@@ -1385,7 +1385,7 @@ std::string Renderer::formatDrawJournal() const {
     // printed re-exponented to 0x43 so the plausible original coordinate is
     // visible next to the corrupted value.
     static const char* kSiteName[] = {
-        "none", "quad", "quadGrad", "roundedMasked", "roundedOutline",
+        "none", "quad", "quadGrad", "quad3D", "roundedMasked", "roundedOutline",
         "circle", "triangle", "line", "text", "offscreen", "glass", "blur",
     };
     // Scene population and submitted work for this frame. The artifact becomes
