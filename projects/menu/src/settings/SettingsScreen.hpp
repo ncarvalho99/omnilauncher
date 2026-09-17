@@ -26,10 +26,6 @@ public:
     void onWireframeChange(BoolCb cb)   { m_wireframeCb = std::move(cb); }
     void onGridColumnsChange(IntCb cb)  { m_gridColumnsCb = std::move(cb); }
     void onGridRowsChange(IntCb cb)     { m_gridRowsCb = std::move(cb); }
-    using LayoutModeCb = std::function<void(AppLayoutMode)>;
-    void onLayoutModeChange(LayoutModeCb cb) { m_layoutModeCb = std::move(cb); }
-    void setLayoutModeState(AppLayoutMode mode) { m_layoutMode = mode; }
-    AppLayoutMode layoutModeState() const { return m_layoutMode; }
     void onUiLanguageChange(StringCb cb) { m_uiLanguageCb = std::move(cb); }
     void onDefaultProfileChange(StringCb cb) { m_defaultProfileCb = std::move(cb); }
     void onClockUse12HourChange(BoolCb cb) { m_clockUse12HourCb = std::move(cb); }
@@ -132,8 +128,6 @@ private:
     BoolCb m_wireframeCb;
     IntCb m_gridColumnsCb;
     IntCb m_gridRowsCb;
-    LayoutModeCb m_layoutModeCb;
-    AppLayoutMode m_layoutMode = AppLayoutMode::Grid;
     StringCb m_uiLanguageCb;
     StringCb m_defaultProfileCb;
     BoolCb m_clockUse12HourCb;

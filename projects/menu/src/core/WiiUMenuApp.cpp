@@ -4189,8 +4189,6 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
         m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow);
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
-    if (m_settings)
-        m_settings->setLayoutModeState(m_appLayoutMode);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
