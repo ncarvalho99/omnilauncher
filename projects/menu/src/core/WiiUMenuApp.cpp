@@ -120,11 +120,19 @@ static constexpr float kGridBaseCellH = 150.f;
 static constexpr float kGridBasePadX  = 20.f;
 static constexpr float kGridBasePadY  = 16.f;
 
-GridModel compactDynamicLineEntries(const GridModel& source) {
+// Filters the canonical model down to what a single-row view can show, keeping
+// every surviving entry's stable identity untouched. `dropWidgets` additionally
+// removes widget entries: Flow draws physical cases, and there is no meaningful
+// case for a clock or a battery readout, so those are hidden by this explicit
+// view-capability rule rather than by being drawn wrongly. Folders survive in
+// both views and still open into Grid.
+GridModel compactDynamicLineEntries(const GridModel& source, bool dropWidgets = false) {
     GridModel compacted;
     for (const auto& entry : source.entries()) {
         if (entry.kind == GridEntryKind::Empty ||
             entry.kind == GridEntryKind::WidgetContinuation)
+            continue;
+        if (dropWidgets && entry.kind == GridEntryKind::Widget)
             continue;
         compacted.addEntry(entry);
     }
@@ -1516,7 +1524,7 @@ void WiiUMenuApp::appendAddUserButton() {
 }
 
 void WiiUMenuApp::wireUserAvatarNavigation() {
-    const bool dynamicLine = m_appLayoutMode == AppLayoutMode::DynamicLine;
+    const bool dynamicLine = isCarouselLayout();
     auto returnToGrid = [this]() {
         if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
             return;
@@ -1943,7 +1951,10 @@ void WiiUMenuApp::saveMenuLayout() {
 
 switchu::widgets::WidgetSize WiiUMenuApp::gameGridSize(
     std::uint64_t titleId, AppLayoutMode mode) const {
-    if (mode == AppLayoutMode::DynamicLine) return {1, 1};
+    // Neither carousel view honours multi-cell sizes: both are one row of
+    // equal items.
+    if (mode == AppLayoutMode::DynamicLine || mode == AppLayoutMode::Flow)
+        return {1, 1};
     const auto found = m_gameSizes.find(titleId);
     if (found == m_gameSizes.end()) return {1, 1};
     const auto size = found->second;
@@ -2458,8 +2469,8 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
             model.addEntry({});
         }
     }
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
-        return compactDynamicLineEntries(model);
+    if (isCarouselLayout())
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow);
     return model;
 }
 
@@ -2535,8 +2546,8 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
         else
             model.addEntry({});
     }
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
-        return compactDynamicLineEntries(model);
+    if (isCarouselLayout())
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow);
     return model;
 }
 
@@ -2633,7 +2644,7 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     m_grid->setSlideTransition(inFolder);
     m_grid->setLayoutMode(m_appLayoutMode);
     // The line is a ring, so the streamer's window has to wrap with it.
-    m_iconStreamer.setRingMode(m_appLayoutMode == AppLayoutMode::DynamicLine);
+    m_iconStreamer.setRingMode(isCarouselLayout());
     m_grid->setup(std::move(icons), columns, rows, metrics.cellW, metrics.cellH,
                   metrics.padX, metrics.padY);
     applyPlaytimeBadges();
@@ -2722,7 +2733,7 @@ void WiiUMenuApp::requestTextEntry(const std::string& title, const std::string& 
         }
         // The ring was hidden while the keyboard was up and its target was never
         // moved, so showing it again animated it down from the panel's own rect
-        // — the keyboard-sized selection left behind on close. Snap it instead.
+        // ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the keyboard-sized selection left behind on close. Snap it instead.
         if (m_cursor && target)
             m_cursor->moveTo(target->focusRect().expanded(4.f), 0.f);
         DebugLog::log("[textentry] restoreFocus target=%p returnFocus=%p m_dialog=%p fellBackToGrid=%d",
@@ -3243,8 +3254,7 @@ bool WiiUMenuApp::canPlaceGridItem(int targetSlot,
             static_cast<size_t>(targetSlot + 1), 0);
         const_cast<WiiUMenuApp*>(this)->m_layoutDirty = true;
     }
-    size = m_appLayoutMode == AppLayoutMode::DynamicLine
-        ? switchu::widgets::WidgetSize{1, 1} : size;
+    size = isCarouselLayout() ? switchu::widgets::WidgetSize{1, 1} : size;
     const int columns = std::clamp(m_config.gridColumns, 3, 8);
     const int rows = std::clamp(m_config.gridRows, 2, 5);
     const int perPage = columns * rows;
@@ -3261,7 +3271,7 @@ bool WiiUMenuApp::canPlaceGridItem(int targetSlot,
         if (value == ignoringTitleId || value == alsoIgnoringTitleId) continue;
         const std::uint32_t widgetId = switchu::widgets::widgetIdFromTitleId(value);
         const auto* widget = widgetId != 0 ? m_widgetStore.find(widgetId) : nullptr;
-        if (m_appLayoutMode == AppLayoutMode::DynamicLine) {
+        if (isCarouselLayout()) {
             occupied[static_cast<std::size_t>(index)] = true;
             continue;
         }
@@ -3666,7 +3676,7 @@ void WiiUMenuApp::syncWidgetPageAssets() {
     m_widgetAssetKeepScratch.assign(icons.size(), 0);
     auto& current = m_widgetAssetCurrentScratch;
     auto& keep = m_widgetAssetKeepScratch;
-    const bool dynamicLine = m_appLayoutMode == AppLayoutMode::DynamicLine;
+    const bool dynamicLine = isCarouselLayout();
     const int page = dynamicLine
         ? std::max(0, m_grid->focusedGlobalIndex())
         : m_grid->currentPage();
@@ -3914,9 +3924,9 @@ void WiiUMenuApp::showWidgetSizeMenu(int targetSlot, const nxui::Rect& anchor,
     std::vector<ContextMenu::Item> items;
     for (const auto size : switchu::widgets::supportedSizes(type, m_appLayoutMode)) {
         const bool available = canPlaceWidget(targetSlot, size);
-        const std::string label = std::to_string(size.columns) + "×"
+        const std::string label = std::to_string(size.columns) + "ÃƒÆ’Ã¢â‚¬â€"
             + std::to_string(size.rows)
-            + (available ? std::string() : " — " + i18n.tr("widget.no_space", "No space"));
+            + (available ? std::string() : " ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â " + i18n.tr("widget.no_space", "No space"));
         items.push_back({label, [this, targetSlot, anchor, type, size]() {
             if (type == switchu::widgets::WidgetType::ImagePin)
                 showWidgetAssetMenu(targetSlot, anchor, type, size);
@@ -3994,7 +4004,7 @@ void WiiUMenuApp::showWidgetOptionsMenu(std::uint32_t widgetId, int slot,
     for (const auto size : switchu::widgets::supportedSizes(widget->type, m_appLayoutMode)) {
         const bool available = canPlaceWidget(slot, size, widgetId);
         const std::string label = i18n.tr("widget.resize", "Resize") + " "
-            + std::to_string(size.columns) + "×" + std::to_string(size.rows);
+            + std::to_string(size.columns) + "ÃƒÆ’Ã¢â‚¬â€" + std::to_string(size.rows);
         items.push_back({label, [this, widgetId, size]() {
             if (!m_widgetStore.setSize(widgetId, size)) {
                 m_contextMenu->hide();
@@ -4082,7 +4092,8 @@ void WiiUMenuApp::flipPageFromEdge(int dir) {
 void WiiUMenuApp::syncPageIndicator() {
     if (!m_pageIndicator || !m_grid)
         return;
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine) {
+    // Neither carousel view pages, so the page pill has nothing to report.
+    if (isCarouselLayout()) {
         m_pageIndicator->setVisible(false);
         return;
     }
@@ -4092,12 +4103,21 @@ void WiiUMenuApp::syncPageIndicator() {
     m_pageIndicator->setCurrentPage(m_grid->currentPage());
 }
 
+// Minus cycles the enabled views on the unobstructed Home route:
+// Grid -> DynamicLine -> Flow -> Grid. Grid stays reachable from every view, so
+// it remains the escape hatch if a newer view misbehaves.
 void WiiUMenuApp::toggleAppLayoutMode() {
-    setAppLayoutMode(m_appLayoutMode == AppLayoutMode::Grid ? AppLayoutMode::DynamicLine : AppLayoutMode::Grid);
+    switch (m_appLayoutMode) {
+        case AppLayoutMode::Grid:        setAppLayoutMode(AppLayoutMode::DynamicLine); break;
+        case AppLayoutMode::DynamicLine: setAppLayoutMode(AppLayoutMode::Flow);        break;
+        case AppLayoutMode::Flow:        setAppLayoutMode(AppLayoutMode::Grid);        break;
+    }
 }
 
 void WiiUMenuApp::configureDynamicLineNavigation() {
-    const bool dynamicLine = m_appLayoutMode == AppLayoutMode::DynamicLine;
+    // Both carousel views use the single-row sidebar arrangement and the same
+    // UP/DOWN escape targets.
+    const bool dynamicLine = isCarouselLayout();
     m_sidebar.setDynamicLineLayout(dynamicLine);
 
     if (m_grid) {
@@ -4136,7 +4156,7 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
     // Resolve the app when DOWN is pressed. A persistent raw pointer here can
     // outlive icons rebuilt by a move or catalogue refresh.
     m_sidebar.setDynamicLineDownAction([this]() {
-        if (!m_grid || m_appLayoutMode != AppLayoutMode::DynamicLine ||
+        if (!m_grid || !isCarouselLayout() ||
             m_navigator.route() != switchu::navigation::Route::Home)
             return;
         auto* target = m_grid->focusManager().current();
@@ -4159,7 +4179,9 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     const bool rebuildRoot = m_grid && m_openFolderId == 0;
     if (m_grid && !rebuildRoot) {
         m_grid->setLayoutMode(m_appLayoutMode);
-        m_iconStreamer.setRingMode(m_appLayoutMode == AppLayoutMode::DynamicLine);
+        // Both carousel views are one wrapping row, so the icon streamer holds
+        // a window around the cursor instead of a page.
+        m_iconStreamer.setRingMode(isCarouselLayout());
     }
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
@@ -4176,9 +4198,12 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     m_audio.playSfx(Sfx::ThemeToggle);
 
     auto& i18n = nxui::I18n::instance();
-    const std::string announcement = (m_appLayoutMode == AppLayoutMode::DynamicLine)
-        ? i18n.tr("accessibility.layout.dynamic_line", "Dynamic line mode")
-        : i18n.tr("accessibility.layout.grid", "Grid mode");
+    const std::string announcement =
+        (m_appLayoutMode == AppLayoutMode::DynamicLine)
+            ? i18n.tr("accessibility.layout.dynamic_line", "Dynamic line mode")
+        : (m_appLayoutMode == AppLayoutMode::Flow)
+            ? i18n.tr("accessibility.layout.flow", "Flow mode")
+            : i18n.tr("accessibility.layout.grid", "Grid mode");
     m_accessibility.announce(announcement, true, true);
 
     syncPageIndicator();
@@ -4484,7 +4509,7 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     // painted a one-cell panel over the right half of every 2x1 widget: the
     // "1x1 icon cutting it in half". The move ghost renders through a different
     // path, which is why the tile looked correct only while being moved. The
-    // instrumentation showed the span was never lost — the model reported
+    // instrumentation showed the span was never lost ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the model reported
     // span=2x1 and layoutPage assigned rect 320x150 against a 150x150 cell.
     // bindGridNavigation already skips icons that are not focusable or not
     // visible, and it is span-aware, so hiding this one keeps navigation intact.
@@ -4506,7 +4531,7 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
         // with empty slots. Leaving those focusable gave the carousel a run of
         // blank cells past the last game, which is the "last icon" the cycle kept
         // stopping on. They are not offered in this mode.
-        const bool lineMode = m_appLayoutMode == AppLayoutMode::DynamicLine;
+        const bool lineMode = isCarouselLayout();
         icon->setFocusable(!lineMode);
         icon->setVisible(!lineMode);
         auto& i18n = nxui::I18n::instance();
@@ -4522,8 +4547,8 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     // setEntryKind, setWidgetData, setFolderPreviewCount or
     // setBatteryIconTextures: the 1.2 presentation layer was merged in but this
     // factory was left as the fork wrote it. Every folder and widget therefore
-    // took the application path below, which gave them no texture — so the
-    // loading spinner span forever — and an activation that asked the launcher
+    // took the application path below, which gave them no texture ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so the
+    // loading spinner span forever ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â and an activation that asked the launcher
     // to start a title id that is not a title. That is the user picker followed
     // by the whole menu being recreated on page one.
     if (entry.isFolder()) {
@@ -4639,7 +4664,7 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     icon->setAccessibilityHint(entry.isLaunchable()
         ? i18n.tr("accessibility.hints.game_launchable", "A to launch. X for options. Y to move. ZL or ZR to change page.")
         : i18n.tr("accessibility.hints.game_blocked", "A to show why this item is blocked."));
-    // Texture is set by IconStreamer::onPageChanged() — not here.
+    // Texture is set by IconStreamer::onPageChanged() ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â not here.
     icon->setCornerRadius(m_theme.iconCornerRadius);
     icon->setLoadingColor(m_theme.cursorNormal);
     icon->setIsGameCard(entry.isGameCard());
@@ -4995,7 +5020,7 @@ void WiiUMenuApp::buildGrid() {
     // guards against when it compares m_grid->layoutMode() with its argument.
     m_grid->setLayoutMode(m_appLayoutMode);
     // The line is a ring, so the streamer's window has to wrap with it.
-    m_iconStreamer.setRingMode(m_appLayoutMode == AppLayoutMode::DynamicLine);
+    m_iconStreamer.setRingMode(isCarouselLayout());
     m_grid->setup(std::move(icons),
                   std::clamp(m_config.gridColumns, 3, 8),
                   std::clamp(m_config.gridRows, 2, 5),
@@ -5957,8 +5982,8 @@ void WiiUMenuApp::finalizeRefresh() {
     app().gpu().waitIdle();
 
     // The icons about to be replaced are held as raw pointers by both focus
-    // managers, and FocusManager::changeFocusTo calls onFocusLost() — a virtual
-    // — on whatever it thinks is focused. Destroying them without saying so
+    // managers, and FocusManager::changeFocusTo calls onFocusLost() ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a virtual
+    // ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â on whatever it thinks is focused. Destroying them without saying so
     // leaves that call reading a freed vtable, which is what two crash reports
     // from a clean install show: a garbage pointer in x1, then
     // ldr x1,[x1,#40]; blr x1 inside changeFocusTo.
@@ -6011,7 +6036,7 @@ void WiiUMenuApp::finalizeRefresh() {
     // came back as a grid that still drew one row: nothing moved left or right,
     // and leaving the view with Minus and returning was the only way out.
     m_grid->setLayoutMode(m_appLayoutMode);
-    m_iconStreamer.setRingMode(m_appLayoutMode == AppLayoutMode::DynamicLine);
+    m_iconStreamer.setRingMode(isCarouselLayout());
     m_grid->setup(std::move(icons),
                   std::clamp(m_config.gridColumns, 3, 8),
                   std::clamp(m_config.gridRows, 2, 5),
@@ -6407,7 +6432,7 @@ void WiiUMenuApp::onUpdate(float dt) {
     // dynamic line has no pages: wireFocusCallback() loads around the focused
     // icon with a page size of one, and this pump kept asking for page 0 of a
     // full grid page. It therefore only ever scheduled the first fifteen icons,
-    // and everything past them — the homebrew at the end of the line — stayed on
+    // and everything past them ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the homebrew at the end of the line ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â stayed on
     // its loading spinner until the focus callback happened to reach it.
     if (m_plazaScreen && m_plazaScreen->isActive()) {
         // Plaza communities are populated before startup icon decodes finish.
@@ -6420,7 +6445,7 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     if (m_grid && m_deferredInitialAssetFrames == 0
         && !(m_launchAnim && m_launchAnim->isPlaying())) {
-        const bool line = m_appLayoutMode == AppLayoutMode::DynamicLine;
+        const bool line = isCarouselLayout();
         const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
                                   : m_grid->currentPage();
         const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
@@ -6484,7 +6509,7 @@ void WiiUMenuApp::onUpdate(float dt) {
         };
         m_addPageMode = addPageAvailable();
         m_deletePageMode = deletePageAvailable();
-        const bool line = m_appLayoutMode == AppLayoutMode::DynamicLine;
+        const bool line = isCarouselLayout();
         const bool hasLeft = line ? dynamicLineNeighbour(-1) >= 0 : page > 0;
         const bool hasRight = line ? dynamicLineNeighbour(+1) >= 0 : page < total - 1;
         step(m_arrowAnimLeft, (paging && hasLeft) || m_deletePageMode);
@@ -6559,8 +6584,8 @@ void WiiUMenuApp::onUpdate(float dt) {
     }
 
     // The selection ring used to be placed only from onFocusChanged, so any
-    // focus change that landed while the grid was mid-transition — which is
-    // what moving quickly between the top row and the grid produces — left the
+    // focus change that landed while the grid was mid-transition ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â which is
+    // what moving quickly between the top row and the grid produces ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â left the
     // ring hidden or parked on the previous widget while the hint bar already
     // described the new one. SelectionCursor::moveTo ignores a target it is
     // already animating towards, so repairing it every frame costs nothing and
@@ -6636,7 +6661,7 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     // Skip rendering the home scene while the settings overlay is settled.
     // The A/B probe measured it: with the occluded scene rendered the frame
-    // costs ~31ms of GPU; with it hidden, ~14-15ms — inside the 16.7ms
+    // costs ~31ms of GPU; with it hidden, ~14-15ms ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â inside the 16.7ms
     // budget. The scene under the panel was ~16ms a frame spent on pixels
     // the panel covers. The glass widgets sample the held offscreen capture,
     // not the live framebuffer, so their appearance does not change, and the
@@ -6707,7 +6732,7 @@ void WiiUMenuApp::onUpdate(float dt) {
         const float avgMs = (m_perfAccumDt / m_perfFrames) * 1000.f;
         const auto& gpu = app().gpu();
         // Operation and performance mode. After exiting DBI the menu renders
-        // an unchanged workload — same 90 draws, same 17448 vertices — at
+        // an unchanged workload ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â same 90 draws, same 17448 vertices ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â at
         // gpu=65ms instead of the usual 0-15ms, which is the GPU running at a
         // fraction of its clock. Nothing in this project manages the
         // performance configuration; the real qlaunch does, and this daemon
@@ -7072,7 +7097,7 @@ void WiiUMenuApp::onUpdate(float dt) {
     // single press is still a single step, and quickening once it is clearly
     // being held. The d-pad is deliberately left to the engine's own repeat so a
     // held direction cannot be stepped twice.
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine && !lockScreenUp && !m_editMode
+    if (isCarouselLayout() && !lockScreenUp && !m_editMode
         && m_navigator.route() == switchu::navigation::Route::Home
         && focusRoot() == &rootBox()) {
         const bool holdLeft = app().input().isHeld(nxui::Button::ZL);
@@ -7570,7 +7595,7 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
             // row rearranged itself around the cursor for no gain. Advertising
             // a button that now does nothing there would be worse than not
             // having it.
-            if (m_openFolderId == 0 && m_appLayoutMode != AppLayoutMode::DynamicLine)
+            if (m_openFolderId == 0 && !isCarouselLayout())
                 add(buttonGlyph(nxui::Button::R), sortModeLabel());
 #ifdef SWITCHU_MENU
             if (entry && entry->isApplication())
@@ -7905,9 +7930,9 @@ bool WiiUMenuApp::pagingAvailable() {
     if (m_navigator.route() != switchu::navigation::Route::Home
         || focusRoot() != &rootBox() || !m_grid)
         return false;
-    // The dynamic line has no pages; ZL/ZR step it one icon at a time, so the
-    // arrows are offered whenever there is a neighbour to step to.
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
+    // Neither carousel view has pages; ZL/ZR step them one icon at a time, so
+    // the arrows are offered whenever there is a neighbour to step to.
+    if (isCarouselLayout())
         return dynamicLineNeighbour(-1) >= 0 || dynamicLineNeighbour(+1) >= 0;
     return m_grid->totalPages() > 1;
 }
@@ -7947,8 +7972,7 @@ bool WiiUMenuApp::stepDynamicLine(int dir) {
 }
 
 nxui::Rect WiiUMenuApp::pageArrowRect(bool left) {
-    const float inset = m_appLayoutMode == AppLayoutMode::DynamicLine
-        ? kLineArrowInset : kPageArrowInset;
+    const float inset = isCarouselLayout() ? kLineArrowInset : kPageArrowInset;
     const float cx = left ? inset : 1280.f - inset;
     const float cy = m_arrowCenterY.value();
     return {cx - kPageArrowW * 0.5f, cy - kPageArrowH * 0.5f,
@@ -7960,7 +7984,7 @@ void WiiUMenuApp::kickPageArrow(int dir) {
 }
 
 bool WiiUMenuApp::addPageAvailable() {
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
+    if (isCarouselLayout())
         return false;
     if (!m_grid || m_editMode)
         return false;
@@ -8163,7 +8187,7 @@ void WiiUMenuApp::deleteHomePage() {
 bool WiiUMenuApp::flipPage(int dir) {
     if (!m_grid || m_grid->isTransitioning())
         return false;
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
+    if (isCarouselLayout())
         return stepDynamicLine(dir);
     const int page = m_grid->currentPage() + dir;
     if (page < 0 || page >= m_grid->totalPages())
@@ -8277,7 +8301,7 @@ void WiiUMenuApp::onRender(nxui::Renderer& ren) {
             // and leaves its result in OFF_SHARP_A. Copying target 0 into 2
             // therefore published the half-res scene capture, never the blurred
             // frame, and FolderBackdrop drew that quarter-sized image stretched
-            // across the full 1280x720 — the doubled, smeared frame seen when a
+            // across the full 1280x720 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the doubled, smeared frame seen when a
             // folder opened. Capture sharp, blur it, publish the blurred one.
             ren.captureToOffscreenSharp();
             ren.applyBlur(4.f, 2);

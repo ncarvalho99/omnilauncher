@@ -27,6 +27,7 @@
       "right_sidebar": "Right sidebar",
       "user_profiles": "User profiles",
       "dynamic_line": "Center line",
+      "flow": "Cover flow",
       "menu": "Context menu"
     },
     "roles": {
@@ -93,6 +94,7 @@
     "user_profile": "User profile",
     "layout": {
       "dynamic_line": "Dynamic line mode",
+      "flow": "Flow mode",
       "grid": "Grid mode"
     }
   },

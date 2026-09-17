@@ -142,7 +142,7 @@ std::string WiiUMenuApp::accessibilityActionsFor(nxui::Widget* w) const {
     if (m_gameMods && w == m_gameMods.get())
         return i18n.tr("dialog.mods_hint", "A enable/disable. X remove. B back.");
     if (m_gameCheats && w == m_gameCheats.get())
-        return i18n.tr("dialog.cheats_hint", "A toggle  •  X toggle all  •  B back");
+        return i18n.tr("dialog.cheats_hint", "A toggle  â€¢  X toggle all  â€¢  B back");
     if (m_gameDetails && w == m_gameDetails.get())
         return i18n.tr("dialog.details_actions", "Left and right to select gameplay art. A to expand. B to return.");
     if ((m_dialog && w == m_dialog.get()) || (m_userSelect && w == m_userSelect.get()))
@@ -689,9 +689,9 @@ bool WiiUMenuApp::focusTitle(uint64_t titleId) {
 
 // Leva o seletor de volta para a grade, seja qual for o jogo.
 //
-// HOME traz o menu para a frente e o seletor tem de vir junto. Quando não há
-// jogo suspenso, focusTitle não tem o que procurar e devolve false, e até aqui
-// isso deixava o cursor parado no botão da barra lateral que abriu a tela --
+// HOME traz o menu para a frente e o seletor tem de vir junto. Quando nÃ£o hÃ¡
+// jogo suspenso, focusTitle nÃ£o tem o que procurar e devolve false, e atÃ© aqui
+// isso deixava o cursor parado no botÃ£o da barra lateral que abriu a tela --
 // com o nome do jogo escrito embaixo, apontando para outra coisa. Era esse
 // desencontro que aparecia no relato.
 #endif
@@ -702,7 +702,7 @@ bool WiiUMenuApp::focusGridSelection() {
 
     nxui::Widget* target = m_grid->focusManager().current();
     if (!target) {
-        // Sem nada lembrado, o primeiro ícone da página aberta serve.
+        // Sem nada lembrado, o primeiro Ã­cone da pÃ¡gina aberta serve.
         const int first = m_grid->currentPage() * m_grid->iconsPerPage();
         if (!m_grid->focusGlobalIndex(first))
             return false;
@@ -896,7 +896,8 @@ void WiiUMenuApp::handleSortShortcutRelease(float dt) {
     // the same slots rearranged the row around the cursor and left the icons it
     // moved reloading. Order in that view is the arrangement the owner built,
     // and R has nothing to offer it.
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine)
+    if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
+        m_appLayoutMode == AppLayoutMode::Flow)
         return;
     // Taking a title out of a folder briefly lived here, and moved to X so that
     // one button does both halves of the same job. R stays inert inside a
@@ -1702,7 +1703,7 @@ void WiiUMenuApp::handleSystemAction(SysAction a) {
 
             markSuspendedIcon(m_launcher.suspendedTitleId());
             closeActiveOverlays();
-            // Sem jogo suspenso não há título para procurar, e antes o seletor
+            // Sem jogo suspenso nÃ£o hÃ¡ tÃ­tulo para procurar, e antes o seletor
             // simplesmente ficava onde estava -- na barra lateral.
             if (!focusTitle(m_launcher.suspendedTitleId()))
                 focusGridSelection();

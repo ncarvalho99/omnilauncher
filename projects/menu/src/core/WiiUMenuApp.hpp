@@ -454,6 +454,14 @@ private:
     void setAppLayoutMode(AppLayoutMode mode);
     void configureDynamicLineNavigation();
     AppLayoutMode appLayoutMode() const { return m_appLayoutMode; }
+    // DynamicLine and Flow are two presentations of one carousel model: a
+    // single wrapping row, ring icon streaming, no paging, and reordering by
+    // visible row order. Behaviour common to both must test this rather than
+    // DynamicLine alone.
+    bool isCarouselLayout() const {
+        return m_appLayoutMode == AppLayoutMode::DynamicLine
+            || m_appLayoutMode == AppLayoutMode::Flow;
+    }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }
     warawara::PlazaDialogueEngine& plazaDialogueEngine() { return m_plazaDialogueEngine; }

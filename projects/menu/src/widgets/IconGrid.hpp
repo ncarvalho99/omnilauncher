@@ -26,6 +26,16 @@ public:
     void setLayoutMode(AppLayoutMode mode);
     AppLayoutMode layoutMode() const { return m_layoutMode; }
     bool isDynamicLine() const { return m_layoutMode == AppLayoutMode::DynamicLine; }
+    bool isFlow() const { return m_layoutMode == AppLayoutMode::Flow; }
+    // Both carousel views share one model: a single wrapping row driven by
+    // m_lineScrollOffset, with the same focus bindings and the same per-item
+    // rects. They differ only in how that row is drawn. Layout, navigation,
+    // hit-testing, paging and animation must therefore test this rather than
+    // DynamicLine alone, or Flow silently falls back to paged-grid behaviour.
+    bool isCarousel() const {
+        return m_layoutMode == AppLayoutMode::DynamicLine
+            || m_layoutMode == AppLayoutMode::Flow;
+    }
     bool isDynamicLineScrolling() const;
     void setDynamicLineUpTarget(nxui::Widget* target);
     // Where UP goes from the top row of the paged grid. Only the sides had a
@@ -80,6 +90,21 @@ private:
     void positionPage(int page, float dx);
     void renderPageAt(nxui::Renderer& ren, int page, float dx);
     void renderDynamicLine(nxui::Renderer& ren);
+
+    // Flow: a 3D coverflow row drawn with nxui's drawQuad3D primitive.
+    //
+    // Focus, navigation and activation are the carousel's: Flow reuses
+    // layoutLine()'s LEFT/RIGHT wrap bindings and the same GlossyIcon
+    // callbacks, so it is a presentation layer over the identical model and
+    // adds no lifecycle path of its own. Only the drawing differs.
+    void renderFlow(nxui::Renderer& ren);
+    // Places one case by its signed distance from the row centre, saturating at
+    // one item out. That saturation is what gives coverflow a single upright
+    // face against a receding wall rather than a smooth arc.
+    static void flowPlace(float p, float& x, float& z, float& angle);
+    // Corners of a case at (x, z) swung by angle, ordered TL, TR, BR, BL.
+    static void flowCorners(float x, float z, float angle,
+                            float halfW, float halfH, nxui::Vec3 out[4]);
     void bindEdgeActions(int start, int end);
     void bindGridNavigation(int start, int end);
     nxui::Rect dynamicIconRect(int index, float* outScale = nullptr,
@@ -99,6 +124,19 @@ private:
         nxui::Rect rect;
     };
     mutable std::vector<RenderCandidate> m_lineRenderScratch;
+
+    // Flow render scratch: the visible virtual range, ordered outside-in. There
+    // is no depth buffer, so this ordering is the only depth information the
+    // painter has.
+    struct FlowCandidate {
+        int   index;      // folded index into m_allIcons
+        float p;          // signed distance from the row centre, in items
+        float z;          // depth after placement, for the outside-in sort
+    };
+    mutable std::vector<FlowCandidate> m_flowRenderScratch;
+    // Wall-clock seconds, sampled once per frame so every case in the row is
+    // placed against the same instant.
+    float m_flowClock = 0.f;
 
     // Inputs the carousel layout was last computed against. Used to skip the
     // full-library rect rebuild while the line is at rest.

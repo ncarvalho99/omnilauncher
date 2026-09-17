@@ -27,6 +27,7 @@
       "right_sidebar": "Rechte Seitenleiste",
       "user_profiles": "Benutzerprofile",
       "dynamic_line": "Mittellinie",
+      "flow": "Cover-Fluss",
       "menu": "Kontextmenü"
     },
     "roles": {
@@ -93,6 +94,7 @@
     "user_profile": "Benutzerprofil",
     "layout": {
       "dynamic_line": "Dynamischer Linienmodus",
+      "flow": "Flussmodus",
       "grid": "Rastermodus"
     }
   },

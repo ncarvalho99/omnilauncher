@@ -27,6 +27,7 @@
       "right_sidebar": "Barre latérale droite",
       "user_profiles": "Profils utilisateur",
       "dynamic_line": "Ligne centrale",
+      "flow": "Flux de jaquettes",
       "menu": "Menu contextuel"
     },
     "roles": {
@@ -93,6 +94,7 @@
     "user_profile": "Profil utilisateur",
     "layout": {
       "dynamic_line": "Mode ligne dynamique",
+      "flow": "Mode flux",
       "grid": "Mode grille"
     }
   },

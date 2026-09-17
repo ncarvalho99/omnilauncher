@@ -870,7 +870,7 @@ void WiiUMenuApp::syncSteamGridDb() {
                 // forceReload releases the pool texture used by the panel header;
                 // detach it first so the overlay never renders a stale pointer.
                 if (m_gameOptions) m_gameOptions->setGameIcon(nullptr);
-                const bool line = m_appLayoutMode == AppLayoutMode::DynamicLine;
+                const bool line = isCarouselLayout();
                 const int page = line ? std::max(0, m_grid->focusedGlobalIndex())
                                       : m_grid->currentPage();
                 const int perPage = line ? 1 : m_grid->iconsPerPage();

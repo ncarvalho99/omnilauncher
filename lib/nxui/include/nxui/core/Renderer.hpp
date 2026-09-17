@@ -271,9 +271,9 @@ public:
     // `corners` is ordered top-left, top-right, bottom-right, bottom-left.
     // A null `tex` fills with flat colour. `strips` is the horizontal
     // subdivision, clamped to [1, 32]; the vertical subdivision is chosen from
-    // how much the quad's depth actually varies. `alphaTop`/`alphaBottom`
-    // multiply the tint's alpha to give a vertical gradient, which is what
-    // draws a reflection. `flipV` mirrors the texture vertically. `uv`, when
+    // how much the quad's depth actually varies. `alphaTop`/`alphaBottom` are
+    // the final per-vertex alpha endpoints (the tint supplies RGB), which is
+    // what draws a reflection. `flipV` mirrors the texture vertically. `uv`, when
     // given, is the {u0, v0, u1, v1} sub-rect to sample.
     void drawQuad3D(const Texture* tex, const Vec3 corners[4], const Color& tint,
                     float alphaTop = 1.f, float alphaBottom = 1.f,
@@ -517,6 +517,10 @@ private:
     // SDL2 backend: textures tracked by slot for binding.
     std::vector<SDL_Texture*> m_texSlots;
     SDL_Texture* m_boundTex = nullptr;
+    // All SDL geometry texture-state transitions go through this helper. A
+    // pending batch has exactly one texture, so changing state without flushing
+    // retroactively changes how every queued vertex is submitted.
+    void setSdlGeometryTexture(SDL_Texture* texture);
 
     // 1x1 opaque white fallback for flat-colour geometry. SDL documents that
     // SDL_RenderGeometry accepts a null texture, but not every backend actually

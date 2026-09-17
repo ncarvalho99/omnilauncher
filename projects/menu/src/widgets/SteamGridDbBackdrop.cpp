@@ -295,6 +295,10 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
         }
     }
 
+    // Only the dynamic line leaves open space above the row for the hero logo
+    // and its caption. Flow fills the middle of the screen with 3D cases and
+    // draws its own reflections there, so the backdrop stays minimal for it and
+    // does not paint over the row.
     if (m_layoutMode != AppLayoutMode::DynamicLine) return;
 
     if (set.hasLogo && set.logo.valid()) {

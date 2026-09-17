@@ -48,6 +48,9 @@ std::string WiiUMenuApp::accessibilityContextFor(nxui::Widget* w) const {
         if (m_appLayoutMode == AppLayoutMode::DynamicLine)
             return i18n.tr("accessibility.context.main_menu", "Main menu")
                  + ", " + i18n.tr("accessibility.context.dynamic_line", "Center line");
+        if (m_appLayoutMode == AppLayoutMode::Flow)
+            return i18n.tr("accessibility.context.main_menu", "Main menu")
+                 + ", " + i18n.tr("accessibility.context.flow", "Cover flow");
         return i18n.tr("accessibility.context.main_menu", "Main menu")
              + ", " + i18n.tr("accessibility.context.page", "page") + " "
              + std::to_string(m_grid->currentPage() + 1)
@@ -113,9 +116,15 @@ std::string WiiUMenuApp::accessibilityPositionFor(nxui::Widget* w) const {
     if (w->tag() == "glossy_icon" && m_grid) {
         const int global = m_grid->focusedGlobalIndex();
         if (global >= 0) {
-            if (m_appLayoutMode == AppLayoutMode::DynamicLine) {
+            // Both carousel views are one wrapping row, so position is reported
+            // as "item N of M" rather than as a grid coordinate.
+            if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
+                m_appLayoutMode == AppLayoutMode::Flow) {
                 const int total = (int)m_grid->allIcons().size();
-                return i18n.tr("accessibility.context.dynamic_line", "Center line") + ", "
+                const std::string view = (m_appLayoutMode == AppLayoutMode::Flow)
+                    ? i18n.tr("accessibility.context.flow", "Cover flow")
+                    : i18n.tr("accessibility.context.dynamic_line", "Center line");
+                return view + ", "
                      + i18n.tr("accessibility.position.item", "item") + " " + std::to_string(global + 1)
                      + " " + i18n.tr("accessibility.context.of", "of") + " " + std::to_string(total);
             }
@@ -444,7 +453,10 @@ bool WiiUMenuApp::commitEditModePlacement() {
     bool changed = (from != target);
     DebugLog::log("[edit] commit from=%d target=%d changed=%d", from, target,
                   changed ? 1 : 0);
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine) {
+    // Reordering in either carousel view works on the visible single-row order,
+    // not on grid slots.
+    if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
+        m_appLayoutMode == AppLayoutMode::Flow) {
         if (!changed)
             return true;
 
@@ -874,7 +886,11 @@ void WiiUMenuApp::wireFocusCallback() {
         if (cur && cur->tag() == "glossy_icon") {
             m_grid->focusManager().setFocus(cur);
             auto* icon = static_cast<GlossyIcon*>(cur);
-            if (m_appLayoutMode == AppLayoutMode::DynamicLine) {
+            // Both carousel views stream around the focused index rather than
+            // by page, so Flow must drive the streamer the same way or its row
+            // scrolls into titles whose icons were never requested.
+            if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
+                m_appLayoutMode == AppLayoutMode::Flow) {
                 const int focusedIndex = m_grid->focusedGlobalIndex();
                 if (focusedIndex >= 0) {
                     m_iconStreamer.onPageChanged(focusedIndex, 1,

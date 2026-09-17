@@ -105,13 +105,20 @@ void Renderer::flush() {
     m_vtxBatchStart = m_vtxCount;
 }
 
+void Renderer::setSdlGeometryTexture(SDL_Texture* texture) {
+    const bool nextTexturing = texture != nullptr;
+    if (texture == m_boundTex && nextTexturing == m_texturing)
+        return;
+    flush();
+    m_boundTex = texture;
+    m_texturing = nextTexturing;
+}
+
 void Renderer::bindTexture(int slot) {
     (void)slot;
-    // For SDL2 we bind the actual SDL_Texture* during drawTexture calls.
+    // For SDL2 we bind the actual SDL_Texture* during geometry draws.
     if (slot < 0) {
-        if (m_texturing) flush();
-        m_texturing = false;
-        m_boundTex = nullptr;
+        setSdlGeometryTexture(nullptr);
         m_curTexSlot = -1;
     }
 }
@@ -208,8 +215,7 @@ void Renderer::addQuadGrad(float x0, float y0, float x1, float y1,
 }
 
 void Renderer::drawRect(const Rect& r, const Color& c) {
-    m_texturing = false;
-    m_boundTex = nullptr;
+    setSdlGeometryTexture(nullptr);
     addQuad(r.x, r.y, r.right(), r.bottom(), 0, 0, 1, 1, c);
 }
 
@@ -221,8 +227,7 @@ void Renderer::drawRectOutline(const Rect& r, const Color& c, float t) {
 }
 
 void Renderer::drawGradientRect(const Rect& r, const Color& top, const Color& bottom) {
-    m_texturing = false;
-    m_boundTex = nullptr;
+    setSdlGeometryTexture(nullptr);
     addQuadGrad(r.x, r.y, r.right(), r.bottom(), 0, 0, 1, 1, top, bottom);
 }
 

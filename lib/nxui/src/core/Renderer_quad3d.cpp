@@ -15,6 +15,9 @@
 #include <nxui/core/Texture.hpp>
 #include <algorithm>
 #include <cmath>
+#ifdef NXUI_BACKEND_SDL2
+#include <SDL2/SDL.h>
+#endif
 
 namespace nxui {
 
@@ -152,18 +155,21 @@ void Renderer::drawQuad3D(const Texture* tex, const Vec3 corners[4], const Color
     bindTexture((tex && tex->valid()) ? tex->descriptorSlot() : -1);
 #else
     SDL_Texture* nextTexture = (tex && tex->valid()) ? tex->sdlTexture() : nullptr;
-    if (nextTexture != m_boundTex || (nextTexture != nullptr) != m_texturing) {
-        flush();
-        m_boundTex = nextTexture;
-        m_texturing = (nextTexture != nullptr);
+    setSdlGeometryTexture(nextTexture);
+    if (nextTexture) {
+        // drawTexture/drawTextureSub use persistent SDL texture modulation.
+        // Geometry already carries its tint and alpha per vertex, so stale
+        // modulation here would multiply both a second time.
+        SDL_SetTextureColorMod(nextTexture, 255, 255, 255);
+        SDL_SetTextureAlphaMod(nextTexture, 255);
     }
 #endif
 
-    // The alpha gradient is applied to the tint rather than replacing it, so a
-    // caller that already faded a surface keeps that fade. (Reflections pass
-    // alphaBottom = 0 to sink into the floor.)
-    const float aTop = std::clamp(tint.a * alphaTop, 0.f, 1.f);
-    const float aBot = std::clamp(tint.a * alphaBottom, 0.f, 1.f);
+    // Alpha endpoints are final per-vertex values, matching the primitive's
+    // reference contract. RGB comes from tint; reflections pass a low top alpha
+    // and zero at the bottom to sink into the floor.
+    const float aTop = std::clamp(alphaTop, 0.f, 1.f);
+    const float aBot = std::clamp(alphaBottom, 0.f, 1.f);
 
     auto emit = [&](const Vec3& p, float u, float vtex, float a) {
         Vec2 projected;

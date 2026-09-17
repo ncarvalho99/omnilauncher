@@ -18,7 +18,86 @@ float clamp01(float v) {
     return std::clamp(v, 0.f, 1.f);
 }
 
+// ---- Flow tuning -----------------------------------------------------------
+//
+// World units where a case is one unit tall; nxui's focal length turns those
+// into pixels. A Switch case is roughly 2:3, so it is taller than it is wide -
+// a square extent is what makes a coverflow row read as rotated icons instead
+// of boxes on a shelf.
+constexpr float kFlowHalfH   = 0.50f;   // half-height
+constexpr float kFlowHalfW   = 0.34f;   // half-width (2:3 of the height)
+constexpr float kFlowDepth   = 0.030f;  // half-thickness of the case
+constexpr float kFlowY       = 0.12f;   // row lifted a little off centre
+
+// Spacing must clear the case's *on-screen* width, which depends on the swing:
+// at 34 degrees a case covers 2*halfW*cos(34) = 0.561 world units. Lowering the
+// angle without raising the spacing is what makes covers touch.
+constexpr float kFlowSpacing  = 0.70f;  // centre-to-centre along the row
+constexpr float kFlowSideStep = 0.14f;  // extra shove away from centre
+constexpr float kFlowZBase    = 2.35f;  // centre case distance
+constexpr float kFlowZBack    = 0.38f;  // how far the sides recede
+constexpr float kFlowAngle    = 0.60f;  // max swing, radians (~34 deg)
+
+// Past the first neighbour each case recedes further and turns a little more
+// edge-on. Depth alone cannot express this: it shrinks on-screen spacing faster
+// than it shrinks the cases, so any recession strong enough to see closes the
+// gaps. The extra turn narrows them, buying back the spacing recession costs.
+constexpr float kFlowZStep = 0.30f;
+constexpr float kFlowAStep = 0.10f;
+
+constexpr int   kFlowVisible = 6;       // cases drawn either side of centre
+constexpr float kFlowRunSpin = 0.62f;   // rad/s idle turn for the running title
+
+// Subdivision per surface. Flat artwork full of straight edges shows the
+// affine sawtooth worst, so the printed front gets the most.
+constexpr int kFlowStripsSide  = 4;
+constexpr int kFlowStripsFront = 12;
+constexpr int kFlowStripsRefl  = 4;
+
+// Reflection gradient. Mirrored about each case's own bottom edge.
+constexpr float kFlowReflTop = 0.27f;   // ~70/255
+
+int flowWrap(int i, int n) {
+    if (n <= 0) return 0;
+    i %= n;
+    return (i < 0) ? i + n : i;
+}
+
+float flowMidZ(const nxui::Vec3 q[4]) {
+    return 0.25f * (q[0].z + q[1].z + q[2].z + q[3].z);
+}
+
 } // namespace
+
+void IconGrid::flowPlace(float p, float& x, float& z, float& angle) {
+    const float t = std::clamp(p, -1.f, 1.f);
+    angle = -t * kFlowAngle;
+    x     = p * kFlowSpacing + t * kFlowSideStep;
+
+    // The swing and the initial fall-back saturate one item out; depth keeps
+    // creeping beyond that, so the wall recedes instead of sitting flat.
+    const float beyond = std::max(0.f, std::abs(p) - 1.f);
+    z = kFlowZBase + std::abs(t) * kFlowZBack + beyond * kFlowZStep;
+    if (beyond > 0.f)
+        angle += (t < 0.f ? 1.f : -1.f) * beyond * kFlowAStep;
+}
+
+void IconGrid::flowCorners(float x, float z, float angle,
+                           float halfW, float halfH, nxui::Vec3 out[4]) {
+    const float ca = std::cos(angle);
+    const float sa = std::sin(angle);
+    // Rotation about the case's vertical axis: the horizontal extent swings in
+    // x and z, the vertical extent does not move. z' = z-localX*sin(angle), so
+    // the sides turn toward the centre rather than away from it.
+    const float dx = halfW * ca;
+    const float dz = halfW * sa;
+    const float top = kFlowY + halfH;
+    const float bot = kFlowY - halfH;
+    out[0] = {x - dx, top, z + dz};   // TL
+    out[1] = {x + dx, top, z - dz};   // TR
+    out[2] = {x + dx, bot, z - dz};   // BR
+    out[3] = {x - dx, bot, z + dz};   // BL
+}
 
 void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
                      int cols, int rows,
@@ -35,7 +114,10 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
     int cur = focusedGlobalIndex();
     m_layoutReveal.setImmediate(0.86f);
     m_layoutReveal.set(1.f, 0.24f, nxui::Easing::outCubic);
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    // Flow shares the carousel's model, focus bindings and scroll offset: it is
+    // a different presentation of the same row, so switching between the two
+    // keeps your place on the same title without re-deriving anything.
+    if (isCarousel()) {
         m_lineScrollOffset.setImmediate(cur >= 0 ? static_cast<float>(cur) : 0.f);
         layoutLine();
     } else {
@@ -48,13 +130,13 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
 }
 
 bool IconGrid::isDynamicLineScrolling() const {
-    return m_layoutMode == AppLayoutMode::DynamicLine
+    return isCarousel()
         && std::abs(m_lineScrollOffset.value() - m_lineScrollOffset.target()) > 0.01f;
 }
 
 void IconGrid::setDynamicLineUpTarget(nxui::Widget* target) {
     m_lineUpTarget = target;
-    if (m_layoutMode != AppLayoutMode::DynamicLine)
+    if (!isCarousel())
         return;
     for (auto& icon : m_allIcons) {
         if (icon)
@@ -64,7 +146,7 @@ void IconGrid::setDynamicLineUpTarget(nxui::Widget* target) {
 
 void IconGrid::setDynamicLineDownTarget(nxui::Widget* target) {
     m_lineDownTarget = target;
-    if (m_layoutMode != AppLayoutMode::DynamicLine)
+    if (!isCarousel())
         return;
     for (auto& icon : m_allIcons) {
         if (icon)
@@ -88,7 +170,7 @@ void IconGrid::reconfigureLayout(int cols, int rows,
     m_originX = (m_rect.width  - gridW) * 0.5f + m_rect.x;
     m_originY = (m_rect.height - gridH) * 0.5f + m_rect.y;
 
-    if (m_layoutMode == AppLayoutMode::DynamicLine)
+    if (isCarousel())
         layoutLine();
     else
         setPage(m_page);
@@ -233,7 +315,7 @@ nxui::Rect IconGrid::gridSpanRect(int globalIndex, int columns, int rows) const 
     // The single-row carousel has its own fixed metrics and animation. Edit
     // ghosts/cursors must follow that displayed rect instead of reconstructing
     // a cell from the configurable grid dimensions.
-    if (m_layoutMode == AppLayoutMode::DynamicLine)
+    if (isCarousel())
         return dynamicIconRect(globalIndex);
     const int local = globalIndex % std::max(1, iconsPerPage());
     const int column = local % std::max(1, m_cols);
@@ -456,7 +538,7 @@ nxui::Rect IconGrid::dynamicIconRect(int index, float* outScale,
 }
 
 nxui::Rect IconGrid::focusedDisplayRect() const {
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    if (isCarousel()) {
         const int focused = focusedGlobalIndex();
         if (focused >= 0)
             return dynamicIconRect(focused);
@@ -472,7 +554,7 @@ bool IconGrid::focusGlobalIndex(int idx) {
     if (!m_allIcons[idx] || !m_allIcons[idx]->isFocusable())
         return false;
 
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    if (isCarousel()) {
         m_focus.setFocus(m_allIcons[idx].get());
         // Target the congruent value nearest the current offset, so a wrap moves
         // one step rather than scrolling the length of the line. The offset is
@@ -503,7 +585,7 @@ bool IconGrid::swapSlots(int a, int b) {
         return true;
 
     std::swap(m_allIcons[a], m_allIcons[b]);
-    if (m_layoutMode == AppLayoutMode::DynamicLine)
+    if (isCarousel())
         layoutLine();
     else
         layoutPage();
@@ -512,7 +594,7 @@ bool IconGrid::swapSlots(int a, int b) {
 
 std::vector<GlossyIcon*> IconGrid::pageIcons() const {
     std::vector<GlossyIcon*> out;
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    if (isCarousel()) {
         int cur = focusedGlobalIndex();
         int center = cur >= 0 ? cur : 0;
         int start = std::max(0, center - 4);
@@ -528,6 +610,13 @@ std::vector<GlossyIcon*> IconGrid::pageIcons() const {
 }
 
 int IconGrid::hitTest(float screenX, float screenY) const {
+    // Flow draws projected 3D cases, so a flat carousel rect does not describe
+    // where anything actually appears. Returning -1 makes touch a no-op here
+    // rather than activating the wrong title; projected-quad hit-testing is a
+    // later milestone. D-pad navigation is unaffected.
+    if (m_layoutMode == AppLayoutMode::Flow)
+        return -1;
+
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
             nxui::Rect r = dynamicIconRect(i);
@@ -547,7 +636,7 @@ int IconGrid::hitTest(float screenX, float screenY) const {
 }
 
 void IconGrid::startAppearAnimation() {
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    if (isCarousel()) {
         int cur = focusedGlobalIndex();
         int center = cur >= 0 ? cur : 0;
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
@@ -571,7 +660,7 @@ void IconGrid::startAppearAnimation() {
 }
 
 void IconGrid::startPageTransition(int targetPage) {
-    if (m_layoutMode == AppLayoutMode::DynamicLine) return;
+    if (isCarousel()) return;   // neither carousel view pages
 
     targetPage = std::clamp(targetPage, 0, m_totalPages - 1);
     if (targetPage == m_page) return;
@@ -646,7 +735,14 @@ void IconGrid::startWaveTransition(int targetPage) {
 
 void IconGrid::onUpdate(float dt) {
     m_layoutReveal.update(dt);
-    if (m_layoutMode == AppLayoutMode::DynamicLine) {
+    if (isCarousel()) {
+        // Sampled once per frame so every case in the Flow row is placed
+        // against the same instant. Wraps harmlessly; only its fractional
+        // progression matters to the idle turn.
+        if (m_layoutMode == AppLayoutMode::Flow) {
+            m_flowClock += dt;
+            if (m_flowClock > 3600.f) m_flowClock -= 3600.f;
+        }
         m_lineScrollOffset.update(dt);
         int cur = focusedGlobalIndex();
         if (cur >= 0 &&
@@ -674,6 +770,10 @@ void IconGrid::onUpdate(float dt) {
             || std::abs(m_lineLayoutCacheRect.height - m_rect.height) > 0.0001f;
 
         if (layoutDirty) {
+            // Flow positions its cases in world space at draw time and never
+            // reads these rects, but they are kept in sync anyway: the edit
+            // cursor, focus ring and accessibility all query focusedDisplayRect
+            // through the same carousel path.
             for (int i = 0; i < (int)m_allIcons.size(); ++i) {
                 m_allIcons[i]->setRect(dynamicIconRect(i));
             }
@@ -764,6 +864,189 @@ void IconGrid::renderDynamicLine(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+void IconGrid::renderFlow(nxui::Renderer& ren) {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return;
+
+    ren.pushClipRect(m_rect);
+
+    const int focusedIndex = focusedGlobalIndex();
+    const float scroll = m_lineScrollOffset.value();
+
+    // The drawn range is virtual: it may run below zero or past the end, and is
+    // folded to a real item only when its content is needed. That keeps the row
+    // continuous across a wrap.
+    const int centre = (int)std::lround(scroll);
+
+    auto& order = m_flowRenderScratch;
+    order.clear();
+    order.reserve((size_t)kFlowVisible * 2 + 1);
+    for (int i = centre - kFlowVisible; i <= centre + kFlowVisible; ++i) {
+        const float p = (float)i - scroll;
+        float fx, fz, fang;
+        flowPlace(p, fx, fz, fang);
+        order.push_back({flowWrap(i, n), p, fz});
+    }
+
+    // Outside-in. There is no depth buffer, so draw order is the only depth
+    // information there is: the centre case is nearest and must land last.
+    std::sort(order.begin(), order.end(), [](const FlowCandidate& a, const FlowCandidate& b) {
+        return a.z > b.z;
+    });
+
+    const float reveal = clamp01(m_layoutReveal.value());
+
+    for (const auto& c : order) {
+        auto& icon = m_allIcons[(size_t)c.index];
+        if (!icon) continue;
+
+        float fx, fz, fang;
+        flowPlace(c.p, fx, fz, fang);
+
+        const bool isSel = (c.index == focusedIndex);
+
+        // The running title turns slowly on its own so it can be picked out of
+        // the row at a glance. Added on top of any other rotation.
+        if (icon->isSuspended())
+            fang += m_flowClock * kFlowRunSpin;
+
+        const float halfW = kFlowHalfW;
+        const float halfH = kFlowHalfH;
+        const float depth = kFlowDepth;
+
+        nxui::Vec3 front[4];
+        flowCorners(fx, fz, fang, halfW, halfH, front);
+
+        // Thickness offset, pushed AWAY from the camera.
+        //
+        // The printed face spans TL->TR = (cos, 0, -sin) and TL->BL straight
+        // down, so its outward normal is (-sin, 0, -cos): at angle 0 that is
+        // (0, 0, -1), pointing back at the eye, which is what makes the front
+        // the face you see. The body of the case extends along the negation of
+        // that normal. Offsetting the other way puts the back panel nearer than
+        // the artwork, and the depth sort below paints the plain back over it.
+        const float ca = std::cos(fang), sa = std::sin(fang);
+        const float thickX = sa * depth * 2.f;
+        const float thickZ = ca * depth * 2.f;
+
+        // The back face is the front pushed through that thickness, with its
+        // corners swapped left for right so the panel is not mirrored.
+        nxui::Vec3 back[4];
+        for (int k = 0; k < 4; ++k) {
+            const int j = (k == 0) ? 1 : (k == 1) ? 0 : (k == 2) ? 3 : 2;
+            back[k] = {front[j].x + thickX, front[j].y, front[j].z + thickZ};
+        }
+
+        // Proximity lighting. This is a large part of why the centre case reads
+        // as selected. Side faces are lit independently of the printed front:
+        // they are grey plastic and have nothing to do with the artwork.
+        //
+        // The selected case additionally lifts above the saturated proximity
+        // value, so the centre item stays distinguishable from its immediate
+        // neighbours once the row has settled and both are at prox ~1.
+        const float prox = std::max(0.f, 1.f - std::abs(c.p));
+        // Selected art gets a small additive lift, clamped before the float is
+        // converted to uint8_t by SDL2. Without the clamp 1.07*255 narrows to a
+        // dark byte on that backend instead of saturating to white.
+        const float selectedLift = isSel ? 0.08f : 0.f;
+        const float lit      = std::clamp((150.f + 105.f * prox) / 255.f
+                                          + selectedLift, 0.f, 1.f);
+        const float blankLit = std::clamp((18.f + 14.f * prox) / 255.f
+                                          + selectedLift * 0.25f, 0.f, 1.f);
+        const float sideLit  = std::clamp((70.f + 60.f * prox) / 255.f
+                                          + selectedLift * 0.35f, 0.f, 1.f);
+
+        const float alpha = m_opacity * icon->opacity() * reveal;
+        if (alpha <= 0.f) continue;
+
+        const nxui::Color artTint {lit, lit, lit, alpha};
+        const nxui::Color blankCol{blankLit, blankLit, blankLit, alpha};
+        const nxui::Color sideCol {sideLit, sideLit, sideLit, alpha};
+        const nxui::Color backCol {sideLit * 0.9f, sideLit * 0.9f, sideLit * 0.9f, alpha};
+
+        // One side face at a signed half-width offset, spanning the thickness
+        // from the printed face back to the rear panel.
+        auto sideFace = [&](float signedHalfW, nxui::Vec3 out[4]) {
+            const float ex = signedHalfW * ca, ez = signedHalfW * sa;
+            const float top = kFlowY + halfH, bot = kFlowY - halfH;
+            out[0] = {fx + ex,          top, fz + ez};
+            out[1] = {fx + ex + thickX, top, fz + ez + thickZ};
+            out[2] = {fx + ex + thickX, bot, fz + ez + thickZ};
+            out[3] = {fx + ex,          bot, fz + ez};
+        };
+
+        nxui::Vec3 faceL[4], faceR[4];
+        sideFace(-halfW, faceL);
+        sideFace(+halfW, faceR);
+
+        // The four faces are sorted by their actual depth rather than by rules
+        // read off the angle. The cases sit well off to either side, so
+        // perspective slides faces past one another at rotations the sine and
+        // cosine know nothing about; sorting a convex box far-to-near is
+        // correct at every angle and needs no winding convention.
+        struct FaceOrder { float z; int which; };
+        FaceOrder faces[4] = {
+            {flowMidZ(front), 0},
+            {flowMidZ(back),  1},
+            {flowMidZ(faceL), 2},
+            {flowMidZ(faceR), 3},
+        };
+        std::sort(std::begin(faces), std::end(faces),
+                  [](const FaceOrder& a, const FaceOrder& b) { return a.z > b.z; });
+
+        nxui::Texture* art = icon->texture();
+
+        for (const auto& f : faces) {
+            switch (f.which) {
+                case 0:
+                    // A case is a solid object: the bare case is drawn first and
+                    // the artwork is printed on top of it, so a title with no
+                    // art is a blank case rather than a hole.
+                    ren.drawQuad3D(nullptr, front, blankCol, 1.f, 1.f, false, kFlowStripsSide);
+                    if (art)
+                        ren.drawQuad3D(art, front, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                    break;
+                case 1: ren.drawQuad3D(nullptr, back,  backCol, 1.f, 1.f, false, kFlowStripsSide); break;
+                case 2: ren.drawQuad3D(nullptr, faceL, sideCol, 1.f, 1.f, false, kFlowStripsSide); break;
+                case 3: ren.drawQuad3D(nullptr, faceR, sideCol, 1.f, 1.f, false, kFlowStripsSide); break;
+            }
+        }
+
+        // Reflection. Mirrored about the case's OWN bottom edge rather than a
+        // fixed floor, so it stays edge to edge at any scale, and every face is
+        // mirrored so the reflection keeps the same silhouette. The corner
+        // order reverses because the mirror flips the winding. The cover
+        // texture is reused; no mirrored copy is ever allocated.
+        const float floorY = kFlowY - halfH;
+        auto mirror = [floorY](const nxui::Vec3 src[4], nxui::Vec3 out[4]) {
+            for (int k = 0; k < 4; ++k) {
+                const int j = 3 - k;
+                out[k] = {src[j].x, 2.f * floorY - src[j].y, src[j].z};
+            }
+        };
+
+        // Mirror and draw the SAME far-to-near face order as the case. A fixed
+        // front-only reflection lies when a suspended title turns its back to
+        // the viewer, and ordering sides independently can paint a farther edge
+        // over the visible face.
+        const float reflTop = kFlowReflTop;
+        nxui::Vec3 m[4];
+        for (const auto& f : faces) {
+            const nxui::Vec3* src = f.which == 0 ? front
+                                   : f.which == 1 ? back
+                                   : f.which == 2 ? faceL : faceR;
+            const nxui::Color col = f.which == 0 ? blankCol
+                                   : f.which == 1 ? backCol : sideCol;
+            mirror(src, m);
+            ren.drawQuad3D(nullptr, m, col, reflTop, 0.f, true, kFlowStripsRefl);
+            if (f.which == 0 && art)
+                ren.drawQuad3D(art, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
@@ -772,6 +1055,11 @@ void IconGrid::render(nxui::Renderer& ren) {
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         renderDynamicLine(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Flow) {
+        renderFlow(ren);
         return;
     }
 

@@ -27,6 +27,7 @@
       "right_sidebar": "Barra laterale destra",
       "user_profiles": "Profili utente",
       "dynamic_line": "Riga centrale",
+      "flow": "Flusso di copertine",
       "menu": "Menu contestuale"
     },
     "roles": {
@@ -93,6 +94,7 @@
     "user_profile": "Profilo utente",
     "layout": {
       "dynamic_line": "Modalità riga dinamica",
+      "flow": "Modalità flusso",
       "grid": "Modalità griglia"
     }
   },

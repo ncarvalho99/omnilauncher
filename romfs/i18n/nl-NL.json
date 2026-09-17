@@ -27,6 +27,7 @@
       "right_sidebar": "Rechterzijbalk",
       "user_profiles": "Gebruikersprofielen",
       "dynamic_line": "Middellijn",
+      "flow": "Coverstroom",
       "menu": "Contextmenu"
     },
     "roles": {
@@ -93,6 +94,7 @@
     "user_profile": "Gebruikersprofiel",
     "layout": {
       "dynamic_line": "Dynamische lijnmodus",
+      "flow": "Stroommodus",
       "grid": "Rastermodus"
     }
   },
