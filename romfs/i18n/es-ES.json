@@ -188,6 +188,11 @@
     "sort_playtime": "Más jugados"
   },
   "settings": {
+    "layout": {
+      "grid": "Cuadrícula",
+      "dynamic_line": "Línea Dinámica",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Sistema",
       "accessibility": "Accesibilidad",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "Cuánto se ve la pantalla detrás de los menús a través de ellos.",
       "background_speed": "Velocidad de la animación de fondo",
       "background_speed_desc": "Cuánto se mueven las formas. El centro es el ritmo del propio tema.",
+      "launcher_view": "Vista del Lanzador",
+      "launcher_view_desc": "Elija entre la Cuadrícula estándar, el carrusel de Línea Dinámica o el Flow 3D.",
       "grid_columns": "Columnas de la cuadrícula",
       "grid_rows": "Filas de la cuadrícula",
       "dynamic_pages": "Páginas dinámicas",

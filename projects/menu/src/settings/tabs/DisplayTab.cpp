@@ -39,6 +39,29 @@ SettingsScreen::Tab settings::tabs::DisplayTab::build(SettingsScreen& screen) {
         t.items.push_back(std::move(it));
     }
 
+    {
+        SettingItem it;
+        it.label = i18n.tr("settings.display.launcher_view", "Launcher View");
+        it.description = i18n.tr("settings.display.launcher_view_desc",
+                                 "Choose between standard Grid, Dynamic Line carousel, or 3D Flow coverflow.");
+        it.type = ItemType::Selector;
+        it.options = {
+            i18n.tr("settings.layout.grid", "Grid"),
+            i18n.tr("settings.layout.dynamic_line", "Dynamic Line"),
+            i18n.tr("settings.layout.flow", "Flow (3D)"),
+        };
+        it.intVal = screen.layoutModeState() == AppLayoutMode::Flow ? 2
+                  : screen.layoutModeState() == AppLayoutMode::DynamicLine ? 1 : 0;
+        it.onChange = [&screen](SettingItem& self) {
+            AppLayoutMode mode = self.intVal == 2 ? AppLayoutMode::Flow
+                               : self.intVal == 1 ? AppLayoutMode::DynamicLine
+                                                  : AppLayoutMode::Grid;
+            screen.setLayoutModeState(mode);
+            if (screen.m_layoutModeCb) screen.m_layoutModeCb(mode);
+        };
+        t.items.push_back(std::move(it));
+    }
+
     // Glass sharpness, background speed and background blur used to sit here.
     // They are appearance, not display hardware, and nobody looked for them
     // next to brightness and burn-in; they live in the Themes screen now,

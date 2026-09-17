@@ -188,6 +188,11 @@
     "sort_playtime": "Mais jogados"
   },
   "settings": {
+    "layout": {
+      "grid": "Grade",
+      "dynamic_line": "Linha Dinâmica",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Sistema",
       "accessibility": "Acessibilidade",
@@ -328,6 +333,8 @@
       "glass_sharpness_desc": "O quanto a tela atrás dos menus aparece através deles.",
       "background_speed": "Velocidade da animação de fundo",
       "background_speed_desc": "O quanto as formas se movem. O centro é o ritmo do próprio tema.",
+      "launcher_view": "Modo do Inicializador",
+      "launcher_view_desc": "Escolha entre a Grade padrão, o carrossel Linha Dinâmica ou o Flow 3D.",
       "grid_columns": "Colunas da grade",
       "grid_rows": "Linhas da grade",
       "dynamic_pages": "Páginas dinâmicas",

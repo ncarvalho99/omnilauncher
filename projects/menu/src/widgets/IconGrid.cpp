@@ -5,14 +5,45 @@
 #include <nxui/core/Renderer.hpp>
 #include <nxui/core/Animation.hpp>
 #include <nxui/core/Input.hpp>
+#include <nxui/core/ThreadPool.hpp>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <sys/stat.h>
+#include <cstdio>
+#include <string>
 
 
 IconGrid::IconGrid() {}
 
 namespace {
+
+std::string resolveFlowCoverPath(std::uint64_t titleId) {
+    if (titleId == 0) return {};
+    char hexUpper[17];
+    char hexLower[17];
+    std::snprintf(hexUpper, sizeof(hexUpper), "%016llX", static_cast<unsigned long long>(titleId));
+    std::snprintf(hexLower, sizeof(hexLower), "%016llx", static_cast<unsigned long long>(titleId));
+
+    const char* roots[] = {
+        "sdmc:/config/SwitchU/covers/",
+        "sdmc:/slaunch/covers/"
+    };
+    const char* exts[] = {".jpg", ".png", ".jpeg"};
+
+    for (const char* root : roots) {
+        for (const char* ext : exts) {
+            std::string pathUpper = std::string(root) + hexUpper + ext;
+            struct stat st;
+            if (stat(pathUpper.c_str(), &st) == 0 && S_ISREG(st.st_mode))
+                return pathUpper;
+            std::string pathLower = std::string(root) + hexLower + ext;
+            if (stat(pathLower.c_str(), &st) == 0 && S_ISREG(st.st_mode))
+                return pathLower;
+        }
+    }
+    return {};
+}
 
 float clamp01(float v) {
     return std::clamp(v, 0.f, 1.f);
@@ -82,21 +113,32 @@ void IconGrid::flowPlace(float p, float& x, float& z, float& angle) {
         angle += (t < 0.f ? 1.f : -1.f) * beyond * kFlowAStep;
 }
 
-void IconGrid::flowCorners(float x, float z, float angle,
-                           float halfW, float halfH, nxui::Vec3 out[4]) {
+void IconGrid::flowFace(float x, float z, float angle,
+                        float lx0, float lz0, float lx1, float lz1,
+                        float halfH, nxui::Vec3 out[4]) {
     const float ca = std::cos(angle);
     const float sa = std::sin(angle);
-    // Rotation about the case's vertical axis: the horizontal extent swings in
-    // x and z, the vertical extent does not move. z' = z-localX*sin(angle), so
-    // the sides turn toward the centre rather than away from it.
-    const float dx = halfW * ca;
-    const float dz = halfW * sa;
-    const float top = kFlowY + halfH;
-    const float bot = kFlowY - halfH;
-    out[0] = {x - dx, top, z + dz};   // TL
-    out[1] = {x + dx, top, z - dz};   // TR
-    out[2] = {x + dx, bot, z - dz};   // BR
-    out[3] = {x - dx, bot, z + dz};   // BL
+    auto put = [&](int i, float lx, float lz, float ly) {
+        out[i] = {
+            x + lx * ca + lz * sa,
+            kFlowY + ly,
+            z - lx * sa + lz * ca
+        };
+    };
+    put(0, lx0, lz0,  halfH);   // TL
+    put(1, lx1, lz1,  halfH);   // TR
+    put(2, lx1, lz1, -halfH);   // BR
+    put(3, lx0, lz0, -halfH);   // BL
+}
+
+void IconGrid::flowCorners(float x, float z, float angle,
+                           float halfW, float halfH, nxui::Vec3 out[4]) {
+    flowFace(x, z, angle, -halfW, 0.f, halfW, 0.f, halfH, out);
+}
+
+void IconGrid::clearFlowCovers() {
+    m_flowCovers.clear();
+    m_pendingCoverDecodes.clear();
 }
 
 void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
@@ -158,6 +200,7 @@ void IconGrid::reconfigureLayout(int cols, int rows,
                                  float cellW, float cellH,
                                  float padX, float padY)
 {
+    clearFlowCovers();
     m_cols  = cols;  m_rows = rows;
     m_cellW = cellW; m_cellH = cellH;
     m_padX  = padX;  m_padY  = padY;
@@ -868,7 +911,47 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
     const int n = (int)m_allIcons.size();
     if (n <= 0) return;
 
-    ren.pushClipRect(m_rect);
+    // Allow reflections and floor plane to reach the bottom of the screen (y=720),
+    // keeping clipping bounded below the top HUD (y=60).
+    ren.pushClipRect(nxui::Rect{0.f, 60.f, 1280.f, 660.f});
+
+    const float reveal = clamp01(m_layoutReveal.value());
+
+    // Dark glossy floor plane grounding cases visually behind reflections
+    const float floorTop = 490.f;
+    const float floorHeight = 720.f - floorTop;
+    ren.drawGradientRect(
+        nxui::Rect{0.f, floorTop, 1280.f, floorHeight},
+        nxui::Color(0.04f, 0.05f, 0.08f, 0.55f * reveal),
+        nxui::Color(0.01f, 0.01f, 0.02f, 0.85f * reveal)
+    );
+    ren.drawRect(
+        nxui::Rect{0.f, floorTop, 1280.f, 1.5f},
+        nxui::Color(1.f, 1.f, 1.f, 0.08f * reveal)
+    );
+
+    // Harvest completed asynchronous cover decodes (up to 2 uploads per frame)
+    int uploads = 0;
+    for (auto it = m_pendingCoverDecodes.begin(); it != m_pendingCoverDecodes.end() && uploads < 2;) {
+        if (it->state && it->state->done.load()) {
+            try {
+                if (it->future.valid()) it->future.get();
+            } catch (...) {}
+            auto covIt = m_flowCovers.find(it->titleId);
+            if (covIt != m_flowCovers.end()) {
+                if (!it->state->failed.load() && it->state->decoded.valid()) {
+                    if (covIt->second.texture.loadFromDecoded(ren.gpu(), ren, it->state->decoded)) {
+                        covIt->second.available = true;
+                    }
+                }
+                covIt->second.loading = false;
+            }
+            it = m_pendingCoverDecodes.erase(it);
+            ++uploads;
+        } else {
+            ++it;
+        }
+    }
 
     const int focusedIndex = focusedGlobalIndex();
     const float scroll = m_lineScrollOffset.value();
@@ -894,8 +977,6 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
         return a.z > b.z;
     });
 
-    const float reveal = clamp01(m_layoutReveal.value());
-
     for (const auto& c : order) {
         auto& icon = m_allIcons[(size_t)c.index];
         if (!icon) continue;
@@ -914,28 +995,19 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
         const float halfH = kFlowHalfH;
         const float depth = kFlowDepth;
 
+        // Watertight case geometry: front, left spine, right edge, and back
+        // are constructed via flowFace with shared corner coordinates.
         nxui::Vec3 front[4];
-        flowCorners(fx, fz, fang, halfW, halfH, front);
+        flowFace(fx, fz, fang, -halfW, 0.f, halfW, 0.f, halfH, front);
 
-        // Thickness offset, pushed AWAY from the camera.
-        //
-        // The printed face spans TL->TR = (cos, 0, -sin) and TL->BL straight
-        // down, so its outward normal is (-sin, 0, -cos): at angle 0 that is
-        // (0, 0, -1), pointing back at the eye, which is what makes the front
-        // the face you see. The body of the case extends along the negation of
-        // that normal. Offsetting the other way puts the back panel nearer than
-        // the artwork, and the depth sort below paints the plain back over it.
-        const float ca = std::cos(fang), sa = std::sin(fang);
-        const float thickX = sa * depth * 2.f;
-        const float thickZ = ca * depth * 2.f;
+        nxui::Vec3 faceL[4];
+        flowFace(fx, fz, fang, -halfW, 0.f, -halfW, 2.f * depth, halfH, faceL);
 
-        // The back face is the front pushed through that thickness, with its
-        // corners swapped left for right so the panel is not mirrored.
+        nxui::Vec3 faceR[4];
+        flowFace(fx, fz, fang, halfW, 0.f, halfW, 2.f * depth, halfH, faceR);
+
         nxui::Vec3 back[4];
-        for (int k = 0; k < 4; ++k) {
-            const int j = (k == 0) ? 1 : (k == 1) ? 0 : (k == 2) ? 3 : 2;
-            back[k] = {front[j].x + thickX, front[j].y, front[j].z + thickZ};
-        }
+        flowFace(fx, fz, fang, halfW, 2.f * depth, -halfW, 2.f * depth, halfH, back);
 
         // Proximity lighting. This is a large part of why the centre case reads
         // as selected. Side faces are lit independently of the printed front:
@@ -964,20 +1036,46 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
         const nxui::Color sideCol {sideLit, sideLit, sideLit, alpha};
         const nxui::Color backCol {sideLit * 0.9f, sideLit * 0.9f, sideLit * 0.9f, alpha};
 
-        // One side face at a signed half-width offset, spanning the thickness
-        // from the printed face back to the rear panel.
-        auto sideFace = [&](float signedHalfW, nxui::Vec3 out[4]) {
-            const float ex = signedHalfW * ca, ez = signedHalfW * sa;
-            const float top = kFlowY + halfH, bot = kFlowY - halfH;
-            out[0] = {fx + ex,          top, fz + ez};
-            out[1] = {fx + ex + thickX, top, fz + ez + thickZ};
-            out[2] = {fx + ex + thickX, bot, fz + ez + thickZ};
-            out[3] = {fx + ex,          bot, fz + ez};
-        };
+        // Query 2:3 portrait cover art cache. If available, the cover spans the
+        // full front face. If absent or loading, 1:1 square icon is inset.
+        const std::uint64_t tid = icon->titleId();
+        nxui::Texture* coverTex = nullptr;
+        if (tid != 0) {
+            auto& cov = m_flowCovers[tid];
+            if (!cov.checked) {
+                cov.checked = true;
+                const std::string coverPath = resolveFlowCoverPath(tid);
+                if (!coverPath.empty()) {
+                    cov.loading = true;
+                    if (m_threadPool) {
+                        auto decodeState = std::make_shared<CoverDecodeState>();
+                        auto work = [decodeState, coverPath]() {
+                            try {
+                                decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
+                                decodeState->failed = !decodeState->decoded.valid();
+                            } catch (...) {
+                                decodeState->failed = true;
+                            }
+                            decodeState->done = true;
+                        };
+                        PendingCoverDecode pcd;
+                        pcd.titleId = tid;
+                        pcd.state = decodeState;
+                        pcd.future = m_threadPool->submit(std::move(work));
+                        m_pendingCoverDecodes.push_back(std::move(pcd));
+                    }
+                }
+            }
+            if (cov.available && cov.texture.valid()) {
+                coverTex = &cov.texture;
+            }
+        }
 
-        nxui::Vec3 faceL[4], faceR[4];
-        sideFace(-halfW, faceL);
-        sideFace(+halfW, faceR);
+        // 1:1 square icon inset centered on the front face, keeping exact square
+        // aspect ratio without vertical distortion.
+        const float iconHalf = halfW * 0.82f;
+        nxui::Vec3 iconQuad[4];
+        flowFace(fx, fz, fang, -iconHalf, 0.001f, iconHalf, 0.001f, iconHalf, iconQuad);
 
         // The four faces are sorted by their actual depth rather than by rules
         // read off the angle. The cases sit well off to either side, so
@@ -995,6 +1093,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                   [](const FaceOrder& a, const FaceOrder& b) { return a.z > b.z; });
 
         nxui::Texture* art = icon->texture();
+        const bool showingFront = flowMidZ(front) <= flowMidZ(back);
 
         for (const auto& f : faces) {
             switch (f.which) {
@@ -1003,8 +1102,13 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                     // the artwork is printed on top of it, so a title with no
                     // art is a blank case rather than a hole.
                     ren.drawQuad3D(nullptr, front, blankCol, 1.f, 1.f, false, kFlowStripsSide);
-                    if (art)
-                        ren.drawQuad3D(art, front, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                    if (showingFront) {
+                        if (coverTex) {
+                            ren.drawQuad3D(coverTex, front, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                        } else if (art) {
+                            ren.drawQuad3D(art, iconQuad, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                        }
+                    }
                     break;
                 case 1: ren.drawQuad3D(nullptr, back,  backCol, 1.f, 1.f, false, kFlowStripsSide); break;
                 case 2: ren.drawQuad3D(nullptr, faceL, sideCol, 1.f, 1.f, false, kFlowStripsSide); break;
@@ -1039,8 +1143,15 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                                    : f.which == 1 ? backCol : sideCol;
             mirror(src, m);
             ren.drawQuad3D(nullptr, m, col, reflTop, 0.f, true, kFlowStripsRefl);
-            if (f.which == 0 && art)
-                ren.drawQuad3D(art, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+            if (f.which == 0 && showingFront) {
+                if (coverTex) {
+                    ren.drawQuad3D(coverTex, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+                } else if (art) {
+                    nxui::Vec3 mIcon[4];
+                    mirror(iconQuad, mIcon);
+                    ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+                }
+            }
         }
     }
 

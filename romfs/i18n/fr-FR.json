@@ -188,6 +188,11 @@
     "sort_playtime": "Plus joués"
   },
   "settings": {
+    "layout": {
+      "grid": "Grille",
+      "dynamic_line": "Ligne Dynamique",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Système",
       "accessibility": "Accessibilité",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "À quel point l'écran derrière les menus transparaît.",
       "background_speed": "Vitesse de l'animation de fond",
       "background_speed_desc": "À quelle vitesse les formes dérivent. Le centre est le rythme du thème.",
+      "launcher_view": "Vue du Lanceur",
+      "launcher_view_desc": "Choisissez entre la Grille standard, le carrousel Ligne Dynamique ou le Flow 3D.",
       "grid_columns": "Colonnes de la grille",
       "grid_rows": "Lignes de la grille",
       "dynamic_pages": "Pages dynamiques",

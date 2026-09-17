@@ -188,6 +188,11 @@
     "sort_playtime": "По времени игры"
   },
   "settings": {
+    "layout": {
+      "grid": "Сетка",
+      "dynamic_line": "Динамическая линия",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Система",
       "accessibility": "Доступность",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "Насколько чётко экран за меню виден сквозь них.",
       "background_speed": "Скорость анимации фона",
       "background_speed_desc": "Насколько быстро плывут фигуры. Середина — темп самой темы.",
+      "launcher_view": "Вид лаунчера",
+      "launcher_view_desc": "Выберите между сеткой, динамической линией или 3D Flow.",
       "grid_columns": "Столбцы сетки",
       "grid_rows": "Строки сетки",
       "dynamic_pages": "Динамические страницы",

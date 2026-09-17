@@ -188,6 +188,11 @@
     "sort_playtime": "Most played"
   },
   "settings": {
+    "layout": {
+      "grid": "Grid",
+      "dynamic_line": "Dynamic Line",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "System",
       "accessibility": "Accessibility",
@@ -328,6 +333,8 @@
       "glass_sharpness_desc": "How clearly the screen behind menus shows through them.",
       "background_speed": "Background animation speed",
       "background_speed_desc": "How fast the shapes drift. Centre is the theme's own pace.",
+      "launcher_view": "Launcher View",
+      "launcher_view_desc": "Choose between standard Grid, Dynamic Line carousel, or 3D Flow coverflow.",
       "grid_columns": "Home Grid Columns",
       "grid_rows": "Home Grid Rows",
       "dynamic_pages": "Dynamic Pages",

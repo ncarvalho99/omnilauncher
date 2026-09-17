@@ -104,6 +104,29 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
 
     {
         SettingItem it;
+        it.label = i18n.tr("settings.display.launcher_view", "Launcher View");
+        it.description = i18n.tr("settings.display.launcher_view_desc",
+                                 "Choose between standard Grid, Dynamic Line carousel, or 3D Flow coverflow.");
+        it.type = ItemType::Selector;
+        it.options = {
+            i18n.tr("settings.layout.grid", "Grid"),
+            i18n.tr("settings.layout.dynamic_line", "Dynamic Line"),
+            i18n.tr("settings.layout.flow", "Flow (3D)"),
+        };
+        it.intVal = screen.m_layoutMode == AppLayoutMode::Flow ? 2
+                  : screen.m_layoutMode == AppLayoutMode::DynamicLine ? 1 : 0;
+        it.onChange = [&screen](SettingItem& self) {
+            AppLayoutMode mode = self.intVal == 2 ? AppLayoutMode::Flow
+                               : self.intVal == 1 ? AppLayoutMode::DynamicLine
+                                                  : AppLayoutMode::Grid;
+            screen.m_layoutMode = mode;
+            if (screen.m_layoutModeCb) screen.m_layoutModeCb(mode);
+        };
+        t.items.push_back(std::move(it));
+    }
+
+    {
+        SettingItem it;
         it.label = i18n.tr("settings.display.grid_columns", "Home Grid Columns");
         it.type = ItemType::Slider;
         it.sliderSteps = 5;

@@ -1715,6 +1715,10 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
+        if (m_grid && m_grid->isFlow() && cur->tag() == "glossy_icon") {
+            m_cursor->setVisible(false);
+            return;
+        }
         const bool movingLineFocus = m_grid && m_grid->isDynamicLine()
                                   && cur->tag() == "glossy_icon";
         nxui::Rect fr = movingLineFocus

@@ -7,7 +7,15 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <unordered_map>
+#include <future>
+#include <atomic>
+#include <cstdint>
+#include <nxui/core/Texture.hpp>
 
+namespace nxui {
+class ThreadPool;
+}
 
 class GlossyIcon;
 
@@ -54,6 +62,9 @@ public:
     const std::vector<std::shared_ptr<GlossyIcon>>& allIcons() const { return m_allIcons; }
 
     std::vector<GlossyIcon*> pageIcons() const;
+
+    void setThreadPool(nxui::ThreadPool* pool) { m_threadPool = pool; }
+    void clearFlowCovers();
 
     int hitTest(float screenX, float screenY) const;
     nxui::Rect focusedDisplayRect() const;
@@ -102,6 +113,12 @@ private:
     // one item out. That saturation is what gives coverflow a single upright
     // face against a receding wall rather than a smooth arc.
     static void flowPlace(float p, float& x, float& z, float& angle);
+    // A face of the 3D case box in its own local coordinates: lx runs across the face,
+    // lz is depth. Watertight geometry so front, left spine, right edge, and back
+    // share identical coordinates at their seams.
+    static void flowFace(float x, float z, float angle,
+                         float lx0, float lz0, float lx1, float lz1,
+                         float halfH, nxui::Vec3 out[4]);
     // Corners of a case at (x, z) swung by angle, ordered TL, TR, BR, BL.
     static void flowCorners(float x, float z, float angle,
                             float halfW, float halfH, nxui::Vec3 out[4]);
@@ -137,6 +154,26 @@ private:
     // Wall-clock seconds, sampled once per frame so every case in the row is
     // placed against the same instant.
     float m_flowClock = 0.f;
+
+    struct FlowCoverEntry {
+        nxui::Texture texture;
+        bool checked = false;
+        bool available = false;
+        bool loading = false;
+    };
+    std::unordered_map<std::uint64_t, FlowCoverEntry> m_flowCovers;
+    nxui::ThreadPool* m_threadPool = nullptr;
+    struct CoverDecodeState {
+        nxui::DecodedImage decoded;
+        std::atomic<bool> done{false};
+        std::atomic<bool> failed{false};
+    };
+    struct PendingCoverDecode {
+        std::uint64_t titleId = 0;
+        std::shared_ptr<CoverDecodeState> state;
+        std::future<void> future;
+    };
+    std::vector<PendingCoverDecode> m_pendingCoverDecodes;
 
     // Inputs the carousel layout was last computed against. Used to skip the
     // full-library rect rebuild while the line is at rest.

@@ -355,6 +355,10 @@ void WiiUMenuApp::createSettings() {
         m_config.gridRows = rows;
         reflowHomeGrid();
     });
+    m_settings->setLayoutModeState(m_appLayoutMode);
+    m_settings->onLayoutModeChange([this](AppLayoutMode mode) {
+        setAppLayoutMode(mode);
+    });
     m_settings->onUiLanguageChange([this](const std::string& tag) {
         m_config.uiLanguageOverride = tag;
         if (m_settings) m_settings->setUiLanguageOverride(tag);
@@ -1289,6 +1293,10 @@ void WiiUMenuApp::createThemeShop() {
         m_config.dynamicPages = enabled;
         m_config.save();
         reflowHomeGrid();
+    });
+    m_themeShop->setLayoutModeState(m_appLayoutMode);
+    m_themeShop->onLayoutModeChange([this](AppLayoutMode mode) {
+        setAppLayoutMode(mode);
     });
     m_themeShop->onNextTrack([this]() {
         m_audio.nextTrack();

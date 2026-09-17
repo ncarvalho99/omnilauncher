@@ -4185,6 +4185,12 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     }
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
+    if (m_background)
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow);
+    if (m_themeShop)
+        m_themeShop->setLayoutModeState(m_appLayoutMode);
+    if (m_settings)
+        m_settings->setLayoutModeState(m_appLayoutMode);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
@@ -5010,6 +5016,9 @@ void WiiUMenuApp::buildGrid() {
 
     m_grid = std::make_shared<IconGrid>();
     m_grid->setRect({kGridRectX, kGridRectY, kGridRectW, kGridRectH});
+    m_grid->setThreadPool(&m_threadPool);
+    if (m_background)
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow);
     // buildGrid() creates the grid and calls setup() directly, without going
     // through applyDisplayModel(), which is the only other place that sets this.
     // The grid therefore stayed in its default page mode after a restart while

@@ -188,6 +188,11 @@
     "sort_playtime": "Meistgespielt"
   },
   "settings": {
+    "layout": {
+      "grid": "Raster",
+      "dynamic_line": "Dynamische Zeile",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "System",
       "accessibility": "Bedienhilfen",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "Wie deutlich der Bildschirm hinter den Menüs durchscheint.",
       "background_speed": "Geschwindigkeit der Hintergrundanimation",
       "background_speed_desc": "Wie schnell die Formen treiben. Die Mitte ist das Tempo des Themes.",
+      "launcher_view": "Launcher-Ansicht",
+      "launcher_view_desc": "Wählen Sie zwischen Standard-Raster, Dynamischer Zeile oder 3D-Flow.",
       "grid_columns": "Rasterspalten",
       "grid_rows": "Rasterzeilen",
       "dynamic_pages": "Dynamische Seiten",

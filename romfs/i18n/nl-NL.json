@@ -188,6 +188,11 @@
     "sort_playtime": "Meest gespeeld"
   },
   "settings": {
+    "layout": {
+      "grid": "Raster",
+      "dynamic_line": "Dynamische Lijn",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Systeem",
       "accessibility": "Toegankelijkheid",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "Hoe duidelijk het scherm achter menu's erdoorheen zichtbaar is.",
       "background_speed": "Snelheid van achtergrondanimatie",
       "background_speed_desc": "Hoe snel de vormen zweven. Het midden is het tempo van het thema zelf.",
+      "launcher_view": "Launcher-weergave",
+      "launcher_view_desc": "Kies tussen standaard Raster, Dynamische Lijn of 3D-Flow.",
       "grid_columns": "Rasterkolommen",
       "grid_rows": "Rasterrijen",
       "dynamic_pages": "Dynamische pagina's",

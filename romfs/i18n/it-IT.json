@@ -188,6 +188,11 @@
     "sort_playtime": "Più giocati"
   },
   "settings": {
+    "layout": {
+      "grid": "Griglia",
+      "dynamic_line": "Linea Dinamica",
+      "flow": "Flow (3D)"
+    },
     "tabs": {
       "system": "Sistema",
       "accessibility": "Accessibilità",
@@ -322,6 +327,8 @@
       "glass_sharpness_desc": "Quanto lo schermo dietro i menu traspare attraverso di essi.",
       "background_speed": "Velocità dell'animazione di sfondo",
       "background_speed_desc": "Quanto si muovono le forme. Al centro è il ritmo del tema stesso.",
+      "launcher_view": "Vista Launcher",
+      "launcher_view_desc": "Scegli tra Griglia standard, carosello Linea Dinamica o Flow 3D.",
       "grid_columns": "Colonne della griglia",
       "grid_rows": "Righe della griglia",
       "dynamic_pages": "Pagine dinamiche",
