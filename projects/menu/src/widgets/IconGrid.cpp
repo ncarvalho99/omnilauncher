@@ -25,22 +25,27 @@ std::string resolveFlowCoverPath(std::uint64_t titleId) {
     std::snprintf(hexUpper, sizeof(hexUpper), "%016llX", static_cast<unsigned long long>(titleId));
     std::snprintf(hexLower, sizeof(hexLower), "%016llx", static_cast<unsigned long long>(titleId));
 
-    const char* roots[] = {
-        "sdmc:/config/SwitchU/covers/",
-        "sdmc:/slaunch/covers/"
-    };
     const char* exts[] = {".jpg", ".png", ".jpeg"};
+    struct stat st;
 
-    for (const char* root : roots) {
-        for (const char* ext : exts) {
-            std::string pathUpper = std::string(root) + hexUpper + ext;
-            struct stat st;
-            if (stat(pathUpper.c_str(), &st) == 0 && S_ISREG(st.st_mode))
-                return pathUpper;
-            std::string pathLower = std::string(root) + hexLower + ext;
-            if (stat(pathLower.c_str(), &st) == 0 && S_ISREG(st.st_mode))
-                return pathLower;
-        }
+    for (const char* ext : exts) {
+        // 1. SwitchU covers root (SteamGridDB 600x900 covers or manual drops)
+        std::string p1 = std::string("sdmc:/config/SwitchU/covers/") + hexUpper + ext;
+        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p1;
+        p1 = std::string("sdmc:/config/SwitchU/covers/") + hexLower + ext;
+        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p1;
+
+        // 2. SwitchU game_art cover slot (custom covers applied from Dossier/Gallery)
+        std::string p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexUpper + "/cover" + ext;
+        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p2;
+        p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexLower + "/cover" + ext;
+        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p2;
+
+        // 3. sLaunch covers root (shared SD cover art)
+        std::string p3 = std::string("sdmc:/slaunch/covers/") + hexUpper + ext;
+        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p3;
+        p3 = std::string("sdmc:/slaunch/covers/") + hexLower + ext;
+        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p3;
     }
     return {};
 }

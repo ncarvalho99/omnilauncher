@@ -6,7 +6,7 @@
 
 class GameOptionsScreen final : public TabbedOverlayScreen {
 public:
-    enum class ArtworkKind { Hero, Logo, Icon };
+    enum class ArtworkKind { Hero, Logo, Icon, Cover };
     struct GameInfo {
         std::uint64_t titleId = 0;
         std::string name;

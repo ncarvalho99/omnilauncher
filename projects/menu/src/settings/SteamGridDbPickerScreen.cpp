@@ -241,7 +241,8 @@ nxui::Rect SteamGridDbPickerScreen::containRect(const nxui::Texture& texture,
 
 std::string SteamGridDbPickerScreen::kindLabel() const {
     return m_result.kind == SteamGridDbManager::ArtworkKind::Hero ? "Hero"
-         : m_result.kind == SteamGridDbManager::ArtworkKind::Logo ? "Logo" : "Icon";
+         : m_result.kind == SteamGridDbManager::ArtworkKind::Logo ? "Logo"
+         : m_result.kind == SteamGridDbManager::ArtworkKind::Cover ? "Cover" : "Icon";
 }
 
 void SteamGridDbPickerScreen::onRender(nxui::Renderer& renderer) {

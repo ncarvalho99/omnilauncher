@@ -602,6 +602,8 @@ void WiiUMenuApp::openSteamGridDbPicker(GameOptionsScreen::ArtworkKind kind,
         managerKind = SteamGridDbManager::ArtworkKind::Logo;
     else if (kind == GameOptionsScreen::ArtworkKind::Icon)
         managerKind = SteamGridDbManager::ArtworkKind::Icon;
+    else if (kind == GameOptionsScreen::ArtworkKind::Cover)
+        managerKind = SteamGridDbManager::ArtworkKind::Cover;
 
     std::string title;
     std::string defaultQuery;
@@ -806,6 +808,8 @@ void WiiUMenuApp::syncSteamGridDb() {
                 m_iconStreamer.reloadTitle(result.titleId, m_grid->currentPage(),
                                            m_grid->iconsPerPage(), app().gpu(),
                                            app().renderer(), m_grid->allIcons());
+            } else if (result.kind == SteamGridDbManager::ArtworkKind::Cover && m_grid) {
+                m_grid->clearFlowCovers();
             } else {
                 showFocusedSteamGridDbArtwork(true);
             }

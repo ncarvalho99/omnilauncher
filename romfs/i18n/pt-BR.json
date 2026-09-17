@@ -578,7 +578,9 @@
       "logo": "Logo",
       "logo_desc": "Abre a galeria de logos e escolhe a imagem a usar.",
       "icon": "Ícone substituto",
-      "icon_desc": "Abre a galeria de ícones e escolhe uma substituição para este jogo."
+      "icon_desc": "Abre a galeria de ícones e escolhe uma substituição para este jogo.",
+      "cover": "Capa vertical",
+      "cover_desc": "Abre a galeria de capas e escolhe uma capa de caixa 2:3 para o modo Flow."
     }
   },
   "power": {

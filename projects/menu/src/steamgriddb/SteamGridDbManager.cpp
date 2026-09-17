@@ -153,13 +153,17 @@ nlohmann::json listArtwork(const Backend& backend, long long gameId,
                            SteamGridDbManager::ArtworkKind kind) {
     using ArtworkKind = SteamGridDbManager::ArtworkKind;
     if (!backend.proxy) {
-        const char* endpoint = kind == ArtworkKind::Hero ? "/heroes"
-                             : kind == ArtworkKind::Logo ? "/logos" : "/icons";
+        const char* endpoint = kind == ArtworkKind::Hero  ? "/heroes"
+                             : kind == ArtworkKind::Logo  ? "/logos"
+                             : kind == ArtworkKind::Cover ? "/grids" : "/icons";
         std::string url = std::string(kApiBase) + endpoint + "/game/" + std::to_string(gameId)
                         + "?nsfw=false&humor=false";
-        if (kind != ArtworkKind::Icon)
+        if (kind == ArtworkKind::Cover)
+            url += "&dimensions=600x900&types=static&mimes=image/png,image/jpeg";
+        else if (kind != ArtworkKind::Icon)
             url += "&types=static";
-        url += kind == ArtworkKind::Hero ? "&mimes=image/png,image/jpeg" : "&mimes=image/png";
+        url += (kind == ArtworkKind::Hero || kind == ArtworkKind::Cover)
+            ? "&mimes=image/png,image/jpeg" : "&mimes=image/png";
         return apiData(url, backend.headers);
     }
     if (kind == ArtworkKind::Logo)
@@ -171,6 +175,8 @@ nlohmann::json listArtwork(const Backend& backend, long long gameId,
     // dimension instead of the default 600x900 portrait covers.
     if (kind == ArtworkKind::Icon)
         url += "?dimensions=1024x1024";
+    else if (kind == ArtworkKind::Cover)
+        url += "?dimensions=600x900";
     return proxyData(url, member, backend.headers);
 }
 
@@ -545,9 +551,13 @@ SteamGridDbManager::ApplyResult SteamGridDbManager::applyCandidate(
         const std::string destination = result.kind == ArtworkKind::Hero
             ? heroPath(result.titleId)
             : result.kind == ArtworkKind::Logo ? logoPath(result.titleId)
+            : result.kind == ArtworkKind::Cover ? coverPath(result.titleId)
                                                : iconPath(result.titleId);
         std::error_code ec;
-        std::filesystem::create_directories(titleDirectory(result.titleId), ec);
+        if (result.kind == ArtworkKind::Cover)
+            std::filesystem::create_directories("sdmc:/config/SwitchU/covers", ec);
+        else
+            std::filesystem::create_directories(titleDirectory(result.titleId), ec);
         if (result.kind == ArtworkKind::Hero)
             steamgriddb::artwork::remove(destination, 1280, 720);
         else if (result.kind == ArtworkKind::Logo)
@@ -619,6 +629,12 @@ std::string SteamGridDbManager::logoPath(std::uint64_t titleId) {
 
 std::string SteamGridDbManager::iconPath(std::uint64_t titleId) {
     return titleDirectory(titleId) + "/icon.img";
+}
+
+std::string SteamGridDbManager::coverPath(std::uint64_t titleId) {
+    char hex[17];
+    std::snprintf(hex, sizeof(hex), "%016llX", static_cast<unsigned long long>(titleId));
+    return std::string("sdmc:/config/SwitchU/covers/") + hex + ".jpg";
 }
 
 bool SteamGridDbManager::hasArtwork(std::uint64_t titleId) {
@@ -792,6 +808,7 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
 
     std::error_code ec;
     std::filesystem::create_directories(kCacheRoot, ec);
+    std::filesystem::create_directories("sdmc:/config/SwitchU/covers", ec);
     std::string fatalError;
 
     for (const auto& app : apps) {
@@ -829,10 +846,14 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
             && hasArtwork(app.titleId)
             && !std::filesystem::exists(logoPath(app.titleId), logoEc)
             && !artworkWasChosenByHand(app.titleId);
+        std::error_code coverEc;
+        const bool topUpCover = hasArtwork(app.titleId)
+            && !std::filesystem::exists(coverPath(app.titleId), coverEc)
+            && !artworkWasChosenByHand(app.titleId);
         // The global Settings scan is incremental: once an application has a
-        // trusted hero or logo, leave its manual/default choices untouched.
+        // trusted hero, logo, or cover, leave its manual/default choices untouched.
         // Per-title browsing is the explicit path for replacing artwork.
-        if (hasArtwork(app.titleId) && !topUpLogo) {
+        if (hasArtwork(app.titleId) && !topUpLogo && !topUpCover) {
             updateStatus([](Status& s) {
                 ++s.completed;
                 ++s.matched;
@@ -844,7 +865,7 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
 
         // Version 1 accepted the first autocomplete result as a fallback. Its
         // cached files cannot be trusted (for example Nintendo Labo -> Land).
-        if (!topUpLogo)
+        if (!topUpLogo && !topUpCover)
             removeCachedArtwork(app.titleId);
 
         try {
@@ -931,17 +952,24 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
             // this title; downloading it again would spend the bandwidth to
             // replace a file with itself, and could land on a different image.
             std::error_code heroEc;
-            const bool heroOk = topUpLogo
+            const bool heroOk = (topUpLogo || topUpCover)
                 ? std::filesystem::exists(heroPath(app.titleId), heroEc)
                 : fetchArtwork("heroes", false,
                                ArtworkKind::Hero, heroPath(app.titleId),
-                               0.15f, 0.35f);
-            // Without a personal key the gallery proxy has no logo source, so
-            // this leg simply reports no logo instead of failing the title.
-            const bool logoOk = fetchArtwork("logos", false,
-                                             ArtworkKind::Logo, logoPath(app.titleId),
-                                             0.55f, 0.35f);
-            matched = heroOk || logoOk;
+                               0.10f, 0.25f);
+            std::error_code logoExistEc;
+            const bool logoOk = (topUpCover && std::filesystem::exists(logoPath(app.titleId), logoExistEc))
+                ? true
+                : fetchArtwork("logos", false,
+                               ArtworkKind::Logo, logoPath(app.titleId),
+                               0.35f, 0.25f);
+            std::error_code coverExistEc;
+            const bool coverOk = (topUpLogo && std::filesystem::exists(coverPath(app.titleId), coverExistEc))
+                ? true
+                : fetchArtwork("grids", true,
+                               ArtworkKind::Cover, coverPath(app.titleId),
+                               0.60f, 0.35f);
+            matched = heroOk || logoOk || coverOk;
 
             nlohmann::json metadata;
             metadata["titleId"] = app.titleId;
@@ -953,6 +981,7 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
             metadata["matchScore"] = matchScore;
             metadata["hero"] = heroOk;
             metadata["logo"] = logoOk;
+            metadata["cover"] = coverOk;
             std::ofstream meta(dir + "/metadata.json", std::ios::trunc);
             if (meta.is_open()) meta << metadata.dump(2);
         } catch (const std::exception& ex) {

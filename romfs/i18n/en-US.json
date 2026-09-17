@@ -578,7 +578,9 @@
       "logo": "Logo",
       "logo_desc": "Open the logo gallery and choose the image to use.",
       "icon": "Replacement icon",
-      "icon_desc": "Open the icon gallery and choose an override for this game."
+      "icon_desc": "Open the icon gallery and choose an override for this game.",
+      "cover": "Portrait cover",
+      "cover_desc": "Open the cover gallery and choose a 2:3 vertical box cover for Flow view."
     }
   },
   "power": {

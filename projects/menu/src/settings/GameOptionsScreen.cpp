@@ -132,6 +132,10 @@ void GameOptionsScreen::buildTabs() {
                      "game.steamgriddb.icon_desc",
                      "Open the icon gallery and choose an override.",
                      ArtworkKind::Icon);
+    addArtworkAction("game.steamgriddb.cover", "Portrait cover",
+                     "game.steamgriddb.cover_desc",
+                     "Open the cover gallery and choose a 2:3 vertical box cover for Flow view.",
+                     ArtworkKind::Cover);
     m_tabs.push_back(std::move(artwork));
 
     m_cachedTabContentWidgets.clear();

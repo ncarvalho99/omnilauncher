@@ -13,7 +13,7 @@
 class SteamGridDbManager {
 public:
     using ProgressCallback = std::function<void(const std::string&, float)>;
-    enum class ArtworkKind { None, Hero, Logo, Icon };
+    enum class ArtworkKind { None, Hero, Logo, Icon, Cover };
 
     struct Candidate {
         long long id = 0;
@@ -82,6 +82,7 @@ public:
     static std::string heroPath(std::uint64_t titleId);
     static std::string logoPath(std::uint64_t titleId);
     static std::string iconPath(std::uint64_t titleId);
+    static std::string coverPath(std::uint64_t titleId);
     static bool hasArtwork(std::uint64_t titleId);
 
 private:
