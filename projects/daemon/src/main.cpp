@@ -887,28 +887,75 @@ static void stopControlCacheWorker();
 // on whether anything happened to be dirty, and a card that comes back needing
 // its firmware files replaced rather than being wholly unreadable.
 //
-// spsm is what the Reboot-to-Payload homebrew uses, and the user rebooted with
-// it repeatedly — including after changing settings — with no corruption at
-// all. spsmShutdown drives the real power-down path, which includes telling FS
-// to commit and unmount before power drops.
-//
-// Falls back to the applet call if spsm cannot be reached, so a failure here
-// leaves the previous behaviour rather than a console that will not turn off.
+// Reboot and shutdown handling.
+// On Atmosphere, direct spsmShutdown(true) without arming the reboot payload or
+// using bpc:ams causes consoles (especially with AutoRCM or modchips) to reboot
+// into an unmanaged black screen state.
+// We arm atmosphere/reboot_payload.bin via bpc:ams when present, then invoke
+// bpcRebootSystem() (which Atmosphere's bpc-mitm safely handles), falling back
+// to spsm and applet reboot paths.
 static void requestPowerStateChange(const char* source, bool reboot) {
-    Result rc = spsmInitialize();
-    if (R_SUCCEEDED(rc)) {
-        rc = spsmShutdown(reboot);
-        spsmExit();
-        if (R_SUCCEEDED(rc))
-            return;
-    }
+    if (reboot) {
+        // Arm Atmosphere reboot payload if available
+        Handle bpcAmsHandle = INVALID_HANDLE;
+        if (R_SUCCEEDED(svcConnectToNamedPort(&bpcAmsHandle, "bpc:ams"))) {
+            Service amsBpcSrv;
+            serviceCreate(&amsBpcSrv, bpcAmsHandle);
+            FILE* f = std::fopen("sdmc:/atmosphere/reboot_payload.bin", "rb");
+            if (f) {
+                std::vector<uint8_t> payload(0x24000);
+                size_t readBytes = std::fread(payload.data(), 1, payload.size(), f);
+                std::fclose(f);
+                if (readBytes > 0) {
+                    serviceDispatch(&amsBpcSrv, 65001,
+                        .buffer_attrs = { SfBufferAttr_In | SfBufferAttr_HipcMapAlias },
+                        .buffers = { { payload.data(), readBytes } },
+                    );
+                }
+            }
+            serviceClose(&amsBpcSrv);
+        }
 
-    svcOutputDebugString("[SwitchU-daemon] spsm power path failed, using applet", 52);
-    (void)source;
-    if (reboot)
+        Result rc = bpcInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = bpcRebootSystem();
+            bpcExit();
+            if (R_SUCCEEDED(rc))
+                return;
+        }
+
+        rc = spsmInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = spsmShutdown(true);
+            spsmExit();
+            if (R_SUCCEEDED(rc))
+                return;
+        }
+
+        svcOutputDebugString("[SwitchU-daemon] bpc/spsm reboot failed, using applet", 52);
+        (void)source;
         appletStartRebootSequence();
-    else
+    } else {
+        Result rc = spsmInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = spsmShutdown(false);
+            spsmExit();
+            if (R_SUCCEEDED(rc))
+                return;
+        }
+
+        rc = bpcInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = bpcShutdownSystem();
+            bpcExit();
+            if (R_SUCCEEDED(rc))
+                return;
+        }
+
+        svcOutputDebugString("[SwitchU-daemon] spsm/bpc shutdown failed, using applet", 54);
+        (void)source;
         appletStartShutdownSequence();
+    }
 }
 
 // Sleep is not a power-down and must not use the shutdown teardown below.
