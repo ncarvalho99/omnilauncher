@@ -4195,6 +4195,10 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     }
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
+    if (m_titlePill) {
+        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+        m_titlePill->setTargetY(targetPillY, false);
+    }
     if (m_background)
         m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf && m_appLayoutMode != AppLayoutMode::Deck);
     if (m_themeShop)
@@ -5076,7 +5080,9 @@ void WiiUMenuApp::buildGrid() {
     buildUserAvatarBar();
 
     m_titlePill = std::make_shared<TitlePillWidget>();
-    m_titlePill->setPosition(0, 630.f);
+    const float initPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+    m_titlePill->setPosition(0, initPillY);
+    m_titlePill->setTargetY(initPillY, true);
     m_titlePill->setFont(&m_fontNormal);
     m_titlePill->setPadding(9.f, 22.f, 9.f, 22.f);
     m_titlePill->setForceLiquidGlass(true);
@@ -6515,6 +6521,11 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     if (m_folderCaptureReady)
         openCapturedFolder();
+
+    if (m_titlePill) {
+        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+        m_titlePill->setTargetY(targetPillY);
+    }
 
     if (m_config.actionHintStyle != "panel")
         syncHintCapsules(dt);

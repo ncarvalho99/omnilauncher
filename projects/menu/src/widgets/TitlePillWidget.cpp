@@ -58,8 +58,18 @@ void TitlePillWidget::hideAnimated(float screenWidth) {
     setVisible(true);
 }
 
+void TitlePillWidget::setTargetY(float y, bool immediate) {
+    if (immediate) {
+        m_animY.setImmediate(y);
+        m_rect.y = y;
+    } else {
+        m_animY.set(y, 0.22f, nxui::Easing::outCubic);
+    }
+}
+
 void TitlePillWidget::onContentUpdate(float dt) {
-    (void)dt;
+    m_animY.update(dt);
+    m_rect.y = m_animY.value();
 
     if (m_layoutInitialized) {
         m_rect.x = m_animX.value();

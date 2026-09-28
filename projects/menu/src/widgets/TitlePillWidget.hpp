@@ -16,6 +16,8 @@ public:
     void setText(const std::string& text, float screenWidth = 1280.f);
     void hideAnimated(float screenWidth = 1280.f);
 
+    void setTargetY(float y, bool immediate = false);
+
 protected:
     void onContentUpdate(float dt) override;
     void onContentRender(nxui::Renderer& ren) override;
@@ -27,6 +29,7 @@ private:
     std::string m_text;
     nxui::Color       m_textColor {1.f, 1.f, 1.f, 1.f};
     nxui::AnimatedFloat m_animX{0.f};
+    nxui::AnimatedFloat m_animY{630.f};
     nxui::AnimatedFloat m_animW{0.f};
     nxui::AnimatedFloat m_textReveal{1.f};
     bool m_layoutInitialized = false;
