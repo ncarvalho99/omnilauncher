@@ -2203,6 +2203,7 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         for (const auto& folder : m_folderStore.all()) {
             std::vector<std::uint64_t> gone;
             for (std::uint64_t titleId : folder.titleIds) {
+                if (titleId == 0) continue;
                 const bool known = std::any_of(
                     m_allApps.begin(), m_allApps.end(),
                     [titleId](const AppEntry& app) { return app.titleId == titleId; });
@@ -2268,6 +2269,12 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
             m_layoutSlots.push_back(folderTitleId(folder.id));
         for (const auto& widget : m_widgetStore.all())
             m_layoutSlots.push_back(switchu::widgets::widgetTitleId(widget.id));
+    }
+    for (auto& slot : m_layoutSlots) {
+        if (slot != 0 && entries.find(slot) == entries.end()) {
+            slot = 0;
+            m_layoutDirty = true;
+        }
     }
     std::vector<bool> covered = layoutSpanCoverage(m_layoutSlots);
     for (const auto& pair : entries) {
@@ -3373,6 +3380,7 @@ bool WiiUMenuApp::canPlaceGridItem(int targetSlot,
         const std::uint64_t value = m_layoutSlots[static_cast<std::size_t>(index)];
         if (value == 0) continue;
         if (value == ignoringTitleId || value == alsoIgnoringTitleId) continue;
+        if (index < m_model.count() && m_model.at(index).kind == GridEntryKind::Empty) continue;
         const std::uint32_t widgetId = switchu::widgets::widgetIdFromTitleId(value);
         const auto* widget = widgetId != 0 ? m_widgetStore.find(widgetId) : nullptr;
         if (isCarouselLayout()) {

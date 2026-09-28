@@ -84,31 +84,39 @@ void IconStreamer::cancelPending() {
 }
 
 bool IconStreamer::swapIndices(int a, int b) {
-    if (a < 0 || b < 0 || a >= (int)m_appToSlot.size() || b >= (int)m_appToSlot.size())
+    if (a < 0 || b < 0)
         return false;
     if (a == b)
         return true;
 
-    if (a < (int)m_compressed.size() && b < (int)m_compressed.size())
-        std::swap(m_compressed[a], m_compressed[b]);
-    if (a < (int)m_titleIds.size() && b < (int)m_titleIds.size())
-        std::swap(m_titleIds[a], m_titleIds[b]);
-    if (a < (int)m_customArtwork.size() && b < (int)m_customArtwork.size()) {
-        const bool artworkA = m_customArtwork[a];
-        m_customArtwork[a] = m_customArtwork[b];
-        m_customArtwork[b] = artworkA;
+    const int maxIdx = std::max(a, b);
+    if (maxIdx >= (int)m_appToSlot.size()) {
+        m_appToSlot.resize(static_cast<std::size_t>(maxIdx + 1), -1);
+    }
+    if (maxIdx >= (int)m_compressed.size()) {
+        m_compressed.resize(static_cast<std::size_t>(maxIdx + 1));
+    }
+    if (maxIdx >= (int)m_titleIds.size()) {
+        m_titleIds.resize(static_cast<std::size_t>(maxIdx + 1), 0);
+    }
+    if (maxIdx >= (int)m_customArtwork.size()) {
+        m_customArtwork.resize(static_cast<std::size_t>(maxIdx + 1), false);
     }
 
-    if (a < (int)m_appToSlot.size() && b < (int)m_appToSlot.size()) {
-        int slotA = m_appToSlot[a];
-        int slotB = m_appToSlot[b];
-        std::swap(m_appToSlot[a], m_appToSlot[b]);
+    std::swap(m_compressed[a], m_compressed[b]);
+    std::swap(m_titleIds[a], m_titleIds[b]);
+    const bool artworkA = m_customArtwork[a];
+    m_customArtwork[a] = m_customArtwork[b];
+    m_customArtwork[b] = artworkA;
 
-        if (slotA >= 0 && slotA < (int)m_pool.size())
-            m_pool[slotA]->appIndex = b;
-        if (slotB >= 0 && slotB < (int)m_pool.size())
-            m_pool[slotB]->appIndex = a;
-    }
+    int slotA = m_appToSlot[a];
+    int slotB = m_appToSlot[b];
+    std::swap(m_appToSlot[a], m_appToSlot[b]);
+
+    if (slotA >= 0 && slotA < (int)m_pool.size())
+        m_pool[slotA]->appIndex = b;
+    if (slotB >= 0 && slotB < (int)m_pool.size())
+        m_pool[slotB]->appIndex = a;
 
     if (m_pinnedIndex == a)
         m_pinnedIndex = b;

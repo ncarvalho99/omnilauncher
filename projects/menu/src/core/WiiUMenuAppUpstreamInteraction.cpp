@@ -839,6 +839,14 @@ bool WiiUMenuApp::moveFocusedIcon(nxui::FocusDirection dir) {
                 while (target >= 0 && m_model.at(target).kind == GridEntryKind::WidgetContinuation) {
                     --target;
                 }
+            } else if (dir == nxui::FocusDirection::DOWN) {
+                while (target < m_model.count() && m_model.at(target).kind == GridEntryKind::WidgetContinuation) {
+                    target += cols;
+                }
+            } else if (dir == nxui::FocusDirection::UP) {
+                while (target >= 0 && m_model.at(target).kind == GridEntryKind::WidgetContinuation) {
+                    target -= cols;
+                }
             }
         }
     }
