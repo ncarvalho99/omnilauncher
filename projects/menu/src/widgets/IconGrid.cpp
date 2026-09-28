@@ -152,7 +152,7 @@ void IconGrid::clearFlowCovers() {
 }
 
 void IconGrid::preloadFlowCoversAround(int centerIdx) {
-    if (m_layoutMode != AppLayoutMode::Flow || m_allIcons.empty() || !m_threadPool)
+    if (!is3D() || m_allIcons.empty() || !m_threadPool)
         return;
     const int count = static_cast<int>(m_allIcons.size());
     for (int offset = -3; offset <= 3; ++offset) {
@@ -194,7 +194,7 @@ void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
 {
     m_allIcons = std::move(icons);
     reconfigureLayout(cols, rows, cellW, cellH, padX, padY);
-    if (m_layoutMode == AppLayoutMode::Flow) {
+    if (is3D()) {
         int cur = focusedGlobalIndex();
         preloadFlowCoversAround(cur >= 0 ? cur : 0);
     }
@@ -206,13 +206,13 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
     int cur = focusedGlobalIndex();
     m_layoutReveal.setImmediate(0.86f);
     m_layoutReveal.set(1.f, 0.24f, nxui::Easing::outCubic);
-    // Flow shares the carousel's model, focus bindings and scroll offset: it is
-    // a different presentation of the same row, so switching between the two
-    // keeps your place on the same title without re-deriving anything.
+    // Flow/Shelf share the carousel's model, focus bindings and scroll offset:
+    // they are different presentations of the same row, so switching between
+    // views keeps your place on the same title without re-deriving anything.
     if (isCarousel()) {
         m_lineScrollOffset.setImmediate(cur >= 0 ? static_cast<float>(cur) : 0.f);
         layoutLine();
-        if (m_layoutMode == AppLayoutMode::Flow) {
+        if (is3D()) {
             preloadFlowCoversAround(cur >= 0 ? cur : 0);
         }
     } else {
@@ -652,7 +652,7 @@ bool IconGrid::focusGlobalIndex(int idx) {
 
     if (isCarousel()) {
         m_focus.setFocus(m_allIcons[idx].get());
-        if (m_layoutMode == AppLayoutMode::Flow) {
+        if (is3D()) {
             preloadFlowCoversAround(idx);
         }
         // Target the congruent value nearest the current offset, so a wrap moves
@@ -709,11 +709,11 @@ std::vector<GlossyIcon*> IconGrid::pageIcons() const {
 }
 
 int IconGrid::hitTest(float screenX, float screenY) const {
-    // Flow draws projected 3D cases, so a flat carousel rect does not describe
-    // where anything actually appears. Returning -1 makes touch a no-op here
-    // rather than activating the wrong title; projected-quad hit-testing is a
-    // later milestone. D-pad navigation is unaffected.
-    if (m_layoutMode == AppLayoutMode::Flow)
+    // 3D views (Flow, Shelf) draw projected 3D cases/cards, so a flat carousel rect
+    // does not describe where anything actually appears. Returning -1 makes touch
+    // a no-op here rather than activating the wrong title; projected-quad hit-testing
+    // is a later milestone. D-pad navigation is unaffected.
+    if (is3D())
         return -1;
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
@@ -1235,6 +1235,218 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+void IconGrid::shelfPlace(float d, float& x, float& y, float& z, float& a) {
+    if (d >= 0.0f) {
+        x = -1.45f + d * 0.78f;
+        y =  0.30f + d * 0.12f;
+        z =  3.60f + d * 1.00f;
+        a = std::clamp(1.0f - d * 0.16f, 0.0f, 1.0f);
+    } else { // sliding out to the left
+        x = -1.45f + d * 1.90f;
+        y =  0.30f;
+        z =  3.60f + d * 0.30f;
+        a = std::clamp(1.0f + d * 1.20f, 0.0f, 1.0f);
+    }
+}
+
+void IconGrid::renderShelf(nxui::Renderer& ren) {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return;
+
+    ren.pushClipRect(nxui::Rect{0.f, 60.f, 1280.f, 660.f});
+
+    const float reveal = clamp01(m_layoutReveal.value());
+
+    // Dark glossy floor plane grounding cases visually behind reflections
+    const float floorTop = 460.f;
+    const float floorHeight = 720.f - floorTop;
+    ren.drawGradientRect(
+        nxui::Rect{0.f, floorTop, 1280.f, floorHeight},
+        nxui::Color(0.04f, 0.05f, 0.08f, 0.60f * reveal),
+        nxui::Color(0.01f, 0.01f, 0.02f, 0.90f * reveal)
+    );
+    ren.drawRect(
+        nxui::Rect{0.f, floorTop, 1280.f, 1.5f},
+        nxui::Color(1.f, 1.f, 1.f, 0.08f * reveal)
+    );
+
+    // Harvest completed asynchronous cover decodes (up to 2 uploads per frame)
+    int uploads = 0;
+    for (auto it = m_pendingCoverDecodes.begin(); it != m_pendingCoverDecodes.end() && uploads < 2;) {
+        if (it->state && it->state->done.load()) {
+            try {
+                if (it->future.valid()) it->future.get();
+            } catch (...) {}
+            auto covIt = m_flowCovers.find(it->titleId);
+            if (covIt != m_flowCovers.end()) {
+                if (!it->state->failed.load() && it->state->decoded.valid()) {
+                    if (covIt->second.texture.loadFromDecoded(ren.gpu(), ren, it->state->decoded)) {
+                        covIt->second.available = true;
+                    }
+                }
+                covIt->second.loading = false;
+            }
+            it = m_pendingCoverDecodes.erase(it);
+            ++uploads;
+        } else {
+            ++it;
+        }
+    }
+
+    const int focusedIndex = focusedGlobalIndex();
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::lround(scroll);
+
+    auto& order = m_flowRenderScratch;
+    order.clear();
+    order.reserve(16);
+    for (int i = centre - 3; i <= centre + 8; ++i) {
+        const float d = (float)i - scroll;
+        float x, y, z, a;
+        shelfPlace(d, x, y, z, a);
+        if (a <= 0.01f) continue;
+        order.push_back({flowWrap(i, n), d, z});
+    }
+
+    // Far to near: the row recedes to the right, so the furthest items land first.
+    std::sort(order.begin(), order.end(), [](const FlowCandidate& a, const FlowCandidate& b) {
+        return a.z > b.z;
+    });
+
+    for (const auto& c : order) {
+        auto& icon = m_allIcons[(size_t)c.index];
+        if (!icon) continue;
+
+        float x, y, z, a;
+        shelfPlace(c.p, x, y, z, a);
+
+        const bool isSel = (c.index == focusedIndex);
+
+        const float halfW = 0.44f;
+        const float halfH = 0.66f;
+
+        const nxui::Vec3 quad[4] = {
+            { x - halfW, y + halfH, z },
+            { x + halfW, y + halfH, z },
+            { x + halfW, y - halfH, z },
+            { x - halfW, y - halfH, z }
+        };
+
+        const float floorY = y - halfH - 0.04f;
+        const nxui::Vec3 refl[4] = {
+            { x - halfW, floorY, z },
+            { x + halfW, floorY, z },
+            { x + halfW, floorY - 2.f * halfH, z },
+            { x - halfW, floorY - 2.f * halfH, z }
+        };
+
+        const float prox = std::max(0.0f, 1.0f - std::abs(c.p));
+        const float selectedLift = isSel ? 0.08f : 0.f;
+        const float lit = std::clamp((150.f + 105.f * prox) / 255.f + selectedLift, 0.f, 1.f);
+        const float blankLit = std::clamp((20.f + 15.f * prox) / 255.f + selectedLift * 0.25f, 0.f, 1.f);
+
+        const float alpha = m_opacity * icon->opacity() * reveal * a;
+        if (alpha <= 0.01f) continue;
+
+        const nxui::Color artTint {lit, lit, lit, alpha};
+        const nxui::Color blankCol{blankLit, blankLit, blankLit, alpha};
+
+        // Query 2:3 portrait cover art cache.
+        const std::uint64_t tid = icon->titleId();
+        nxui::Texture* coverTex = nullptr;
+        if (tid != 0) {
+            auto& cov = m_flowCovers[tid];
+            if (!cov.checked) {
+                cov.checked = true;
+                const std::string coverPath = resolveFlowCoverPath(tid);
+                if (!coverPath.empty()) {
+                    cov.loading = true;
+                    if (m_threadPool) {
+                        auto decodeState = std::make_shared<CoverDecodeState>();
+                        auto work = [decodeState, coverPath]() {
+                            try {
+                                decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
+                                decodeState->failed = !decodeState->decoded.valid();
+                            } catch (...) {
+                                decodeState->failed = true;
+                            }
+                            decodeState->done = true;
+                        };
+                        PendingCoverDecode pcd;
+                        pcd.titleId = tid;
+                        pcd.state = decodeState;
+                        pcd.future = m_threadPool->submit(std::move(work));
+                        m_pendingCoverDecodes.push_back(std::move(pcd));
+                    }
+                }
+            }
+            if (cov.available && cov.texture.valid()) {
+                coverTex = &cov.texture;
+            }
+        }
+
+        nxui::Texture* art = icon->texture();
+
+        // 1:1 square icon inset centered on front face when 2:3 vertical cover is not present.
+        const float iconHalf = halfW * 0.88f;
+        const nxui::Vec3 iconQuad[4] = {
+            { x - iconHalf, y + iconHalf, z - 0.001f },
+            { x + iconHalf, y + iconHalf, z - 0.001f },
+            { x + iconHalf, y - iconHalf, z - 0.001f },
+            { x - iconHalf, y - iconHalf, z - 0.001f }
+        };
+        const nxui::Vec3 iconRefl[4] = {
+            { x - iconHalf, floorY - (halfH - iconHalf), z },
+            { x + iconHalf, floorY - (halfH - iconHalf), z },
+            { x + iconHalf, floorY - (halfH + iconHalf), z },
+            { x - iconHalf, floorY - (halfH + iconHalf), z }
+        };
+
+        // 1. Draw floor reflection
+        const float reflTop = 0.32f * alpha;
+        ren.drawQuad3D(nullptr, refl, blankCol, reflTop, 0.f, true, 8);
+        if (coverTex) {
+            ren.drawQuad3D(coverTex, refl, artTint, reflTop, 0.f, true, 8);
+        } else if (art && art->valid()) {
+            ren.drawQuad3D(art, iconRefl, artTint, reflTop, 0.f, true, 8);
+        }
+
+        // 2. Draw card face
+        ren.drawQuad3D(nullptr, quad, blankCol, 1.f, 1.f, false, 8);
+        if (coverTex) {
+            ren.drawQuad3D(coverTex, quad, artTint, 1.f, 1.f, false, 8);
+        } else if (art && art->valid()) {
+            ren.drawQuad3D(art, iconQuad, artTint, 1.f, 1.f, false, 8);
+        }
+
+        // 3. Selection glowing border (Xbox 360 style)
+        if (isSel) {
+            nxui::Vec2 tl, br;
+            if (ren.project3D(quad[0], tl) && ren.project3D(quad[2], br)) {
+                const float fx0 = tl.x - 4.f;
+                const float fy0 = tl.y - 4.f;
+                const float fw  = (br.x - tl.x) + 8.f;
+                const float fh  = (br.y - tl.y) + 8.f;
+
+                const nxui::Color frameCol{0.25f, 0.72f, 1.0f, 0.95f * alpha};
+                ren.drawRect(nxui::Rect{fx0, fy0, fw, 3.5f}, frameCol);
+                ren.drawRect(nxui::Rect{fx0, fy0 + fh - 3.5f, fw, 3.5f}, frameCol);
+                ren.drawRect(nxui::Rect{fx0, fy0, 3.5f, fh}, frameCol);
+                ren.drawRect(nxui::Rect{fx0 + fw - 3.5f, fy0, 3.5f, fh}, frameCol);
+
+                // Soft outer glow outline
+                const nxui::Color glowCol{0.25f, 0.72f, 1.0f, 0.35f * alpha};
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, fw + 4.f, 2.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 + fh, fw + 4.f, 2.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 + fw, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
+            }
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
@@ -1248,6 +1460,11 @@ void IconGrid::render(nxui::Renderer& ren) {
 
     if (m_layoutMode == AppLayoutMode::Flow) {
         renderFlow(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Shelf) {
+        renderShelf(ren);
         return;
     }
 

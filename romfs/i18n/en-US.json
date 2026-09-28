@@ -28,6 +28,7 @@
       "user_profiles": "User profiles",
       "dynamic_line": "Center line",
       "flow": "Cover flow",
+      "shelf": "Shelf",
       "menu": "Context menu"
     },
     "roles": {
@@ -95,6 +96,7 @@
     "layout": {
       "dynamic_line": "Dynamic line mode",
       "flow": "Flow mode",
+      "shelf": "Shelf mode",
       "grid": "Grid mode"
     }
   },
@@ -191,7 +193,8 @@
     "layout": {
       "grid": "Grid",
       "dynamic_line": "Dynamic Line",
-      "flow": "Flow (3D)"
+      "flow": "Flow (3D)",
+      "shelf": "Shelf (3D)"
     },
     "tabs": {
       "system": "System",

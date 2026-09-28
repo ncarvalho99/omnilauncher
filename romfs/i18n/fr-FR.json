@@ -28,6 +28,7 @@
       "user_profiles": "Profils utilisateur",
       "dynamic_line": "Ligne centrale",
       "flow": "Flux de jaquettes",
+      "shelf": "Étagère",
       "menu": "Menu contextuel"
     },
     "roles": {
@@ -95,6 +96,7 @@
     "layout": {
       "dynamic_line": "Mode ligne dynamique",
       "flow": "Mode flux",
+      "shelf": "Mode étagère",
       "grid": "Mode grille"
     }
   },
@@ -191,7 +193,8 @@
     "layout": {
       "grid": "Grille",
       "dynamic_line": "Ligne Dynamique",
-      "flow": "Flow (3D)"
+      "flow": "Flow (3D)",
+      "shelf": "Shelf (3D)"
     },
     "tabs": {
       "system": "Système",

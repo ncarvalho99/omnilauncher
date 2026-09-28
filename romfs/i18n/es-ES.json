@@ -28,6 +28,7 @@
       "user_profiles": "Perfiles de usuario",
       "dynamic_line": "Línea central",
       "flow": "Flujo de portadas",
+      "shelf": "Estantería",
       "menu": "Menú contextual"
     },
     "roles": {
@@ -95,6 +96,7 @@
     "layout": {
       "dynamic_line": "Modo de línea dinámica",
       "flow": "Modo flujo",
+      "shelf": "Modo estantería",
       "grid": "Modo de cuadrícula"
     }
   },
@@ -191,7 +193,8 @@
     "layout": {
       "grid": "Cuadrícula",
       "dynamic_line": "Línea Dinámica",
-      "flow": "Flow (3D)"
+      "flow": "Flow (3D)",
+      "shelf": "Shelf (3D)"
     },
     "tabs": {
       "system": "Sistema",

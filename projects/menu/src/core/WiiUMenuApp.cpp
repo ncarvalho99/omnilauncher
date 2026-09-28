@@ -2470,7 +2470,7 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         }
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf);
     return model;
 }
 
@@ -2547,7 +2547,7 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
             model.addEntry({});
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf);
     return model;
 }
 
@@ -4112,13 +4112,14 @@ void WiiUMenuApp::syncPageIndicator() {
 }
 
 // Minus cycles the enabled views on the unobstructed Home route:
-// Grid -> DynamicLine -> Flow -> Grid. Grid stays reachable from every view, so
+// Grid -> DynamicLine -> Flow -> Shelf -> Grid. Grid stays reachable from every view, so
 // it remains the escape hatch if a newer view misbehaves.
 void WiiUMenuApp::toggleAppLayoutMode() {
     switch (m_appLayoutMode) {
         case AppLayoutMode::Grid:        setAppLayoutMode(AppLayoutMode::DynamicLine); break;
         case AppLayoutMode::DynamicLine: setAppLayoutMode(AppLayoutMode::Flow);        break;
-        case AppLayoutMode::Flow:        setAppLayoutMode(AppLayoutMode::Grid);        break;
+        case AppLayoutMode::Flow:        setAppLayoutMode(AppLayoutMode::Shelf);       break;
+        case AppLayoutMode::Shelf:       setAppLayoutMode(AppLayoutMode::Grid);        break;
     }
 }
 
@@ -4194,7 +4195,7 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow);
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf);
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
@@ -4215,6 +4216,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             ? i18n.tr("accessibility.layout.dynamic_line", "Dynamic line mode")
         : (m_appLayoutMode == AppLayoutMode::Flow)
             ? i18n.tr("accessibility.layout.flow", "Flow mode")
+        : (m_appLayoutMode == AppLayoutMode::Shelf)
+            ? i18n.tr("accessibility.layout.shelf", "Shelf mode")
             : i18n.tr("accessibility.layout.grid", "Grid mode");
     m_accessibility.announce(announcement, true, true);
 
@@ -5024,7 +5027,7 @@ void WiiUMenuApp::buildGrid() {
     m_grid->setRect({kGridRectX, kGridRectY, kGridRectW, kGridRectH});
     m_grid->setThreadPool(&m_threadPool);
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow);
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf);
     // buildGrid() creates the grid and calls setup() directly, without going
     // through applyDisplayModel(), which is the only other place that sets this.
     // The grid therefore stayed in its default page mode after a restart while

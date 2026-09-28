@@ -72,6 +72,8 @@ bool AppConfig::load() {
             appLayoutMode = AppLayoutMode::DynamicLine;
         else if (mode == "flow")
             appLayoutMode = AppLayoutMode::Flow;
+        else if (mode == "shelf")
+            appLayoutMode = AppLayoutMode::Shelf;
         else if (mode == "grid")
             appLayoutMode = AppLayoutMode::Grid;
     }
@@ -205,9 +207,10 @@ bool AppConfig::save() const {
     j["gridRows"] = std::clamp(gridRows, 2, 5);
     j["dynamicPages"] = dynamicPages;
     // Stable strings, never enum ordinals: an installation written by a build
-    // that knows Flow must still read correctly on one that does not.
+    // that knows Flow/Shelf must still read correctly on one that does not.
     j["appLayoutMode"] = appLayoutMode == AppLayoutMode::DynamicLine ? "dynamic_line"
                        : appLayoutMode == AppLayoutMode::Flow        ? "flow"
+                       : appLayoutMode == AppLayoutMode::Shelf       ? "shelf"
                                                                      : "grid";
     j["actionHintStyle"] = actionHintStyle == "panel" ? "panel" : "capsules";
     j["uiLanguageOverride"] = uiLanguageOverride;

@@ -28,6 +28,7 @@
       "user_profiles": "Profili utente",
       "dynamic_line": "Riga centrale",
       "flow": "Flusso di copertine",
+      "shelf": "Scaffale",
       "menu": "Menu contestuale"
     },
     "roles": {
@@ -95,6 +96,7 @@
     "layout": {
       "dynamic_line": "Modalità riga dinamica",
       "flow": "Modalità flusso",
+      "shelf": "Modalità scaffale",
       "grid": "Modalità griglia"
     }
   },
@@ -191,7 +193,8 @@
     "layout": {
       "grid": "Griglia",
       "dynamic_line": "Linea Dinamica",
-      "flow": "Flow (3D)"
+      "flow": "Flow (3D)",
+      "shelf": "Shelf (3D)"
     },
     "tabs": {
       "system": "Sistema",

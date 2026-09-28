@@ -35,14 +35,17 @@ public:
     AppLayoutMode layoutMode() const { return m_layoutMode; }
     bool isDynamicLine() const { return m_layoutMode == AppLayoutMode::DynamicLine; }
     bool isFlow() const { return m_layoutMode == AppLayoutMode::Flow; }
-    // Both carousel views share one model: a single wrapping row driven by
+    bool isShelf() const { return m_layoutMode == AppLayoutMode::Shelf; }
+    bool is3D() const { return m_layoutMode == AppLayoutMode::Flow || m_layoutMode == AppLayoutMode::Shelf; }
+    // All carousel views share one model: a single wrapping row driven by
     // m_lineScrollOffset, with the same focus bindings and the same per-item
     // rects. They differ only in how that row is drawn. Layout, navigation,
     // hit-testing, paging and animation must therefore test this rather than
-    // DynamicLine alone, or Flow silently falls back to paged-grid behaviour.
+    // DynamicLine alone.
     bool isCarousel() const {
         return m_layoutMode == AppLayoutMode::DynamicLine
-            || m_layoutMode == AppLayoutMode::Flow;
+            || m_layoutMode == AppLayoutMode::Flow
+            || m_layoutMode == AppLayoutMode::Shelf;
     }
     bool isDynamicLineScrolling() const;
     void setDynamicLineUpTarget(nxui::Widget* target);
@@ -110,6 +113,10 @@ private:
     // callbacks, so it is a presentation layer over the identical model and
     // adds no lifecycle path of its own. Only the drawing differs.
     void renderFlow(nxui::Renderer& ren);
+    // Shelf: an Xbox 360 NXE-style 3D library row with prominent front-left
+    // selection, receding diagonal perspective, reflections, and glow frame.
+    void renderShelf(nxui::Renderer& ren);
+    static void shelfPlace(float d, float& x, float& y, float& z, float& a);
     // Places one case by its signed distance from the row centre, saturating at
     // one item out. That saturation is what gives coverflow a single upright
     // face against a receding wall rather than a smooth arc.

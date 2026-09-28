@@ -28,6 +28,7 @@
       "user_profiles": "Benutzerprofile",
       "dynamic_line": "Mittellinie",
       "flow": "Cover-Fluss",
+      "shelf": "Regal",
       "menu": "Kontextmenü"
     },
     "roles": {
@@ -95,6 +96,7 @@
     "layout": {
       "dynamic_line": "Dynamischer Linienmodus",
       "flow": "Flussmodus",
+      "shelf": "Regalmodus",
       "grid": "Rastermodus"
     }
   },
@@ -191,7 +193,8 @@
     "layout": {
       "grid": "Raster",
       "dynamic_line": "Dynamische Zeile",
-      "flow": "Flow (3D)"
+      "flow": "Flow (3D)",
+      "shelf": "Shelf (3D)"
     },
     "tabs": {
       "system": "System",

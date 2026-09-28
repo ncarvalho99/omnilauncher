@@ -896,8 +896,7 @@ void WiiUMenuApp::handleSortShortcutRelease(float dt) {
     // the same slots rearranged the row around the cursor and left the icons it
     // moved reloading. Order in that view is the arrangement the owner built,
     // and R has nothing to offer it.
-    if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
-        m_appLayoutMode == AppLayoutMode::Flow)
+    if (isCarouselLayout())
         return;
     // Taking a title out of a folder briefly lived here, and moved to X so that
     // one button does both halves of the same job. R stays inert inside a

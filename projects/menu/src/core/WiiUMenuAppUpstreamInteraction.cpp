@@ -51,6 +51,9 @@ std::string WiiUMenuApp::accessibilityContextFor(nxui::Widget* w) const {
         if (m_appLayoutMode == AppLayoutMode::Flow)
             return i18n.tr("accessibility.context.main_menu", "Main menu")
                  + ", " + i18n.tr("accessibility.context.flow", "Cover flow");
+        if (m_appLayoutMode == AppLayoutMode::Shelf)
+            return i18n.tr("accessibility.context.main_menu", "Main menu")
+                 + ", " + i18n.tr("accessibility.context.shelf", "Shelf");
         return i18n.tr("accessibility.context.main_menu", "Main menu")
              + ", " + i18n.tr("accessibility.context.page", "page") + " "
              + std::to_string(m_grid->currentPage() + 1)
@@ -116,13 +119,16 @@ std::string WiiUMenuApp::accessibilityPositionFor(nxui::Widget* w) const {
     if (w->tag() == "glossy_icon" && m_grid) {
         const int global = m_grid->focusedGlobalIndex();
         if (global >= 0) {
-            // Both carousel views are one wrapping row, so position is reported
+            // All carousel views are one wrapping row, so position is reported
             // as "item N of M" rather than as a grid coordinate.
             if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
-                m_appLayoutMode == AppLayoutMode::Flow) {
+                m_appLayoutMode == AppLayoutMode::Flow ||
+                m_appLayoutMode == AppLayoutMode::Shelf) {
                 const int total = (int)m_grid->allIcons().size();
                 const std::string view = (m_appLayoutMode == AppLayoutMode::Flow)
                     ? i18n.tr("accessibility.context.flow", "Cover flow")
+                    : (m_appLayoutMode == AppLayoutMode::Shelf)
+                    ? i18n.tr("accessibility.context.shelf", "Shelf")
                     : i18n.tr("accessibility.context.dynamic_line", "Center line");
                 return view + ", "
                      + i18n.tr("accessibility.position.item", "item") + " " + std::to_string(global + 1)
@@ -1719,7 +1725,7 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        if (m_grid && m_grid->isFlow() && cur->tag() == "glossy_icon") {
+        if (m_grid && m_grid->is3D() && cur->tag() == "glossy_icon") {
             m_cursor->setVisible(false);
             return;
         }
