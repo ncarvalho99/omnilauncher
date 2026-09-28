@@ -66,7 +66,9 @@ bool ensureNetworkInitialized() {
     return false;
 }
 
-uint64_t queryServer(const std::string& host, int timeoutSec) {
+uint64_t queryServer(const std::string& host, int timeoutSec, bool* outDnsFailed = nullptr) {
+    if (outDnsFailed) *outDnsFailed = false;
+
     struct addrinfo hints{};
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_DGRAM;
@@ -76,6 +78,7 @@ uint64_t queryServer(const std::string& host, int timeoutSec) {
     if (err != 0 || !res) {
         switchu::FileLog::log("[ntp] DNS resolve failed for %s: %d (%s)",
                               host.c_str(), err, gai_strerror(err));
+        if (outDnsFailed) *outDnsFailed = true;
         return 0;
     }
 
@@ -119,6 +122,7 @@ uint64_t queryServer(const std::string& host, int timeoutSec) {
 alignas(0x1000) static u8 s_ntpStack[0x8000];
 static Thread s_ntpThread;
 static std::atomic<bool> s_ntpRunning{false};
+static std::atomic<bool> s_cancelRequested{false};
 static bool s_ntpThreadCreated = false;
 static NtpClient::SyncCallback s_ntpCallback;
 static std::mutex s_ntpSyncMutex;
@@ -127,7 +131,7 @@ static void ntpWorkerThreadFunc(void* arg) {
     (void)arg;
     uint64_t timestamp = NtpClient::queryNetworkTime(2);
     bool ok = false;
-    if (timestamp > 0) {
+    if (timestamp > 0 && !s_cancelRequested.load()) {
         Result rc = switchu::menu::smi_cmd::setPosixTime(timestamp, true);
         ok = R_SUCCEEDED(rc);
         switchu::FileLog::log("[ntp] apply sync result: 0x%X (ok=%d)", rc, ok ? 1 : 0);
@@ -138,7 +142,7 @@ static void ntpWorkerThreadFunc(void* arg) {
         std::lock_guard<std::mutex> lock(s_ntpSyncMutex);
         cb = std::move(s_ntpCallback);
     }
-    if (cb) {
+    if (cb && !s_cancelRequested.load()) {
         cb(ok, timestamp);
     }
     s_ntpRunning.store(false);
@@ -151,14 +155,25 @@ const std::vector<std::string>& NtpClient::serverList() {
 }
 
 uint64_t NtpClient::queryNetworkTime(int timeoutSeconds) {
-    if (!ensureNetworkInitialized()) {
+    if (s_cancelRequested.load() || !ensureNetworkInitialized()) {
         return 0;
     }
 
     for (const auto& server : s_ntpServers) {
-        uint64_t t = queryServer(server, timeoutSeconds);
+        if (s_cancelRequested.load())
+            return 0;
+
+        bool dnsFailed = false;
+        uint64_t t = queryServer(server, timeoutSeconds, &dnsFailed);
         if (t > 0) {
             return t;
+        }
+
+        // If DNS resolution failed on this server, attempting the remaining
+        // server hostnames on the same broken connection will stall on repeated
+        // resolver timeouts. Fail fast.
+        if (dnsFailed || s_cancelRequested.load()) {
+            break;
         }
     }
     return 0;
@@ -178,6 +193,7 @@ void NtpClient::syncAsync(SyncCallback callback) {
         s_ntpThreadCreated = false;
     }
 
+    s_cancelRequested.store(false);
     s_ntpCallback = std::move(callback);
     s_ntpRunning.store(true);
 
@@ -208,11 +224,20 @@ void NtpClient::syncAsync(SyncCallback callback) {
 }
 
 void NtpClient::cleanup() {
+    s_cancelRequested.store(true);
     std::lock_guard<std::mutex> lock(s_ntpSyncMutex);
     if (s_ntpThreadCreated) {
-        threadWaitForExit(&s_ntpThread);
-        threadClose(&s_ntpThread);
+        s32 idx = 0;
+        Result rc = svcWaitSynchronization(&idx, &s_ntpThread.handle, 1, 100'000'000ULL);
+        if (R_SUCCEEDED(rc)) {
+            threadWaitForExit(&s_ntpThread);
+            threadClose(&s_ntpThread);
+        } else {
+            switchu::FileLog::log("[ntp] thread busy during cleanup; closing handle without blocking handoff");
+            threadClose(&s_ntpThread);
+        }
         s_ntpThreadCreated = false;
+        s_ntpRunning.store(false);
     }
 }
 

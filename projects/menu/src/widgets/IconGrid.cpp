@@ -1076,11 +1076,14 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             }
         }
 
-        // 1:1 square icon inset centered on the front face, keeping exact square
+        // 1:1 square icon inset centered on the front and back faces, keeping exact square
         // aspect ratio without vertical distortion.
         const float iconHalf = halfW * 0.82f;
         nxui::Vec3 iconQuad[4];
         flowFace(fx, fz, fang, -iconHalf, 0.001f, iconHalf, 0.001f, iconHalf, iconQuad);
+
+        nxui::Vec3 iconBack[4];
+        flowFace(fx, fz, fang, iconHalf, 2.f * depth - 0.001f, -iconHalf, 2.f * depth - 0.001f, iconHalf, iconBack);
 
         // The four faces are sorted by their actual depth rather than by rules
         // read off the angle. The cases sit well off to either side, so
@@ -1099,6 +1102,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
 
         nxui::Texture* art = icon->texture();
         const bool showingFront = flowMidZ(front) <= flowMidZ(back);
+        const bool showingBack  = flowMidZ(back)  <= flowMidZ(front);
 
         for (const auto& f : faces) {
             switch (f.which) {
@@ -1115,7 +1119,16 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                         }
                     }
                     break;
-                case 1: ren.drawQuad3D(nullptr, back,  backCol, 1.f, 1.f, false, kFlowStripsSide); break;
+                case 1:
+                    ren.drawQuad3D(nullptr, back, backCol, 1.f, 1.f, false, kFlowStripsSide);
+                    if (showingBack) {
+                        if (coverTex) {
+                            ren.drawQuad3D(coverTex, back, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                        } else if (art) {
+                            ren.drawQuad3D(art, iconBack, artTint, 1.f, 1.f, false, kFlowStripsFront);
+                        }
+                    }
+                    break;
                 case 2: ren.drawQuad3D(nullptr, faceL, sideCol, 1.f, 1.f, false, kFlowStripsSide); break;
                 case 3: ren.drawQuad3D(nullptr, faceR, sideCol, 1.f, 1.f, false, kFlowStripsSide); break;
             }
@@ -1154,6 +1167,14 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                 } else if (art) {
                     nxui::Vec3 mIcon[4];
                     mirror(iconQuad, mIcon);
+                    ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+                }
+            } else if (f.which == 1 && showingBack) {
+                if (coverTex) {
+                    ren.drawQuad3D(coverTex, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
+                } else if (art) {
+                    nxui::Vec3 mIcon[4];
+                    mirror(iconBack, mIcon);
                     ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);
                 }
             }
