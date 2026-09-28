@@ -888,71 +888,99 @@ static void stopControlCacheWorker();
 // its firmware files replaced rather than being wholly unreadable.
 //
 // Reboot and shutdown handling.
-// On Atmosphere, direct spsmShutdown(true) without arming the reboot payload or
-// using bpc:ams causes consoles (especially with AutoRCM or modchips) to reboot
-// into an unmanaged black screen state.
-// We arm atmosphere/reboot_payload.bin via bpc:ams when present, then invoke
-// bpcRebootSystem() (which Atmosphere's bpc-mitm safely handles), falling back
-// to spsm and applet reboot paths.
+// Atmosphere's Exosphere provides direct PMIC power-cycle controls:
+// - splSetConfig(65001, 4): ForceRebootByPmic (hardware power cycle, same as physical power button)
+// - splSetConfig(65002, 1): ForceShutdown (hardware power off)
+// Direct bpc/spsm reboot without PMIC can reboot into RCM (black screen) on Erista.
+// We prioritize PMIC reboot via spl, with clean fallback to spsm, bpc, and applet.
 static void requestPowerStateChange(const char* source, bool reboot) {
+    switchu::FileLog::log("[power] requestPowerStateChange source=%s reboot=%d", source, reboot ? 1 : 0);
+    switchu::FileLog::flush();
+
     if (reboot) {
-        // Arm Atmosphere reboot payload if available
-        Handle bpcAmsHandle = INVALID_HANDLE;
-        if (R_SUCCEEDED(svcConnectToNamedPort(&bpcAmsHandle, "bpc:ams"))) {
-            Service amsBpcSrv;
-            serviceCreate(&amsBpcSrv, bpcAmsHandle);
-            FILE* f = std::fopen("sdmc:/atmosphere/reboot_payload.bin", "rb");
-            if (f) {
-                std::vector<uint8_t> payload(0x24000);
-                size_t readBytes = std::fread(payload.data(), 1, payload.size(), f);
-                std::fclose(f);
-                if (readBytes > 0) {
-                    serviceDispatch(&amsBpcSrv, 65001,
-                        .buffer_attrs = { SfBufferAttr_In | SfBufferAttr_HipcMapAlias },
-                        .buffers = { { payload.data(), readBytes } },
-                    );
-                }
-            }
-            serviceClose(&amsBpcSrv);
-        }
-
-        Result rc = bpcInitialize();
+        // 1. Preferred Atmosphere path: Hardware PMIC reboot (ConfigItem 65001 = 4).
+        // Power-cycles the SoC directly via MAX77620 PMIC, avoiding RCM black screen.
+        Result rc = splInitialize();
         if (R_SUCCEEDED(rc)) {
-            rc = bpcRebootSystem();
-            bpcExit();
-            if (R_SUCCEEDED(rc))
+            rc = splSetConfig(static_cast<SplConfigItem>(65001), 4);
+            splExit();
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] PMIC reboot initiated via spl");
+                switchu::FileLog::flush();
                 return;
+            }
+            switchu::FileLog::log("[power] splSetConfig(65001, 4) rc=0x%X", rc);
         }
 
+        // 2. Fall back to spsmShutdown(true)
         rc = spsmInitialize();
         if (R_SUCCEEDED(rc)) {
             rc = spsmShutdown(true);
             spsmExit();
-            if (R_SUCCEEDED(rc))
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] spsmShutdown(true) ok");
+                switchu::FileLog::flush();
                 return;
+            }
+            switchu::FileLog::log("[power] spsmShutdown(true) rc=0x%X", rc);
         }
 
-        svcOutputDebugString("[SwitchU-daemon] bpc/spsm reboot failed, using applet", 52);
+        // 3. Fall back to bpcRebootSystem()
+        rc = bpcInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = bpcRebootSystem();
+            bpcExit();
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] bpcRebootSystem() ok");
+                switchu::FileLog::flush();
+                return;
+            }
+            switchu::FileLog::log("[power] bpcRebootSystem() rc=0x%X", rc);
+        }
+
+        switchu::FileLog::log("[power] bpc/spsm failed; falling back to appletStartRebootSequence()");
+        switchu::FileLog::flush();
         (void)source;
         appletStartRebootSequence();
     } else {
-        Result rc = spsmInitialize();
+        // 1. Preferred Atmosphere path: Hardware PMIC shutdown (ConfigItem 65002 = 1).
+        Result rc = splInitialize();
+        if (R_SUCCEEDED(rc)) {
+            rc = splSetConfig(static_cast<SplConfigItem>(65002), 1);
+            splExit();
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] PMIC shutdown initiated via spl");
+                switchu::FileLog::flush();
+                return;
+            }
+        }
+
+        // 2. Fall back to spsmShutdown(false)
+        rc = spsmInitialize();
         if (R_SUCCEEDED(rc)) {
             rc = spsmShutdown(false);
             spsmExit();
-            if (R_SUCCEEDED(rc))
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] spsmShutdown(false) ok");
+                switchu::FileLog::flush();
                 return;
+            }
         }
 
+        // 3. Fall back to bpcShutdownSystem()
         rc = bpcInitialize();
         if (R_SUCCEEDED(rc)) {
             rc = bpcShutdownSystem();
             bpcExit();
-            if (R_SUCCEEDED(rc))
+            if (R_SUCCEEDED(rc)) {
+                switchu::FileLog::log("[power] bpcShutdownSystem() ok");
+                switchu::FileLog::flush();
                 return;
+            }
         }
 
-        svcOutputDebugString("[SwitchU-daemon] spsm/bpc shutdown failed, using applet", 54);
+        switchu::FileLog::log("[power] bpc/spsm failed; falling back to appletStartShutdownSequence()");
+        switchu::FileLog::flush();
         (void)source;
         appletStartShutdownSequence();
     }
@@ -1027,6 +1055,8 @@ static void startPowerSequence(const char* source, smi::SystemMessage action) {
     // back to hekate unable to find nyx with "card committed for power action"
     // sitting in the menu log, because the process that committed was not the
     // process with the dirty writes.
+    switchu::FileLog::log("[power] sequence started source=%s action=%d", source, static_cast<int>(action));
+    switchu::FileLog::flush();
     switchu::commitSdCard("power sequence");
 
     switch (action) {
