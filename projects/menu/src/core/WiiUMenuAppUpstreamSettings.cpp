@@ -544,14 +544,19 @@ void WiiUMenuApp::editSteamGridDbApiKey() {
                      [this](const std::string& typed) {
         m_config.steamGridDbApiKey = typed;
         m_config.save();
+        if (m_themeShop) {
+            m_themeShop->setSteamGridDbState(m_config.steamGridDbEnabled,
+                                            !m_config.steamGridDbApiKey.empty());
+            m_themeShop->refreshCurrentTabWidgets();
+            m_themeShop->requestToast(m_config.steamGridDbApiKey.empty()
+                ? nxui::I18n::instance().tr("settings.steamgriddb.key_cleared", "API key cleared.")
+                : nxui::I18n::instance().tr("settings.steamgriddb.key_saved", "API key saved."));
+            focusManager().setFocus(m_themeShop.get());
+        }
         if (m_settings) {
             m_settings->setSteamGridDbState(m_config.steamGridDbEnabled,
                                             !m_config.steamGridDbApiKey.empty());
             m_settings->refreshCurrentTabWidgets();
-            m_settings->requestToast(m_config.steamGridDbApiKey.empty()
-                ? nxui::I18n::instance().tr("settings.steamgriddb.key_cleared", "API key cleared.")
-                : nxui::I18n::instance().tr("settings.steamgriddb.key_saved", "API key saved."));
-            focusManager().setFocus(m_settings.get());
         }
     });
 }
@@ -560,15 +565,21 @@ void WiiUMenuApp::startSteamGridDbScrape() {
     // No key is required: an empty key routes the manager through this fork's
     // gallery service. A key only adds the logo source the proxy does not have.
     if (m_steamGridDbBrowseFuture.valid() || m_steamGridDbApplyFuture.valid()) {
-        if (m_settings)
-            m_settings->requestToast(nxui::I18n::instance().tr(
-                "settings.steamgriddb.already_running", "A SteamGridDB operation is already running."));
+        const auto msg = nxui::I18n::instance().tr(
+            "settings.steamgriddb.already_running", "A SteamGridDB operation is already running.");
+        if (m_themeShop && m_themeShop->isActive())
+            m_themeShop->requestToast(msg);
+        else if (m_settings)
+            m_settings->requestToast(msg);
         return;
     }
     if (!m_steamGridDb.start(m_config.steamGridDbApiKey, m_allApps)) {
-        if (m_settings)
-            m_settings->requestToast(nxui::I18n::instance().tr(
-                "settings.steamgriddb.start_failed", "The artwork scan could not be started."));
+        const auto msg = nxui::I18n::instance().tr(
+            "settings.steamgriddb.start_failed", "The artwork scan could not be started.");
+        if (m_themeShop && m_themeShop->isActive())
+            m_themeShop->requestToast(msg);
+        else if (m_settings)
+            m_settings->requestToast(msg);
         return;
     }
     m_steamGridDbWasRunning = true;
@@ -580,9 +591,12 @@ void WiiUMenuApp::startSteamGridDbScrape() {
                 "settings.steamgriddb.download_start", "Searching SteamGridDB..."), 0.f);
         focusManager().setFocus(m_progressDialog.get());
     }
-    if (m_settings)
-        m_settings->requestToast(nxui::I18n::instance().tr(
-            "settings.steamgriddb.started", "SteamGridDB scan started."));
+    const auto startedMsg = nxui::I18n::instance().tr(
+        "settings.steamgriddb.started", "SteamGridDB scan started.");
+    if (m_themeShop && m_themeShop->isActive())
+        m_themeShop->requestToast(startedMsg);
+    else if (m_settings)
+        m_settings->requestToast(startedMsg);
 }
 
 void WiiUMenuApp::openSteamGridDbPicker(GameOptionsScreen::ArtworkKind kind,

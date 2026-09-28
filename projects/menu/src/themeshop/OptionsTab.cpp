@@ -137,23 +137,6 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
         t.items.push_back(std::move(it));
     }
 
-    {
-        SettingItem it;
-        it.label = i18n.tr("settings.display.steamgriddb_opacity", "SteamGridDB artwork opacity");
-        it.description = i18n.tr("settings.display.steamgriddb_opacity_desc",
-                                 "Adjust the opacity of downloaded game background artwork.");
-        it.type = ItemType::Slider;
-        it.floatVal = std::clamp(screen.m_steamGridDbOpacity, 0.f, 1.f);
-        it.anim01 = it.floatVal;
-        it.infoText = std::to_string(static_cast<int>(std::round(it.floatVal * 100.f))) + "%";
-        it.onChange = [&screen](SettingItem& self) {
-            self.anim01 = self.floatVal;
-            self.infoText = std::to_string(static_cast<int>(std::round(self.floatVal * 100.f))) + "%";
-            screen.m_steamGridDbOpacity = std::clamp(self.floatVal, 0.f, 1.f);
-            if (screen.m_steamGridDbOpacityCb) screen.m_steamGridDbOpacityCb(screen.m_steamGridDbOpacity);
-        };
-        t.items.push_back(std::move(it));
-    }
 
     {
         SettingItem it;

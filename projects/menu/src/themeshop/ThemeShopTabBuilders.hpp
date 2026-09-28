@@ -24,6 +24,11 @@ public:
     static ThemeShopScreen::Tab build(ThemeShopScreen& screen);
 };
 
+class SteamGridDbTab {
+public:
+    static ThemeShopScreen::Tab build(ThemeShopScreen& screen);
+};
+
 class OptionsTab {
 public:
     static ThemeShopScreen::Tab build(ThemeShopScreen& screen);

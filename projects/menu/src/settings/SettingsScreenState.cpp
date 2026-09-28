@@ -17,10 +17,6 @@ void SettingsScreen::buildTabs() {
     m_tabs.push_back(settings::tabs::DisplayTab::build(*this));
     DebugLog::log("[settings]   InternetTab...");
     m_tabs.push_back(settings::tabs::InternetTab::build(*this));
-    // SteamGridDbTab was written during the 1.2 merge but never pushed here, so
-    // the bulk artwork scan and the key field had no way in at all.
-    DebugLog::log("[settings]   SteamGridDbTab...");
-    m_tabs.push_back(settings::tabs::SteamGridDbTab::build(*this));
     DebugLog::log("[settings]   ControllersTab...");
     m_tabs.push_back(settings::tabs::ControllersTab::build(*this));
     DebugLog::log("[settings]   BluetoothTab...");
