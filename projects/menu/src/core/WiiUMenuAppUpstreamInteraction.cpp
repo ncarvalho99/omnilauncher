@@ -1018,7 +1018,11 @@ bool WiiUMenuApp::focusTitle(uint64_t titleId) {
         return false;
 
     if (m_grid->currentPage() != oldPage || titleId != 0) {
-        m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
+        const bool line = isCarouselLayout();
+        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
+                                  : m_grid->currentPage();
+        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
+        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
                                      app().gpu(), app().renderer(),
                                      m_grid->allIcons());
     }

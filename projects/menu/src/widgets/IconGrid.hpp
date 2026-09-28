@@ -65,6 +65,7 @@ public:
 
     void setThreadPool(nxui::ThreadPool* pool) { m_threadPool = pool; }
     void clearFlowCovers();
+    void preloadFlowCoversAround(int centerIdx);
 
     int hitTest(float screenX, float screenY) const;
     nxui::Rect focusedDisplayRect() const;

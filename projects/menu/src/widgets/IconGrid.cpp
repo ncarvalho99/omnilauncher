@@ -142,8 +142,49 @@ void IconGrid::flowCorners(float x, float z, float angle,
 }
 
 void IconGrid::clearFlowCovers() {
+    for (auto& pcd : m_pendingCoverDecodes) {
+        try {
+            if (pcd.future.valid()) pcd.future.wait();
+        } catch (...) {}
+    }
     m_flowCovers.clear();
     m_pendingCoverDecodes.clear();
+}
+
+void IconGrid::preloadFlowCoversAround(int centerIdx) {
+    if (m_layoutMode != AppLayoutMode::Flow || m_allIcons.empty() || !m_threadPool)
+        return;
+    const int count = static_cast<int>(m_allIcons.size());
+    for (int offset = -3; offset <= 3; ++offset) {
+        int idx = ((centerIdx + offset) % count + count) % count;
+        const auto& icon = m_allIcons[static_cast<size_t>(idx)];
+        if (!icon) continue;
+        const std::uint64_t tid = icon->titleId();
+        if (tid == 0) continue;
+        auto& cov = m_flowCovers[tid];
+        if (!cov.checked) {
+            cov.checked = true;
+            const std::string coverPath = resolveFlowCoverPath(tid);
+            if (!coverPath.empty()) {
+                cov.loading = true;
+                auto decodeState = std::make_shared<CoverDecodeState>();
+                auto work = [decodeState, coverPath]() {
+                    try {
+                        decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
+                        decodeState->failed = !decodeState->decoded.valid();
+                    } catch (...) {
+                        decodeState->failed = true;
+                    }
+                    decodeState->done = true;
+                };
+                PendingCoverDecode pcd;
+                pcd.titleId = tid;
+                pcd.state = decodeState;
+                pcd.future = m_threadPool->submit(std::move(work));
+                m_pendingCoverDecodes.push_back(std::move(pcd));
+            }
+        }
+    }
 }
 
 void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
@@ -153,6 +194,10 @@ void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
 {
     m_allIcons = std::move(icons);
     reconfigureLayout(cols, rows, cellW, cellH, padX, padY);
+    if (m_layoutMode == AppLayoutMode::Flow) {
+        int cur = focusedGlobalIndex();
+        preloadFlowCoversAround(cur >= 0 ? cur : 0);
+    }
 }
 
 void IconGrid::setLayoutMode(AppLayoutMode mode) {
@@ -167,6 +212,9 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
     if (isCarousel()) {
         m_lineScrollOffset.setImmediate(cur >= 0 ? static_cast<float>(cur) : 0.f);
         layoutLine();
+        if (m_layoutMode == AppLayoutMode::Flow) {
+            preloadFlowCoversAround(cur >= 0 ? cur : 0);
+        }
     } else {
         setPage(cur >= 0 ? cur / std::max(1, iconsPerPage()) : m_page);
         layoutPage();
@@ -205,7 +253,6 @@ void IconGrid::reconfigureLayout(int cols, int rows,
                                  float cellW, float cellH,
                                  float padX, float padY)
 {
-    clearFlowCovers();
     m_cols  = cols;  m_rows = rows;
     m_cellW = cellW; m_cellH = cellH;
     m_padX  = padX;  m_padY  = padY;
@@ -225,6 +272,7 @@ void IconGrid::reconfigureLayout(int cols, int rows,
 }
 
 void IconGrid::setPage(int page) {
+    if (isCarousel()) return;
     m_page = std::clamp(page, 0, m_totalPages - 1);
     layoutPage();
 }
@@ -604,6 +652,9 @@ bool IconGrid::focusGlobalIndex(int idx) {
 
     if (isCarousel()) {
         m_focus.setFocus(m_allIcons[idx].get());
+        if (m_layoutMode == AppLayoutMode::Flow) {
+            preloadFlowCoversAround(idx);
+        }
         // Target the congruent value nearest the current offset, so a wrap moves
         // one step rather than scrolling the length of the line. The offset is
         // allowed outside [0, count) for this; every reader goes through
@@ -1114,7 +1165,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                     if (showingFront) {
                         if (coverTex) {
                             ren.drawQuad3D(coverTex, front, artTint, 1.f, 1.f, false, kFlowStripsFront);
-                        } else if (art) {
+                        } else if (art && art->valid()) {
                             ren.drawQuad3D(art, iconQuad, artTint, 1.f, 1.f, false, kFlowStripsFront);
                         }
                     }
@@ -1124,7 +1175,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                     if (showingBack) {
                         if (coverTex) {
                             ren.drawQuad3D(coverTex, back, artTint, 1.f, 1.f, false, kFlowStripsFront);
-                        } else if (art) {
+                        } else if (art && art->valid()) {
                             ren.drawQuad3D(art, iconBack, artTint, 1.f, 1.f, false, kFlowStripsFront);
                         }
                     }
@@ -1164,7 +1215,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             if (f.which == 0 && showingFront) {
                 if (coverTex) {
                     ren.drawQuad3D(coverTex, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
-                } else if (art) {
+                } else if (art && art->valid()) {
                     nxui::Vec3 mIcon[4];
                     mirror(iconQuad, mIcon);
                     ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);
@@ -1172,7 +1223,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             } else if (f.which == 1 && showingBack) {
                 if (coverTex) {
                     ren.drawQuad3D(coverTex, m, artTint, reflTop, 0.f, true, kFlowStripsRefl);
-                } else if (art) {
+                } else if (art && art->valid()) {
                     nxui::Vec3 mIcon[4];
                     mirror(iconBack, mIcon);
                     ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);

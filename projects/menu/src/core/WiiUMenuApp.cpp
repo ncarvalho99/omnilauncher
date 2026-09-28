@@ -2669,7 +2669,11 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
                     m_editGhostIcon->gridSpanColumns(),
                     m_editGhostIcon->gridSpanRows());
         }
-        m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
+        const bool line = isCarouselLayout();
+        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
+                                  : m_grid->currentPage();
+        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
+        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
                                      app().gpu(), app().renderer(), m_grid->allIcons());
         if (auto* target = m_grid->focusManager().current())
             focusManager().setFocus(target);
@@ -2679,7 +2683,11 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
         if (auto* first = m_grid->focusManager().current())
             focusManager().setFocus(first);
     }
-    m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
+    const bool line = isCarouselLayout();
+    const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
+                              : m_grid->currentPage();
+    const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
+    m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
                                  app().gpu(), app().renderer(), m_grid->allIcons());
     m_widgetAssetPage = -1;
     if (animate) m_grid->startAppearAnimation();
@@ -5158,10 +5166,15 @@ void WiiUMenuApp::buildGrid() {
 
     if (pageAnchor != 0) {
         int anchorIndex = findTitleIndex(pageAnchor);
-        if (anchorIndex >= 0 && m_grid->iconsPerPage() > 0)
-            initialPage = anchorIndex / m_grid->iconsPerPage();
-        if (initialPage > 0)
-            m_grid->setPage(initialPage);
+        if (anchorIndex >= 0) {
+            if (isCarouselLayout()) {
+                m_grid->focusGlobalIndex(anchorIndex);
+            } else if (m_grid->iconsPerPage() > 0) {
+                initialPage = anchorIndex / m_grid->iconsPerPage();
+                if (initialPage > 0)
+                    m_grid->setPage(initialPage);
+            }
+        }
     }
 #endif
 
@@ -5170,8 +5183,12 @@ void WiiUMenuApp::buildGrid() {
         m_deferredInitialAssetFrames = 1;
         DebugLog::log("[init] return path: deferring initial icon/sidebar uploads");
     } else {
-        // Load textures for the initial visible page.
-        m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
+        // Load textures for the initial visible page/row.
+        const bool line = isCarouselLayout();
+        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
+                                  : m_grid->currentPage();
+        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
+        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
                                      app().gpu(), app().renderer(),
                                      m_grid->allIcons());
     }
@@ -6803,7 +6820,11 @@ void WiiUMenuApp::onUpdate(float dt) {
         if (m_deferredInitialAssetFrames == 0) {
             DebugLog::log("[init] deferred initial icon/sidebar uploads start");
             if (m_grid) {
-                m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
+                const bool line = isCarouselLayout();
+                const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
+                                          : m_grid->currentPage();
+                const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
+                m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
                                              app().gpu(), app().renderer(),
                                              m_grid->allIcons());
             }
