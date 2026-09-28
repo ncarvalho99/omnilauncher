@@ -22,6 +22,8 @@ public:
 
     void setEnabled(bool enabled);
     void setLayoutMode(AppLayoutMode mode) { m_layoutMode = mode; }
+    void setArtworkOpacityScale(float opacityScale) { m_artworkOpacityScale = std::clamp(opacityScale, 0.f, 1.f); }
+    float artworkOpacityScale() const { return m_artworkOpacityScale; }
     void setPreloadTitles(std::vector<std::uint64_t> titleIds);
     void showTitle(std::uint64_t titleId, bool forceReload = false);
     // Call after a scan writes new files: everything cached in here was decided
@@ -94,6 +96,7 @@ private:
     AppLayoutMode m_layoutMode = AppLayoutMode::Grid;
     nxui::AnimatedFloat m_fade{1.f};
     nxui::AnimatedFloat m_artworkOpacity{1.f};
+    float m_artworkOpacityScale = 0.50f;
     static constexpr std::size_t kDecodedCacheLimit = 2;
     static constexpr std::size_t kMissingCacheLimit = 64;
 };

@@ -101,6 +101,7 @@ bool AppConfig::load() {
     readJsonOpt(j, "accessibilitySpeakPosition", accessibilitySpeakPosition);
     readJsonOpt(j, "accessibilitySpeechRate", accessibilitySpeechRate);
     readJsonOpt(j, "steamGridDbEnabled", steamGridDbEnabled);
+    readJsonOpt(j, "steamGridDbOpacity", steamGridDbOpacity);
     readJsonOpt(j, "steamGridDbApiKey", steamGridDbApiKey);
     readJsonOpt(j, "ytdlBackendUrl", ytdlBackendUrl);
     readJsonOpt(j, "themePreset", themePreset);
@@ -239,6 +240,7 @@ bool AppConfig::save() const {
     j["accessibilitySpeakPosition"] = accessibilitySpeakPosition;
     j["accessibilitySpeechRate"] = std::clamp(accessibilitySpeechRate, 120, 320);
     j["steamGridDbEnabled"] = steamGridDbEnabled;
+    j["steamGridDbOpacity"] = std::clamp(steamGridDbOpacity, 0.f, 1.f);
     j["steamGridDbApiKey"] = steamGridDbApiKey;
     j["ytdlBackendUrl"] = ytdlBackendUrl;
     j["themePreset"] = themePreset;

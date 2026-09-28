@@ -282,7 +282,12 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
     const nxui::Rect screen = rect();
 
     if (set.hasHero && set.hero.valid()) {
-        const float heroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) ? 0.60f : 0.16f;
+        // The per-layout ceilings are this fork's: the carousel views showcase the
+        // hero, the paged grid keeps it as a faint wash. Upstream 2.6.5 added a
+        // user-facing opacity slider, so the ceiling is scaled by it rather than
+        // replaced -- otherwise the slider would also undo the per-layout tuning.
+        const float maxHeroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) ? 0.60f : 0.16f;
+        const float heroAlpha = maxHeroAlpha * m_artworkOpacityScale;
         renderer.pushClipRect(screen);
         renderer.drawTexture(&set.hero, fillRect(set.hero, screen),
                              nxui::Color::white().withAlpha(alpha * heroAlpha));
@@ -300,12 +305,14 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
     if (m_layoutMode != AppLayoutMode::DynamicLine && m_layoutMode != AppLayoutMode::Deck) return;
 
     if (set.hasLogo && set.logo.valid()) {
-        // Visually position the logo in the upper open space (top-left for Deck, center for DynamicLine)
+        // Visually position the logo in the upper open space (top-left for Deck,
+        // center for DynamicLine, between the profile strip and the carousel).
         const nxui::Rect logoArea = (m_layoutMode == AppLayoutMode::Deck)
             ? nxui::Rect{80.f, 90.f, 440.f, 130.f}
             : nxui::Rect{370.f, 149.f, 540.f, 150.f};
+        const float logoAlpha = std::clamp(m_artworkOpacityScale * 1.5f, 0.f, 0.96f);
         renderer.drawTexture(&set.logo, containRect(set.logo, logoArea),
-                             nxui::Color::white().withAlpha(0.96f * alpha));
+                             nxui::Color::white().withAlpha(logoAlpha * alpha));
     }
 }
 

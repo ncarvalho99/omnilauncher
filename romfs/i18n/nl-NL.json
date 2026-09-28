@@ -335,6 +335,8 @@
       "album_nand": "NAND",
       "background_blur": "Achtergrondvervaging",
       "background_blur_desc": "Verzacht de achtergrond en de vormen die eroverheen zweven.",
+      "steamgriddb_opacity": "SteamGridDB-illustratiedekking",
+      "steamgriddb_opacity_desc": "Pas de dekking van gedownloade spelachtergronden aan.",
       "glass_sharpness": "Glashelderheid",
       "glass_sharpness_desc": "Hoe duidelijk het scherm achter menu's erdoorheen zichtbaar is.",
       "background_speed": "Snelheid van achtergrondanimatie",

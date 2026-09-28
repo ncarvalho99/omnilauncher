@@ -5501,6 +5501,7 @@ void WiiUMenuApp::buildGrid() {
     m_steamGridDbBackdrop->setRect({0, 0, 1280, 720});
     m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
     m_steamGridDbBackdrop->setEnabled(m_config.steamGridDbEnabled);
+    m_steamGridDbBackdrop->setArtworkOpacityScale(m_config.steamGridDbOpacity);
 
     m_folderHeader = std::make_shared<nxui::GlassPanel>();
     m_folderHeader->setRect({410.f, 78.f, 460.f, 58.f});

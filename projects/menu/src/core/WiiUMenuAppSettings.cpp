@@ -1236,6 +1236,7 @@ void WiiUMenuApp::createThemeShop() {
     m_themeShop->setAppearanceState(m_config.glassSharpness,
                                     m_config.backgroundSpeed,
                                     m_config.backgroundBlur);
+    m_themeShop->setSteamGridDbOpacity(m_config.steamGridDbOpacity);
     m_themeShop->setAccessibilityVoiceEnabled(m_config.accessibilityEnabled);
     m_themeShop->setAccessibilitySpeechPreferences(m_config.accessibilitySpeakHints,
                                                    m_config.accessibilitySpeakPosition);
@@ -1268,6 +1269,10 @@ void WiiUMenuApp::createThemeShop() {
     m_themeShop->onBackgroundBlurChange([this](float v) {
         m_config.backgroundBlur = v;
         if (m_background) m_background->setBlurStrength(v);
+    });
+    m_themeShop->onSteamGridDbOpacityChange([this](float v) {
+        m_config.steamGridDbOpacity = v;
+        if (m_steamGridDbBackdrop) m_steamGridDbBackdrop->setArtworkOpacityScale(v);
     });
     m_themeShop->onGridColumnsChange([this](int cols) {
         cols = std::clamp(cols, 3, 8);

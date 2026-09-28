@@ -335,6 +335,8 @@
       "album_nand": "NAND",
       "background_blur": "Desenfoque del fondo",
       "background_blur_desc": "Suaviza el fondo de pantalla y las formas que flotan sobre él.",
+      "steamgriddb_opacity": "Opacidad de arte SteamGridDB",
+      "steamgriddb_opacity_desc": "Ajusta la opacidad de los fondos descargados para juegos.",
       "glass_sharpness": "Nitidez del cristal",
       "glass_sharpness_desc": "Cuánto se ve la pantalla detrás de los menús a través de ellos.",
       "background_speed": "Velocidad de la animación de fondo",

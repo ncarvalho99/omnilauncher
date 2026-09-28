@@ -335,6 +335,8 @@
       "album_nand": "NAND",
       "background_blur": "Размытие фона",
       "background_blur_desc": "Смягчает обои и фигуры, плывущие поверх них.",
+      "steamgriddb_opacity": "Прозрачность арт-фонов SteamGridDB",
+      "steamgriddb_opacity_desc": "Регулирует прозрачность загруженных фоновых артов игр.",
       "glass_sharpness": "Чёткость стекла",
       "glass_sharpness_desc": "Насколько чётко экран за меню виден сквозь них.",
       "background_speed": "Скорость анимации фона",

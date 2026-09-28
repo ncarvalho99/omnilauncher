@@ -38,6 +38,7 @@ struct AppConfig {
     bool  accessibilitySpeakPosition = true;
     int   accessibilitySpeechRate = 190;
     bool  steamGridDbEnabled = true;
+    float steamGridDbOpacity = 0.50f;
     std::string steamGridDbApiKey;
     std::string ytdlBackendUrl;
     std::vector<uint64_t> steamGridDbKnownTitles;

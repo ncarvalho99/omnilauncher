@@ -335,6 +335,8 @@
       "album_nand": "NAND",
       "background_blur": "Hintergrund-Weichzeichner",
       "background_blur_desc": "Weicht das Hintergrundbild und die darüber treibenden Formen auf.",
+      "steamgriddb_opacity": "SteamGridDB-Deckkraft",
+      "steamgriddb_opacity_desc": "Passt die Deckkraft heruntergeladener Spiel-Hintergrundbilder an.",
       "glass_sharpness": "Glasschärfe",
       "glass_sharpness_desc": "Wie deutlich der Bildschirm hinter den Menüs durchscheint.",
       "background_speed": "Geschwindigkeit der Hintergrundanimation",
