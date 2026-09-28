@@ -736,6 +736,8 @@ private:
     bool m_touchEditDragActive = false;
     UserAvatarButton* m_touchAvatarTarget = nullptr;
     bool m_touchAvatarWasFocused = false;
+    AppletButton* m_touchSidebarTarget = nullptr;
+    bool m_touchSidebarWasFocused = false;
     int  m_deferredRefreshFrames = 0;
     bool m_refreshQueued         = false;
     int  m_refreshCooldownFrames = 0;

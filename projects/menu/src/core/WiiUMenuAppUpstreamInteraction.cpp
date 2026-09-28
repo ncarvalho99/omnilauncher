@@ -1493,6 +1493,18 @@ void WiiUMenuApp::handleTouch() {
         return nullptr;
     };
 
+    auto hitSidebar = [this](float x, float y) -> AppletButton* {
+        for (auto& btn : m_sidebar.leftButtons()) {
+            if (btn && btn->isVisible() && btn->hitTest(x, y))
+                return btn.get();
+        }
+        for (auto& btn : m_sidebar.rightButtons()) {
+            if (btn && btn->isVisible() && btn->hitTest(x, y))
+                return btn.get();
+        }
+        return nullptr;
+    };
+
     auto focusTouchedIcon = [this](int localHit) -> GlossyIcon* {
         if (!m_grid || localHit < 0)
             return nullptr;
@@ -1546,6 +1558,15 @@ void WiiUMenuApp::handleTouch() {
         m_touchAvatarTarget = hitAvatar(tx, ty);
         m_touchAvatarWasFocused = m_touchAvatarTarget && (focusManager().current() == m_touchAvatarTarget);
         if (m_touchAvatarTarget) {
+            m_touchHitIndex = -1;
+            m_touchOnFocused = false;
+            m_touchEditDragActive = false;
+            return;
+        }
+
+        m_touchSidebarTarget = hitSidebar(tx, ty);
+        m_touchSidebarWasFocused = m_touchSidebarTarget && (focusManager().current() == m_touchSidebarTarget);
+        if (m_touchSidebarTarget) {
             m_touchHitIndex = -1;
             m_touchOnFocused = false;
             m_touchEditDragActive = false;
@@ -1633,6 +1654,21 @@ void WiiUMenuApp::handleTouch() {
                     avatar->activate();
             }
             m_touchAvatarWasFocused = false;
+            return;
+        }
+
+        if (m_touchSidebarTarget) {
+            float dx = input.touchDeltaX();
+            float dy = input.touchDeltaY();
+            AppletButton* btn = m_touchSidebarTarget;
+            m_touchSidebarTarget = nullptr;
+            if (std::abs(dx) < 20.f && std::abs(dy) < 20.f &&
+                hitSidebar(input.touchX(), input.touchY()) == btn)
+            {
+                focusManager().setFocus(btn);
+                btn->activate();
+            }
+            m_touchSidebarWasFocused = false;
             return;
         }
 
