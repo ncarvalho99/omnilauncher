@@ -9,4 +9,5 @@ enum class AppLayoutMode : std::uint8_t {
     DynamicLine,
     Flow,
     Shelf,
+    Deck,
 };

@@ -29,6 +29,7 @@
       "dynamic_line": "Mittellinie",
       "flow": "Cover-Fluss",
       "shelf": "Regal",
+      "deck": "Deck",
       "menu": "Kontextmenü"
     },
     "roles": {
@@ -97,6 +98,7 @@
       "dynamic_line": "Dynamischer Linienmodus",
       "flow": "Flussmodus",
       "shelf": "Regalmodus",
+      "deck": "Deck-Modus",
       "grid": "Rastermodus"
     }
   },
@@ -194,7 +196,8 @@
       "grid": "Raster",
       "dynamic_line": "Dynamische Zeile",
       "flow": "Flow (3D)",
-      "shelf": "Shelf (3D)"
+      "shelf": "Shelf (3D)",
+      "deck": "Deck (3D)"
     },
     "tabs": {
       "system": "System",

@@ -106,19 +106,22 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
         SettingItem it;
         it.label = i18n.tr("settings.display.launcher_view", "Launcher View");
         it.description = i18n.tr("settings.display.launcher_view_desc",
-                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, or 3D Shelf.");
+                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, 3D Shelf, or 3D Deck.");
         it.type = ItemType::Selector;
         it.options = {
             i18n.tr("settings.layout.grid", "Grid"),
             i18n.tr("settings.layout.dynamic_line", "Dynamic Line"),
             i18n.tr("settings.layout.flow", "Flow (3D)"),
             i18n.tr("settings.layout.shelf", "Shelf (3D)"),
+            i18n.tr("settings.layout.deck", "Deck (3D)"),
         };
-        it.intVal = screen.m_layoutMode == AppLayoutMode::Shelf ? 3
+        it.intVal = screen.m_layoutMode == AppLayoutMode::Deck  ? 4
+                  : screen.m_layoutMode == AppLayoutMode::Shelf ? 3
                   : screen.m_layoutMode == AppLayoutMode::Flow  ? 2
                   : screen.m_layoutMode == AppLayoutMode::DynamicLine ? 1 : 0;
         it.onChange = [&screen](SettingItem& self) {
-            AppLayoutMode mode = self.intVal == 3 ? AppLayoutMode::Shelf
+            AppLayoutMode mode = self.intVal == 4 ? AppLayoutMode::Deck
+                               : self.intVal == 3 ? AppLayoutMode::Shelf
                                : self.intVal == 2 ? AppLayoutMode::Flow
                                : self.intVal == 1 ? AppLayoutMode::DynamicLine
                                                   : AppLayoutMode::Grid;

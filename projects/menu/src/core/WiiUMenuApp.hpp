@@ -385,10 +385,12 @@ private:
     bool handleAccessibilityToggleCombo();
     bool handleFrameDumpShortcut();
     void syncFrameDumpCapture();
+#ifdef SWITCHU_MENU
     void checkNewGameSteamGridDbPrompt();
     void promptSteamGridDbForGame(std::uint64_t titleId, const std::string& title);
     std::string resolveAppTitle(std::uint64_t titleId, const std::string& currentTitle);
     void pollAutoNtpSync(float dt);
+#endif
     void handleSortShortcutRelease(float dt);
     void handleZlShortcutRelease(float dt);
     // Longer than a deliberate tap, far shorter than the hold used to reach
@@ -454,14 +456,15 @@ private:
     void setAppLayoutMode(AppLayoutMode mode);
     void configureDynamicLineNavigation();
     AppLayoutMode appLayoutMode() const { return m_appLayoutMode; }
-    // DynamicLine, Flow, and Shelf are presentations of one carousel model: a
+    // DynamicLine, Flow, Shelf, and Deck are presentations of one carousel model: a
     // single wrapping row, ring icon streaming, no paging, and reordering by
     // visible row order. Behaviour common to all carousel views must test this
     // rather than DynamicLine alone.
     bool isCarouselLayout() const {
         return m_appLayoutMode == AppLayoutMode::DynamicLine
             || m_appLayoutMode == AppLayoutMode::Flow
-            || m_appLayoutMode == AppLayoutMode::Shelf;
+            || m_appLayoutMode == AppLayoutMode::Shelf
+            || m_appLayoutMode == AppLayoutMode::Deck;
     }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }

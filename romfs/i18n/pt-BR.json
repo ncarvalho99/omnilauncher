@@ -29,6 +29,7 @@
       "dynamic_line": "Linha central",
       "flow": "Fluxo de capas",
       "shelf": "Estante (Shelf)",
+      "deck": "Deck",
       "menu": "Menu de contexto"
     },
     "roles": {
@@ -97,6 +98,7 @@
       "dynamic_line": "Modo de linha dinâmica",
       "flow": "Modo fluxo",
       "shelf": "Modo estante",
+      "deck": "Modo deck",
       "grid": "Modo de grade"
     }
   },
@@ -194,7 +196,8 @@
       "grid": "Grade",
       "dynamic_line": "Linha Dinâmica",
       "flow": "Flow (3D)",
-      "shelf": "Shelf (3D)"
+      "shelf": "Shelf (3D)",
+      "deck": "Deck (3D)"
     },
     "tabs": {
       "system": "Sistema",

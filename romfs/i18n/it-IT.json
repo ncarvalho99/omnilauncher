@@ -29,6 +29,7 @@
       "dynamic_line": "Riga centrale",
       "flow": "Flusso di copertine",
       "shelf": "Scaffale",
+      "deck": "Deck",
       "menu": "Menu contestuale"
     },
     "roles": {
@@ -97,6 +98,7 @@
       "dynamic_line": "Modalità riga dinamica",
       "flow": "Modalità flusso",
       "shelf": "Modalità scaffale",
+      "deck": "Modalità deck",
       "grid": "Modalità griglia"
     }
   },
@@ -194,7 +196,8 @@
       "grid": "Griglia",
       "dynamic_line": "Linea Dinamica",
       "flow": "Flow (3D)",
-      "shelf": "Shelf (3D)"
+      "shelf": "Shelf (3D)",
+      "deck": "Deck (3D)"
     },
     "tabs": {
       "system": "Sistema",

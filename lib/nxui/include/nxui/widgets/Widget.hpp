@@ -138,6 +138,7 @@ public:
         return x >= m_rect.x && x < m_rect.x + m_rect.width
             && y >= m_rect.y && y < m_rect.y + m_rect.height;
     }
+    virtual Widget* findTopHit(float x, float y);
 
     // Collect focusable descendants.
     void collectFocusable(std::vector<Widget*>& out);

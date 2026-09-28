@@ -636,8 +636,11 @@ nxui::Rect IconGrid::dynamicIconRect(int index, float* outScale,
 nxui::Rect IconGrid::focusedDisplayRect() const {
     if (isCarousel()) {
         const int focused = focusedGlobalIndex();
-        if (focused >= 0)
+        if (focused >= 0) {
+            if (is3D())
+                return projected3DIconRect(focused);
             return dynamicIconRect(focused);
+        }
     }
     if (auto* cur = m_focus.current())
         return cur->focusRect();
@@ -708,13 +711,274 @@ std::vector<GlossyIcon*> IconGrid::pageIcons() const {
     return out;
 }
 
+bool IconGrid::projectPoint3D(const nxui::Vec3& p, float screenW, float screenH, nxui::Vec2& out) {
+    constexpr float kFocal = 900.f;
+    constexpr float kNearZ = 0.05f;
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z) || p.z < kNearZ)
+        return false;
+    out.x = screenW * 0.5f + (p.x * kFocal) / p.z;
+    out.y = screenH * 0.5f - (p.y * kFocal) / p.z;
+    return std::isfinite(out.x) && std::isfinite(out.y);
+}
+
+bool IconGrid::pointInQuad(float px, float py, const nxui::Vec2 pts[4]) {
+    bool hasPos = false;
+    bool hasNeg = false;
+    for (int i = 0; i < 4; ++i) {
+        const nxui::Vec2& a = pts[i];
+        const nxui::Vec2& b = pts[(i + 1) % 4];
+        float cross = (b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x);
+        if (cross > 0.001f) hasPos = true;
+        else if (cross < -0.001f) hasNeg = true;
+        if (hasPos && hasNeg)
+            return false;
+    }
+    return true;
+}
+
+int IconGrid::hitTestFlow(float screenX, float screenY) const {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return -1;
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+
+    struct HitCand {
+        int index;
+        float p;
+        float z;
+    };
+    std::vector<HitCand> order;
+    order.reserve(16);
+    for (int i = centre - 6; i <= centre + 6; ++i) {
+        float p = (float)i - scroll;
+        float fx, fz, fang;
+        flowPlace(p, fx, fz, fang);
+        order.push_back({flowWrap(i, n), p, fz});
+    }
+
+    // Near to far (smallest z first)
+    std::sort(order.begin(), order.end(), [](const HitCand& a, const HitCand& b) {
+        return a.z < b.z;
+    });
+
+    const float halfW = kFlowHalfW;
+    const float halfH = kFlowHalfH;
+    const float depth = kFlowDepth;
+
+    for (const auto& c : order) {
+        float fx, fz, fang;
+        flowPlace(c.p, fx, fz, fang);
+        if (c.index >= 0 && c.index < (int)m_allIcons.size() && m_allIcons[c.index]->isSuspended())
+            fang += m_flowClock * kFlowRunSpin;
+
+        // 1. Front face
+        nxui::Vec3 front3D[4];
+        flowFace(fx, fz, fang, -halfW, 0.f, halfW, 0.f, halfH, front3D);
+        nxui::Vec2 front2D[4];
+        bool ok = true;
+        for (int k = 0; k < 4; ++k) {
+            if (!projectPoint3D(front3D[k], 1280.f, 720.f, front2D[k])) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok && pointInQuad(screenX, screenY, front2D))
+            return c.index;
+
+        // 2. Left spine
+        if (fang > 0.05f) {
+            nxui::Vec3 spine3D[4];
+            flowFace(fx, fz, fang, -halfW, 0.f, -halfW, 2.f * depth, halfH, spine3D);
+            ok = true;
+            for (int k = 0; k < 4; ++k) {
+                if (!projectPoint3D(spine3D[k], 1280.f, 720.f, front2D[k])) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok && pointInQuad(screenX, screenY, front2D))
+                return c.index;
+        }
+
+        // 3. Right edge
+        if (fang < -0.05f) {
+            nxui::Vec3 spine3D[4];
+            flowFace(fx, fz, fang, halfW, 0.f, halfW, 2.f * depth, halfH, spine3D);
+            ok = true;
+            for (int k = 0; k < 4; ++k) {
+                if (!projectPoint3D(spine3D[k], 1280.f, 720.f, front2D[k])) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok && pointInQuad(screenX, screenY, front2D))
+                return c.index;
+        }
+    }
+    return -1;
+}
+
+int IconGrid::hitTestShelf(float screenX, float screenY) const {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return -1;
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+
+    struct HitCand {
+        int index;
+        float d;
+        float z;
+    };
+    std::vector<HitCand> order;
+    order.reserve(16);
+    for (int i = centre - 3; i <= centre + 8; ++i) {
+        float d = (float)i - scroll;
+        float x, y, z, a;
+        shelfPlace(d, x, y, z, a);
+        if (a <= 0.05f) continue;
+        order.push_back({flowWrap(i, n), d, z});
+    }
+
+    // Near to far (smallest z first)
+    std::sort(order.begin(), order.end(), [](const HitCand& a, const HitCand& b) {
+        return a.z < b.z;
+    });
+
+    const float halfW = 0.44f;
+    const float halfH = 0.66f;
+
+    for (const auto& c : order) {
+        float x, y, z, a;
+        shelfPlace(c.d, x, y, z, a);
+
+        const nxui::Vec3 quad[4] = {
+            { x - halfW, y + halfH, z },
+            { x + halfW, y + halfH, z },
+            { x + halfW, y - halfH, z },
+            { x - halfW, y - halfH, z }
+        };
+
+        nxui::Vec2 quad2D[4];
+        bool ok = true;
+        for (int k = 0; k < 4; ++k) {
+            if (!projectPoint3D(quad[k], 1280.f, 720.f, quad2D[k])) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok && pointInQuad(screenX, screenY, quad2D))
+            return c.index;
+    }
+    return -1;
+}
+
+int IconGrid::hitTestDeck(float screenX, float screenY) const {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return -1;
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+
+    struct HitCand {
+        int index;
+        float d;
+        float z;
+    };
+    std::vector<HitCand> order;
+    order.reserve(16);
+    for (int i = centre - 5; i <= centre + 5; ++i) {
+        float d = (float)i - scroll;
+        float x, y, z, ang, a;
+        deckPlace(d, x, y, z, ang, a);
+        if (a <= 0.05f) continue;
+        order.push_back({flowWrap(i, n), d, z});
+    }
+
+    // Near to far (smallest z first)
+    std::sort(order.begin(), order.end(), [](const HitCand& a, const HitCand& b) {
+        return a.z < b.z;
+    });
+
+    const float halfW = 0.36f;
+    const float halfH = 0.54f;
+
+    for (const auto& c : order) {
+        float x, y, z, ang, a;
+        deckPlace(c.d, x, y, z, ang, a);
+
+        nxui::Vec3 quad[4];
+        deckCorners(x, y, z, ang, halfW, halfH, quad);
+
+        nxui::Vec2 quad2D[4];
+        bool ok = true;
+        for (int k = 0; k < 4; ++k) {
+            if (!projectPoint3D(quad[k], 1280.f, 720.f, quad2D[k])) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok && pointInQuad(screenX, screenY, quad2D))
+            return c.index;
+    }
+    return -1;
+}
+
+nxui::Rect IconGrid::projected3DIconRect(int index) const {
+    if (index < 0 || index >= (int)m_allIcons.size())
+        return {};
+
+    const float offset = m_lineScrollOffset.value();
+    const float d = lineRingDelta(offset, static_cast<float>(index));
+
+    nxui::Vec3 quad[4];
+    if (m_layoutMode == AppLayoutMode::Flow) {
+        float fx, fz, fang;
+        flowPlace(d, fx, fz, fang);
+        const float halfW = kFlowHalfW;
+        const float halfH = kFlowHalfH;
+        flowFace(fx, fz, fang, -halfW, 0.f, halfW, 0.f, halfH, quad);
+    } else if (m_layoutMode == AppLayoutMode::Shelf) {
+        float x, y, z, a;
+        shelfPlace(d, x, y, z, a);
+        const float halfW = 0.44f;
+        const float halfH = 0.66f;
+        quad[0] = { x - halfW, y + halfH, z };
+        quad[1] = { x + halfW, y + halfH, z };
+        quad[2] = { x + halfW, y - halfH, z };
+        quad[3] = { x - halfW, y - halfH, z };
+    } else if (m_layoutMode == AppLayoutMode::Deck) {
+        float x, y, z, ang, a;
+        deckPlace(d, x, y, z, ang, a);
+        const float halfW = 0.36f;
+        const float halfH = 0.54f;
+        deckCorners(x, y, z, ang, halfW, halfH, quad);
+    } else {
+        return dynamicIconRect(index);
+    }
+
+    nxui::Vec2 p2D[4];
+    for (int k = 0; k < 4; ++k) {
+        if (!projectPoint3D(quad[k], 1280.f, 720.f, p2D[k]))
+            return dynamicIconRect(index);
+    }
+
+    float minX = std::min({p2D[0].x, p2D[1].x, p2D[2].x, p2D[3].x});
+    float maxX = std::max({p2D[0].x, p2D[1].x, p2D[2].x, p2D[3].x});
+    float minY = std::min({p2D[0].y, p2D[1].y, p2D[2].y, p2D[3].y});
+    float maxY = std::max({p2D[0].y, p2D[1].y, p2D[2].y, p2D[3].y});
+
+    return nxui::Rect{minX, minY, std::max(1.f, maxX - minX), std::max(1.f, maxY - minY)};
+}
+
 int IconGrid::hitTest(float screenX, float screenY) const {
-    // 3D views (Flow, Shelf) draw projected 3D cases/cards, so a flat carousel rect
-    // does not describe where anything actually appears. Returning -1 makes touch
-    // a no-op here rather than activating the wrong title; projected-quad hit-testing
-    // is a later milestone. D-pad navigation is unaffected.
-    if (is3D())
-        return -1;
+    if (m_layoutMode == AppLayoutMode::Flow) {
+        return hitTestFlow(screenX, screenY);
+    }
+    if (m_layoutMode == AppLayoutMode::Shelf) {
+        return hitTestShelf(screenX, screenY);
+    }
+    if (m_layoutMode == AppLayoutMode::Deck) {
+        return hitTestDeck(screenX, screenY);
+    }
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
@@ -732,6 +996,21 @@ int IconGrid::hitTest(float screenX, float screenY) const {
             return i - start;
     }
     return -1;
+}
+
+nxui::Widget* IconGrid::findTopHit(float x, float y) {
+    if (!isVisible()) return nullptr;
+    int hit = hitTest(x, y);
+    if (hit < 0) return nullptr;
+    if (isCarousel()) {
+        if (hit >= 0 && hit < (int)m_allIcons.size())
+            return m_allIcons[hit].get();
+    } else {
+        int global = m_page * iconsPerPage() + hit;
+        if (global >= 0 && global < (int)m_allIcons.size())
+            return m_allIcons[global].get();
+    }
+    return nullptr;
 }
 
 void IconGrid::startAppearAnimation() {
@@ -869,12 +1148,18 @@ void IconGrid::onUpdate(float dt) {
             || std::abs(m_lineLayoutCacheRect.height - m_rect.height) > 0.0001f;
 
         if (layoutDirty) {
-            // Flow positions its cases in world space at draw time and never
-            // reads these rects, but they are kept in sync anyway: the edit
-            // cursor, focus ring and accessibility all query focusedDisplayRect
-            // through the same carousel path.
-            for (int i = 0; i < (int)m_allIcons.size(); ++i) {
-                m_allIcons[i]->setRect(dynamicIconRect(i));
+            // Flow/Shelf/Deck position items in world space at draw time and never
+            // read these rects directly, but they are kept in sync with the projected
+            // 3D bounds anyway: the edit cursor, focus ring, touch feedback and
+            // accessibility all query focusedDisplayRect and rect() through this path.
+            if (is3D()) {
+                for (int i = 0; i < (int)m_allIcons.size(); ++i) {
+                    m_allIcons[i]->setRect(projected3DIconRect(i));
+                }
+            } else {
+                for (int i = 0; i < (int)m_allIcons.size(); ++i) {
+                    m_allIcons[i]->setRect(dynamicIconRect(i));
+                }
             }
             m_lineLayoutCacheCount = (int)m_allIcons.size();
             m_lineLayoutCacheOffset = offsetNow;
@@ -1447,6 +1732,210 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+void IconGrid::deckPlace(float d, float& x, float& y, float& z, float& ang, float& a) {
+    const float absD = std::abs(d);
+    const float sign = (d >= 0.f) ? 1.f : -1.f;
+
+    // Focused card sits prominently at x = 0, y = -0.48f, z = 2.70f (closer to camera).
+    // Non-focused cards sit back at z = 3.30f, y = -0.54f, spaced by ~0.84 world units.
+    if (absD <= 1.0f) {
+        const float t = absD; // 0 = centered, 1 = neighbor
+        const float smooth = t * t * (3.f - 2.f * t);
+        x = sign * (smooth * 0.84f);
+        y = -0.48f - smooth * 0.06f;
+        z = 2.70f + smooth * 0.60f;
+        ang = -sign * (smooth * 0.12f); // gentle yaw tilt towards center
+        a = 1.0f;
+    } else {
+        const float extra = absD - 1.0f;
+        x = sign * (0.84f + extra * 0.76f);
+        y = -0.54f;
+        z = 3.30f + extra * 0.12f; // subtle curve away
+        ang = -sign * std::min(0.24f, 0.12f + extra * 0.03f);
+        a = std::clamp(1.0f - extra * 0.22f, 0.0f, 1.0f);
+    }
+}
+
+void IconGrid::deckCorners(float x, float y, float z, float ang,
+                           float halfW, float halfH, nxui::Vec3 out[4]) {
+    const float cosA = std::cos(ang);
+    const float sinA = std::sin(ang);
+    // Ordered TL, TR, BR, BL
+    out[0] = { x - halfW * cosA, y + halfH, z + halfW * sinA };
+    out[1] = { x + halfW * cosA, y + halfH, z - halfW * sinA };
+    out[2] = { x + halfW * cosA, y - halfH, z - halfW * sinA };
+    out[3] = { x - halfW * cosA, y - halfH, z + halfW * sinA };
+}
+
+void IconGrid::renderDeck(nxui::Renderer& ren) {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return;
+
+    ren.pushClipRect(nxui::Rect{0.f, 60.f, 1280.f, 660.f});
+
+    const float reveal = clamp01(m_layoutReveal.value());
+
+    // Dark sleek gradient behind the card ribbon across the bottom half
+    const float ribbonTop = 330.f;
+    const float ribbonHeight = 720.f - ribbonTop;
+    ren.drawGradientRect(
+        nxui::Rect{0.f, ribbonTop, 1280.f, ribbonHeight},
+        nxui::Color(0.02f, 0.03f, 0.05f, 0.10f * reveal),
+        nxui::Color(0.01f, 0.01f, 0.03f, 0.88f * reveal)
+    );
+    ren.drawRect(
+        nxui::Rect{0.f, ribbonTop + 20.f, 1280.f, 1.0f},
+        nxui::Color(1.f, 1.f, 1.f, 0.05f * reveal)
+    );
+
+    // Harvest completed asynchronous cover decodes (up to 2 uploads per frame)
+    int uploads = 0;
+    for (auto it = m_pendingCoverDecodes.begin(); it != m_pendingCoverDecodes.end() && uploads < 2;) {
+        if (it->state && it->state->done.load()) {
+            try {
+                if (it->future.valid()) it->future.get();
+            } catch (...) {}
+            auto covIt = m_flowCovers.find(it->titleId);
+            if (covIt != m_flowCovers.end()) {
+                if (!it->state->failed.load() && it->state->decoded.valid()) {
+                    if (covIt->second.texture.loadFromDecoded(ren.gpu(), ren, it->state->decoded)) {
+                        covIt->second.available = true;
+                    }
+                }
+                covIt->second.loading = false;
+            }
+            it = m_pendingCoverDecodes.erase(it);
+            ++uploads;
+        } else {
+            ++it;
+        }
+    }
+
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+    const int focusedIndex = focusedGlobalIndex();
+
+    struct DeckCandidate {
+        int index;
+        float d;
+        float z;
+    };
+    std::vector<DeckCandidate> order;
+    order.reserve(16);
+    for (int i = centre - 5; i <= centre + 5; ++i) {
+        const float d = (float)i - scroll;
+        float x, y, z, ang, a;
+        deckPlace(d, x, y, z, ang, a);
+        if (a <= 0.01f) continue;
+        order.push_back({flowWrap(i, n), d, z});
+    }
+
+    // Far to near (largest z first)
+    std::sort(order.begin(), order.end(), [](const DeckCandidate& a, const DeckCandidate& b) {
+        return a.z > b.z;
+    });
+
+    for (const auto& c : order) {
+        auto& icon = m_allIcons[(size_t)c.index];
+        if (!icon) continue;
+
+        float x, y, z, ang, a;
+        deckPlace(c.d, x, y, z, ang, a);
+
+        const bool isSel = (c.index == focusedIndex);
+
+        const float halfW = 0.36f;
+        const float halfH = 0.54f;
+
+        nxui::Vec3 quad[4];
+        deckCorners(x, y, z, ang, halfW, halfH, quad);
+
+        const float prox = std::max(0.0f, 1.0f - std::abs(c.d));
+        const float selectedLift = isSel ? 0.08f : 0.f;
+        const float lit = std::clamp((160.f + 95.f * prox) / 255.f + selectedLift, 0.f, 1.f);
+        const float blankLit = std::clamp((24.f + 16.f * prox) / 255.f + selectedLift * 0.25f, 0.f, 1.f);
+
+        const float alpha = m_opacity * icon->opacity() * reveal * a;
+        if (alpha <= 0.01f) continue;
+
+        const nxui::Color artTint {lit, lit, lit, alpha};
+        const nxui::Color blankCol{blankLit, blankLit, blankLit, alpha};
+
+        // Query 2:3 portrait cover art cache
+        const std::uint64_t tid = icon->titleId();
+        bool hasCover = false;
+        nxui::Texture* coverTex = nullptr;
+        if (tid != 0) {
+            auto& cov = m_flowCovers[tid];
+            if (!cov.checked) {
+                cov.checked = true;
+                const std::string coverPath = resolveFlowCoverPath(tid);
+                if (!coverPath.empty()) {
+                    cov.loading = true;
+                    if (m_threadPool) {
+                        auto decodeState = std::make_shared<CoverDecodeState>();
+                        auto work = [decodeState, coverPath]() {
+                            try {
+                                decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
+                                decodeState->failed = !decodeState->decoded.valid();
+                            } catch (...) {
+                                decodeState->failed = true;
+                            }
+                            decodeState->done = true;
+                        };
+                        PendingCoverDecode pcd;
+                        pcd.titleId = tid;
+                        pcd.state = decodeState;
+                        pcd.future = m_threadPool->submit(std::move(work));
+                        m_pendingCoverDecodes.push_back(std::move(pcd));
+                    }
+                }
+            }
+            if (cov.available && cov.texture.valid()) {
+                hasCover = true;
+                coverTex = &cov.texture;
+            }
+        }
+
+        // Draw soft floor shadow
+        const float floorY = y - halfH - 0.02f;
+        nxui::Vec3 shadowQuad[4];
+        deckCorners(x, floorY, z, ang, halfW * 0.96f, halfH * 0.25f, shadowQuad);
+        ren.drawQuad3D(nullptr, shadowQuad, nxui::Color(0.f, 0.f, 0.f, 0.45f * alpha),
+                       0.45f * alpha, 0.0f);
+
+        // If selected: draw SteamOS signature cyan/blue glowing accent frame!
+        if (isSel) {
+            nxui::Vec3 glowQuad[4];
+            const float glowW = halfW + 0.028f;
+            const float glowH = halfH + 0.028f;
+            deckCorners(x, y, z + 0.005f, ang, glowW, glowH, glowQuad);
+            // Signature SteamOS neon cyan-blue
+            const nxui::Color glowCol{0.10f, 0.65f, 0.98f, 0.88f * alpha};
+            ren.drawQuad3D(nullptr, glowQuad, glowCol, 0.88f * alpha, 0.88f * alpha);
+        }
+
+        // Dark card chassis / backplate
+        ren.drawQuad3D(nullptr, quad, blankCol);
+
+        if (hasCover && coverTex) {
+            // Full 2:3 vertical cover art
+            ren.drawQuad3D(coverTex, quad, artTint);
+        } else {
+            // 1:1 square icon cleanly inset inside 2:3 card frame without vertical distortion
+            const float iconHalf = halfW * 0.78f;
+            nxui::Vec3 iconQuad[4];
+            // Positioned neatly in upper-center of the card
+            deckCorners(x, y + 0.06f, z - 0.004f, ang, iconHalf, iconHalf, iconQuad);
+            if (icon->texture()) {
+                ren.drawQuad3D(icon->texture(), iconQuad, artTint);
+            }
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
@@ -1465,6 +1954,11 @@ void IconGrid::render(nxui::Renderer& ren) {
 
     if (m_layoutMode == AppLayoutMode::Shelf) {
         renderShelf(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Deck) {
+        renderDeck(ren);
         return;
     }
 

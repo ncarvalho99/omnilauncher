@@ -892,11 +892,10 @@ void WiiUMenuApp::wireFocusCallback() {
         if (cur && cur->tag() == "glossy_icon") {
             m_grid->focusManager().setFocus(cur);
             auto* icon = static_cast<GlossyIcon*>(cur);
-            // Both carousel views stream around the focused index rather than
-            // by page, so Flow must drive the streamer the same way or its row
-            // scrolls into titles whose icons were never requested.
-            if (m_appLayoutMode == AppLayoutMode::DynamicLine ||
-                m_appLayoutMode == AppLayoutMode::Flow) {
+            // Carousel views stream around the focused index rather than
+            // by page, so all carousel modes must drive the streamer the same way or
+            // the row scrolls into titles whose icons were never requested.
+            if (isCarouselLayout()) {
                 const int focusedIndex = m_grid->focusedGlobalIndex();
                 if (focusedIndex >= 0) {
                     m_iconStreamer.onPageChanged(focusedIndex, 1,
@@ -1490,7 +1489,7 @@ void WiiUMenuApp::handleTouch() {
         if (!m_grid || localHit < 0)
             return nullptr;
 
-        int global = m_grid->currentPage() * m_grid->iconsPerPage() + localHit;
+        int global = m_grid->isCarousel() ? localHit : (m_grid->currentPage() * m_grid->iconsPerPage() + localHit);
         if (m_editMode)
             m_editTargetIndex = global;
         if (!m_grid->focusGlobalIndex(global))
@@ -1508,7 +1507,7 @@ void WiiUMenuApp::handleTouch() {
                     global, m_editGhostIcon->gridSpanColumns(),
                     m_editGhostIcon->gridSpanRows());
             m_cursor->moveTo(cursorRect.expanded(4.f), 0.f);
-            m_cursor->setVisible(true);
+            m_cursor->setVisible(!m_grid->is3D());
         } else {
             updateCursor();
         }
@@ -1550,9 +1549,14 @@ void WiiUMenuApp::handleTouch() {
         m_touchOnFocused = false;
         m_touchEditDragActive = false;
         if (hit >= 0) {
-            auto icons = m_grid->pageIcons();
-            if (hit < (int)icons.size())
-                m_touchOnFocused = (icons[hit] == focusManager().current());
+            if (m_grid->isCarousel()) {
+                if (hit < (int)m_grid->allIcons().size())
+                    m_touchOnFocused = (m_grid->allIcons()[hit].get() == focusManager().current());
+            } else {
+                auto icons = m_grid->pageIcons();
+                if (hit < (int)icons.size())
+                    m_touchOnFocused = (icons[hit] == focusManager().current());
+            }
         }
     }
 
@@ -1634,8 +1638,20 @@ void WiiUMenuApp::handleTouch() {
 
         float dx = input.touchDeltaX();
         float dy = input.touchDeltaY();
-        if (std::abs(dx) > kSwipeThreshold && std::abs(dx) > std::abs(dy) * 1.5f)
+        if (std::abs(dx) > kSwipeThreshold && std::abs(dx) > std::abs(dy) * 1.5f) {
             flipPage(dx < 0 ? 1 : -1);
+        } else if (m_touchHitIndex >= 0 && !m_editMode &&
+                   std::abs(dx) < 20.f && std::abs(dy) < 20.f && input.touchDuration() <= 0.40f) {
+            if (m_touchOnFocused) {
+                if (auto* icon = focusTouchedIcon(m_touchHitIndex)) {
+                    constexpr uint64_t kA = static_cast<uint64_t>(nxui::Button::A);
+                    if (!icon->fireAction(kA))
+                        icon->activate();
+                }
+            } else {
+                focusTouchedIcon(m_touchHitIndex);
+            }
+        }
         m_touchHitIndex = -1;
         m_touchEditDragActive = false;
     }

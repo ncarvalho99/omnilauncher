@@ -2470,7 +2470,7 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         }
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck);
     return model;
 }
 
@@ -2547,7 +2547,7 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
             model.addEntry({});
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck);
     return model;
 }
 
@@ -4112,14 +4112,15 @@ void WiiUMenuApp::syncPageIndicator() {
 }
 
 // Minus cycles the enabled views on the unobstructed Home route:
-// Grid -> DynamicLine -> Flow -> Shelf -> Grid. Grid stays reachable from every view, so
+// Grid -> DynamicLine -> Flow -> Shelf -> Deck -> Grid. Grid stays reachable from every view, so
 // it remains the escape hatch if a newer view misbehaves.
 void WiiUMenuApp::toggleAppLayoutMode() {
     switch (m_appLayoutMode) {
         case AppLayoutMode::Grid:        setAppLayoutMode(AppLayoutMode::DynamicLine); break;
         case AppLayoutMode::DynamicLine: setAppLayoutMode(AppLayoutMode::Flow);        break;
         case AppLayoutMode::Flow:        setAppLayoutMode(AppLayoutMode::Shelf);       break;
-        case AppLayoutMode::Shelf:       setAppLayoutMode(AppLayoutMode::Grid);        break;
+        case AppLayoutMode::Shelf:       setAppLayoutMode(AppLayoutMode::Deck);        break;
+        case AppLayoutMode::Deck:        setAppLayoutMode(AppLayoutMode::Grid);        break;
     }
 }
 
@@ -4195,7 +4196,7 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf);
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf && m_appLayoutMode != AppLayoutMode::Deck);
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
@@ -4218,6 +4219,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             ? i18n.tr("accessibility.layout.flow", "Flow mode")
         : (m_appLayoutMode == AppLayoutMode::Shelf)
             ? i18n.tr("accessibility.layout.shelf", "Shelf mode")
+        : (m_appLayoutMode == AppLayoutMode::Deck)
+            ? i18n.tr("accessibility.layout.deck", "Deck mode")
             : i18n.tr("accessibility.layout.grid", "Grid mode");
     m_accessibility.announce(announcement, true, true);
 
@@ -5027,7 +5030,7 @@ void WiiUMenuApp::buildGrid() {
     m_grid->setRect({kGridRectX, kGridRectY, kGridRectW, kGridRectH});
     m_grid->setThreadPool(&m_threadPool);
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf);
+        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf && m_appLayoutMode != AppLayoutMode::Deck);
     // buildGrid() creates the grid and calls setup() directly, without going
     // through applyDisplayModel(), which is the only other place that sets this.
     // The grid therefore stayed in its default page mode after a restart while
@@ -5594,7 +5597,9 @@ void WiiUMenuApp::buildGrid() {
         m_config.gamePortPlatforms.emplace_back(titleId, slug);
         m_config.save();
         m_platformPicker->hide();
+#ifdef SWITCHU_MENU
         promptSteamGridDbForGame(titleId, title);
+#endif
     });
     m_overlayLayer->addChild(m_platformPicker);
     createFolderOptions();
@@ -7028,12 +7033,14 @@ void WiiUMenuApp::onUpdate(float dt) {
     }
     syncUpdateCheck();
     syncUpdateDownload();
+#ifdef SWITCHU_MENU
     pollAutoNtpSync(dt);
 
     if (!m_newGamePromptChecked && !lockScreenUp && !m_fastReturnRequested && !m_allApps.empty()) {
         m_newGamePromptChecked = true;
         checkNewGameSteamGridDbPrompt();
     }
+#endif
 
     if (!app().input().isDown(nxui::Button::Plus) || !app().input().isDown(nxui::Button::Minus))
         m_accessibilityToggleComboHeld = false;
@@ -8365,10 +8372,19 @@ void WiiUMenuApp::onRender(nxui::Renderer& ren) {
     }
 
     if (m_touchHitIndex >= 0 && !m_touchOnFocused && app().input().isTouching()) {
-        auto icons = m_grid->pageIcons();
-        if (m_touchHitIndex < (int)icons.size()) {
-            nxui::Rect r = icons[m_touchHitIndex]->focusRect();
-            float cr = icons[m_touchHitIndex]->cornerRadius();
+        GlossyIcon* hitIcon = nullptr;
+        if (m_grid && m_grid->isCarousel()) {
+            const auto& all = m_grid->allIcons();
+            if (m_touchHitIndex < (int)all.size())
+                hitIcon = all[m_touchHitIndex].get();
+        } else if (m_grid) {
+            auto icons = m_grid->pageIcons();
+            if (m_touchHitIndex < (int)icons.size())
+                hitIcon = icons[m_touchHitIndex];
+        }
+        if (hitIcon) {
+            nxui::Rect r = hitIcon->focusRect();
+            float cr = hitIcon->cornerRadius();
             ren.drawRoundedRect(r, nxui::Color(1.f, 1.f, 1.f, 0.18f), cr);
         }
     }

@@ -20,19 +20,7 @@ static bool isTouchInteractive(Widget* node) {
 
 static Widget* findTopHitRecursive(Widget* node, float x, float y) {
     if (!node || !node->isVisible()) return nullptr;
-
-    // Last child is drawn on top -> reverse traversal
-    const auto& ch = node->children();
-    for (int i = (int)ch.size() - 1; i >= 0; --i) {
-        if (auto* hit = findTopHitRecursive(ch[i].get(), x, y))
-            return hit;
-    }
-
-    // Ignore structural layers that cover the screen but don't actually
-    // handle touch, so lower interactive siblings can still be reached.
-    if (node->hitTest(x, y) && isTouchInteractive(node))
-        return node;
-    return nullptr;
+    return node->findTopHit(x, y);
 }
 
 static bool containsRecursive(Widget* node, Widget* target) {

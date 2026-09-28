@@ -205,6 +205,17 @@ void Widget::addDirectionAction(FocusDirection dir, std::function<void()> cb) {
 
 // Focus collection
 
+Widget* Widget::findTopHit(float x, float y) {
+    if (!m_visible) return nullptr;
+    for (int i = (int)m_children.size() - 1; i >= 0; --i) {
+        if (auto* hit = m_children[i]->findTopHit(x, y))
+            return hit;
+    }
+    if (hitTest(x, y) && (m_focusable || !m_actions.empty()))
+        return this;
+    return nullptr;
+}
+
 void Widget::collectFocusable(std::vector<Widget*>& out) {
     if (!m_visible) return;
     if (isFocusable()) out.push_back(this);

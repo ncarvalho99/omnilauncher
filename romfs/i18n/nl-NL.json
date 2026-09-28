@@ -29,6 +29,7 @@
       "dynamic_line": "Middellijn",
       "flow": "Coverstroom",
       "shelf": "Plank",
+      "deck": "Deck",
       "menu": "Contextmenu"
     },
     "roles": {
@@ -97,6 +98,7 @@
       "dynamic_line": "Dynamische lijnmodus",
       "flow": "Stroommodus",
       "shelf": "Plankmodus",
+      "deck": "Deck-modus",
       "grid": "Rastermodus"
     }
   },
@@ -194,7 +196,8 @@
       "grid": "Raster",
       "dynamic_line": "Dynamische Lijn",
       "flow": "Flow (3D)",
-      "shelf": "Shelf (3D)"
+      "shelf": "Shelf (3D)",
+      "deck": "Deck (3D)"
     },
     "tabs": {
       "system": "Systeem",

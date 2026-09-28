@@ -36,7 +36,12 @@ public:
     bool isDynamicLine() const { return m_layoutMode == AppLayoutMode::DynamicLine; }
     bool isFlow() const { return m_layoutMode == AppLayoutMode::Flow; }
     bool isShelf() const { return m_layoutMode == AppLayoutMode::Shelf; }
-    bool is3D() const { return m_layoutMode == AppLayoutMode::Flow || m_layoutMode == AppLayoutMode::Shelf; }
+    bool isDeck() const { return m_layoutMode == AppLayoutMode::Deck; }
+    bool is3D() const {
+        return m_layoutMode == AppLayoutMode::Flow
+            || m_layoutMode == AppLayoutMode::Shelf
+            || m_layoutMode == AppLayoutMode::Deck;
+    }
     // All carousel views share one model: a single wrapping row driven by
     // m_lineScrollOffset, with the same focus bindings and the same per-item
     // rects. They differ only in how that row is drawn. Layout, navigation,
@@ -45,7 +50,8 @@ public:
     bool isCarousel() const {
         return m_layoutMode == AppLayoutMode::DynamicLine
             || m_layoutMode == AppLayoutMode::Flow
-            || m_layoutMode == AppLayoutMode::Shelf;
+            || m_layoutMode == AppLayoutMode::Shelf
+            || m_layoutMode == AppLayoutMode::Deck;
     }
     bool isDynamicLineScrolling() const;
     void setDynamicLineUpTarget(nxui::Widget* target);
@@ -71,6 +77,7 @@ public:
     void preloadFlowCoversAround(int centerIdx);
 
     int hitTest(float screenX, float screenY) const;
+    nxui::Widget* findTopHit(float x, float y) override;
     nxui::Rect focusedDisplayRect() const;
     nxui::Rect gridSpanRect(int globalIndex, int columns, int rows) const;
     void setGridSideTargets(std::vector<nxui::Widget*> left,
@@ -117,6 +124,19 @@ private:
     // selection, receding diagonal perspective, reflections, and glow frame.
     void renderShelf(nxui::Renderer& ren);
     static void shelfPlace(float d, float& x, float& y, float& z, float& a);
+    // Deck: a SteamOS/Steam Deck style card ribbon with prominent hero artwork,
+    // card depth pop-out, and glowing accent frame.
+    void renderDeck(nxui::Renderer& ren);
+    static void deckPlace(float d, float& x, float& y, float& z, float& ang, float& a);
+    static void deckCorners(float x, float y, float z, float ang,
+                            float halfW, float halfH, nxui::Vec3 out[4]);
+
+    int hitTestFlow(float screenX, float screenY) const;
+    int hitTestShelf(float screenX, float screenY) const;
+    int hitTestDeck(float screenX, float screenY) const;
+    static bool projectPoint3D(const nxui::Vec3& p, float screenW, float screenH, nxui::Vec2& out);
+    static bool pointInQuad(float px, float py, const nxui::Vec2 pts[4]);
+    nxui::Rect projected3DIconRect(int index) const;
     // Places one case by its signed distance from the row centre, saturating at
     // one item out. That saturation is what gives coverflow a single upright
     // face against a receding wall rather than a smooth arc.
