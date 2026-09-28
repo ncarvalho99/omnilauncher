@@ -876,114 +876,40 @@ static bool takeForegroundFromRunningApp(const char* source) {
 // the console is shutting down underneath it.
 static void stopControlCacheWorker();
 
-// Reboot and shutdown go through the Power State Manager rather than the
-// applet path.
+// Reboot and shutdown must enter Horizon's orderly power sequence first.
+// This daemon runs as the qlaunch replacement (AppletType_SystemApplet), so
+// appletStart{Reboot,Shutdown}Sequence is the same path stock qlaunch uses: it
+// coordinates service teardown and lets Atmosphere's bpc MITM choose the
+// configured reboot target (payload, RCM, standard reboot, or PMIC on Mariko).
 //
-// appletStartRebootSequence asks the system applet to orchestrate an orderly
-// shutdown — and this daemon *is* the system applet, standing in for qlaunch.
-// It is asking itself to perform a coordination step it never implements, so
-// nothing tells the filesystem service to flush and unmount. That matches the
-// symptom exactly: corruption roughly one reboot in three or four, depending
-// on whether anything happened to be dirty, and a card that comes back needing
-// its firmware files replaced rather than being wholly unreadable.
-//
-// Reboot and shutdown handling.
-// Atmosphere's Exosphere provides direct PMIC power-cycle controls:
-// - splSetConfig(65001, 4): ForceRebootByPmic (hardware power cycle, same as physical power button)
-// - splSetConfig(65002, 1): ForceShutdown (hardware power off)
-// Direct bpc/spsm reboot without PMIC can reboot into RCM (black screen) on Erista.
-// We prioritize PMIC reboot via spl, with clean fallback to spsm, bpc, and applet.
-static void requestPowerStateChange(const char* source, bool reboot) {
-    switchu::FileLog::log("[power] requestPowerStateChange source=%s reboot=%d", source, reboot ? 1 : 0);
+// spsmShutdown remains a fallback only. Calling it first bypasses the qlaunch
+// sequence; on this console that consistently powers down into RCM before
+// atmosphere/reboot_payload.bin is chainloaded, leaving an entirely black
+// screen until a payload is injected externally.
+static Result requestPowerStateChange(const char* source, bool reboot) {
+    switchu::FileLog::log("[power] request source=%s action=%s",
+                          source, reboot ? "reboot" : "shutdown");
     switchu::FileLog::flush();
 
-    if (reboot) {
-        // 1. Preferred Atmosphere path: Hardware PMIC reboot (ConfigItem 65001 = 4).
-        // Power-cycles the SoC directly via MAX77620 PMIC, avoiding RCM black screen.
-        Result rc = splInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = splSetConfig(static_cast<SplConfigItem>(65001), 4);
-            splExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] PMIC reboot initiated via spl");
-                switchu::FileLog::flush();
-                return;
-            }
-            switchu::FileLog::log("[power] splSetConfig(65001, 4) rc=0x%X", rc);
-        }
-
-        // 2. Fall back to spsmShutdown(true)
-        rc = spsmInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = spsmShutdown(true);
-            spsmExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] spsmShutdown(true) ok");
-                switchu::FileLog::flush();
-                return;
-            }
-            switchu::FileLog::log("[power] spsmShutdown(true) rc=0x%X", rc);
-        }
-
-        // 3. Fall back to bpcRebootSystem()
-        rc = bpcInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = bpcRebootSystem();
-            bpcExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] bpcRebootSystem() ok");
-                switchu::FileLog::flush();
-                return;
-            }
-            switchu::FileLog::log("[power] bpcRebootSystem() rc=0x%X", rc);
-        }
-
-        switchu::FileLog::log("[power] bpc/spsm failed; falling back to appletStartRebootSequence()");
+    Result appletRc = reboot ? appletStartRebootSequence()
+                             : appletStartShutdownSequence();
+    if (R_SUCCEEDED(appletRc)) {
+        switchu::FileLog::log("[power] applet sequence accepted action=%s",
+                              reboot ? "reboot" : "shutdown");
         switchu::FileLog::flush();
-        (void)source;
-        appletStartRebootSequence();
-    } else {
-        // 1. Preferred Atmosphere path: Hardware PMIC shutdown (ConfigItem 65002 = 1).
-        Result rc = splInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = splSetConfig(static_cast<SplConfigItem>(65002), 1);
-            splExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] PMIC shutdown initiated via spl");
-                switchu::FileLog::flush();
-                return;
-            }
-        }
-
-        // 2. Fall back to spsmShutdown(false)
-        rc = spsmInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = spsmShutdown(false);
-            spsmExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] spsmShutdown(false) ok");
-                switchu::FileLog::flush();
-                return;
-            }
-        }
-
-        // 3. Fall back to bpcShutdownSystem()
-        rc = bpcInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = bpcShutdownSystem();
-            bpcExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] bpcShutdownSystem() ok");
-                switchu::FileLog::flush();
-                return;
-            }
-        }
-
-        switchu::FileLog::log("[power] bpc/spsm failed; falling back to appletStartShutdownSequence()");
-        switchu::FileLog::flush();
-        (void)source;
-        appletStartShutdownSequence();
+        return appletRc;
     }
+
+    Result spsmRc = spsmInitialize();
+    if (R_SUCCEEDED(spsmRc)) {
+        spsmRc = spsmShutdown(reboot);
+        spsmExit();
+    }
+    switchu::FileLog::log(
+        "[power] applet sequence failed rc=0x%X; spsm fallback rc=0x%X",
+        appletRc, spsmRc);
+    switchu::FileLog::flush();
+    return spsmRc;
 }
 
 // Sleep is not a power-down and must not use the shutdown teardown below.
@@ -1057,18 +983,36 @@ static void startPowerSequence(const char* source, smi::SystemMessage action) {
     // process with the dirty writes.
     switchu::FileLog::log("[power] sequence started source=%s action=%d", source, static_cast<int>(action));
     switchu::FileLog::flush();
-    switchu::commitSdCard("power sequence");
+    if (!switchu::commitSdCard("power sequence")) {
+        switchu::FileLog::log("[power] SD commit failed; power action canceled");
+        switchu::FileLog::flush();
+        g_powerSequenceStarted.store(false);
+        return;
+    }
 
+    Result rc = MAKERESULT(Module_Libnx, LibnxError_BadInput);
     switch (action) {
         case smi::SystemMessage::Shutdown:
-            requestPowerStateChange(source, false);
+            rc = requestPowerStateChange(source, false);
             break;
         case smi::SystemMessage::Reboot:
-            requestPowerStateChange(source, true);
+            rc = requestPowerStateChange(source, true);
             break;
         default:
             break;
     }
+
+    if (R_FAILED(rc)) {
+        switchu::FileLog::log("[power] action failed rc=0x%X; resuming daemon", rc);
+        switchu::FileLog::flush();
+        g_powerSequenceStarted.store(false);
+        return;
+    }
+
+    // The accepted sequence completes asynchronously. Never return to normal
+    // daemon work or relaunch the menu while Horizon is tearing the system down.
+    while (true)
+        svcSleepThread(100'000'000ULL);
 }
 
 static void openMenuFromHome(const char* source) {
@@ -2643,7 +2587,10 @@ int main(int argc, char* argv[]) {
     const auto uninstallResult = switchu::daemon::self_uninstall::applyStagedRequest();
     if (uninstallResult == switchu::daemon::self_uninstall::StagedRequestResult::Applied) {
         switchu::FileLog::flush();
-        requestPowerStateChange("self-uninstall applied", true);
+        if (R_SUCCEEDED(requestPowerStateChange("self-uninstall applied", true))) {
+            while (true)
+                svcSleepThread(100'000'000ULL);
+        }
         return 0;
     }
     const bool uninstallPending =
@@ -2667,7 +2614,10 @@ int main(int argc, char* argv[]) {
         switchu::daemon::mem::snapshot("update");
         switchu::FileLog::log("[update] applied; rebooting so the new daemon runs");
         switchu::FileLog::flush();
-        requestPowerStateChange("update applied", true);
+        if (R_SUCCEEDED(requestPowerStateChange("update applied", true))) {
+            while (true)
+                svcSleepThread(100'000'000ULL);
+        }
         return 0;
     }
 
