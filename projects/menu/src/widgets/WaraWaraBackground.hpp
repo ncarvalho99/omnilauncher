@@ -189,7 +189,7 @@ private:
     static constexpr size_t kFrameQueueLimit = 24;
     // Quantos entram na GPU por quadro desenhado. O upload em si e barato; o
     // limite existe para nao gastar o orcamento do quadro num pico.
-    static constexpr int kFrameUploadsPerFrame = 6;
+    static constexpr int kFrameUploadsPerFrame = 2;
 
     void stopFrameReader();
 

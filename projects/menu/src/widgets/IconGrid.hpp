@@ -109,6 +109,10 @@ public:
         std::function<void()> onOpenNetConnect;
         std::function<void()> onOpenWebBrowser;
         std::function<void()> onOpenHbMenu;
+
+        nxui::Widget* upTarget = nullptr;
+        std::vector<nxui::Widget*> leftTargets;
+        std::vector<nxui::Widget*> rightTargets;
     };
 
     // XMB geometry. Rendering, focus rects and touch hit-testing all derive

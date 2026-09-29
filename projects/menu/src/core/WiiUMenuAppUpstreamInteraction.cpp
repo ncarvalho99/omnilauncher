@@ -1812,7 +1812,9 @@ void WiiUMenuApp::updateCursor() {
         m_cursor->setBloomEnabled(!(cur->tag() == "glossy_icon" &&
             static_cast<GlossyIcon*>(cur)->entryKind() == GridEntryKind::Folder));
         const bool carouselScrolling = movingLineFocus && m_grid->isDynamicLineScrolling();
-        m_cursor->moveTo(fr.expanded(4.f), carouselScrolling ? 0.f : 0.2f);
+        const float targetRadius = xmbFocus ? 18.f :
+            (cur->tag() == "glossy_icon" ? static_cast<GlossyIcon*>(cur)->cornerRadius() + 4.f : 18.f);
+        m_cursor->moveTo(fr.expanded(4.f), targetRadius, carouselScrolling ? 0.f : 0.2f);
         m_cursor->setVisible(true);
     } else {
         m_cursor->setVisible(false);

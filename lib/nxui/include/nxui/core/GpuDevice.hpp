@@ -331,7 +331,7 @@ public:
 
 private:
 #ifdef NXUI_BACKEND_DEKO3D
-    static constexpr int      UPLOAD_SLOT_COUNT = 4;
+    static constexpr int      UPLOAD_SLOT_COUNT = 8;
     static constexpr uint32_t UPLOAD_CMD_BUF_SIZE = 64u * 1024u;
     static constexpr uint32_t UPLOAD_STAGING_SIZE = 1024u * 1024u;
     static constexpr uint32_t UPLOAD_COPIES_PER_BATCH = 32;

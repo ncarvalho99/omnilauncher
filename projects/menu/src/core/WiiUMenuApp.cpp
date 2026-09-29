@@ -1547,7 +1547,7 @@ void WiiUMenuApp::appendAddUserButton() {
 }
 
 void WiiUMenuApp::wireUserAvatarNavigation() {
-    const bool dynamicLine = isCarouselLayout();
+    const bool dynamicLine = isCarouselLayout() || isXmbLayout();
     auto returnToGrid = [this]() {
         if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
             return;
@@ -2642,6 +2642,18 @@ void WiiUMenuApp::updateGridXmbContext() {
     ctx.texBrowser = pick(m_xmbBrowserTex, ctx.texNetwork);
     ctx.texGames = &m_gameCardTex;
     ctx.texHomebrew = pick(m_xmbHomebrewTex, ctx.texAlbum);
+
+    if (!m_userAvatarButtons.empty()) {
+        ctx.upTarget = m_userAvatarButtons[m_userAvatarButtons.size() / 2].get();
+    }
+    for (const auto& btn : m_sidebar.leftButtons()) {
+        if (btn && btn->isVisible() && btn->isFocusable())
+            ctx.leftTargets.push_back(btn.get());
+    }
+    for (const auto& btn : m_sidebar.rightButtons()) {
+        if (btn && btn->isVisible() && btn->isFocusable())
+            ctx.rightTargets.push_back(btn.get());
+    }
 
     ctx.onOpenSettings = [this]() {
         m_audio.playSfx(Sfx::ModalShow);
@@ -4322,7 +4334,8 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
         m_grid->setDynamicLineDownTarget(nullptr);
     }
 
-    if (!dynamicLine) {
+    const bool hasEscapeNavigation = dynamicLine || isXmbLayout();
+    if (!hasEscapeNavigation) {
         m_sidebar.setDynamicLineDownAction({});
         wireUserAvatarNavigation();
         return;
@@ -4333,7 +4346,7 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
     // Resolve the app when DOWN is pressed. A persistent raw pointer here can
     // outlive icons rebuilt by a move or catalogue refresh.
     m_sidebar.setDynamicLineDownAction([this]() {
-        if (!m_grid || !isCarouselLayout() ||
+        if (!m_grid || (!isCarouselLayout() && !isXmbLayout()) ||
             m_navigator.route() != switchu::navigation::Route::Home)
             return;
         auto* target = m_grid->focusManager().current();

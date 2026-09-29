@@ -513,10 +513,10 @@ bool GpuDevice::uploadTexture(dk::Image& dst, const void* pixels, uint32_t size,
     // uploaded a great many icons. Nothing here checked the arguments first, so
     // a zero-sized or mismatched upload took the process with it instead of
     // failing. These are the cases that can be caught without asking deko3d.
-    if (!pixels || size == 0 || w == 0 || h == 0) {
+    if (!pixels || size == 0 || w == 0 || h == 0 || !dst.getGpuAddr()) {
         std::fprintf(stderr,
-                     "[GpuDevice] refusing texture upload %ux%u size=%u pixels=%p\n",
-                     w, h, size, pixels);
+                     "[GpuDevice] refusing texture upload %ux%u size=%u pixels=%p gpuAddr=%llx\n",
+                     w, h, size, pixels, (unsigned long long)dst.getGpuAddr());
         return false;
     }
     const uint64_t wanted = expectedBytes ? expectedBytes : (uint64_t)w * h * 4;

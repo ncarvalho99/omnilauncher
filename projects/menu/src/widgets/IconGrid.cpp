@@ -2460,6 +2460,13 @@ void IconGrid::stepXmb(int dCol, int dItem) {
     if (dItem != 0 && m_xmbCol >= 0 && m_xmbCol < colCount) {
         auto& col = m_xmbCols[m_xmbCol];
         if (!col.empty()) {
+            if (dItem < 0 && m_xmbItem == 0 && m_xmbContext.upTarget &&
+                m_xmbContext.upTarget->isVisible() && m_xmbContext.upTarget->isFocusable()) {
+                // Stepping UP from row 0 navigates to the top header (profile / Mii bar)
+                if (m_onFocusChanged)
+                    m_onFocusChanged(m_xmbContext.upTarget);
+                return;
+            }
             const int newItem =
                 std::clamp(m_xmbItem + dItem, 0, static_cast<int>(col.size()) - 1);
             if (newItem != m_xmbItem) {
@@ -2879,9 +2886,9 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
             GlossyIcon* item = col[i];
             nxui::Texture* tex = item ? item->texture() : nullptr;
             if (tex && tex->valid()) {
-                ren.drawTextureRounded(tex, itemRect, 8.f * zoom, nxui::Color::white().withAlpha(a));
+                ren.drawTextureRounded(tex, itemRect, 14.f * zoom, nxui::Color::white().withAlpha(a));
             } else {
-                ren.drawRoundedRect(itemRect, nxui::Color(0.25f, 0.30f, 0.40f, a * 0.7f), 8.f * zoom);
+                ren.drawRoundedRect(itemRect, nxui::Color(0.25f, 0.30f, 0.40f, a * 0.7f), 14.f * zoom);
             }
 
             if (item && item->isSuspended()) {

@@ -277,7 +277,7 @@ IconStreamer::DecodedIcon IconStreamer::decodeIconData(const std::vector<uint8_t
     if (!raw) return out;
     std::unique_ptr<uint8_t, decltype(&stbi_image_free)> full(raw, &stbi_image_free);
 
-    if (w > kIconSize || h > kIconSize) {
+    if (w != kIconSize || h != kIconSize) {
         int dstW = kIconSize, dstH = kIconSize;
         std::vector<uint8_t> scaled((size_t)dstW * dstH * 4);
         if (!scaled.empty()) {
