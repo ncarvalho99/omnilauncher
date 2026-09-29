@@ -1,3 +1,46 @@
+# SwitchU 2.6.5
+
+Maintenance and stability release resolving power-menu reboot on Atmosphere, improving home grid slot handling, migrating SteamGridDB options to a dedicated SwitchU Menu tab, and preparing the update bridge to OmniLauncher.
+
+## English
+
+### Power and Reboot Fixes
+- **Clean Atmosphere Payload Reboot**: Replaced raw `spsmShutdown` power-down calls with `appletStartRebootSequence()`, allowing Atmosphere's `bpc-mitm` service to safely arm `sdmc:/atmosphere/reboot_payload.bin` into IRAM before power cycling. Eliminates black screen drops into RCM during power-menu reboots on Erista consoles with AutoRCM.
+- **Power Sequence Safety**: Recovered from failed SD card commits and power requests without freezing the daemon.
+
+### Grid and Interface Fixes
+- **Free Slot Movement Across Grid**: Dynamic streamer reallocation allows placing icons in any empty slot on any page without requiring sequential placement.
+- **Ghost Entry Cleanup**: Pruned 0-ID entries from folders and fixed root folder continuation cell navigation.
+- **Touchscreen Power Button & Sidebar Activation**: Direct touch taps on the sidebar and power icon now immediately open dialogs and applets reliably.
+
+### Customization and SteamGridDB
+- **Dedicated SteamGridDB Tab**: Moved all SteamGridDB artwork options (artwork toggle, background artwork opacity slider, API key, and bulk artwork scan) into a dedicated SteamGridDB tab in the SwitchU Menu.
+- **SteamGridDB Background Opacity Adjustment**: Allows adjusting game background artwork opacity from 0% to 100% with real-time preview.
+- **Cleaned System Settings**: System Settings is now focused strictly on console preferences.
+
+### Future-Ready Updates
+- **OmniLauncher Migration Path**: Forward-compatible update engine bridges SwitchU 2.6.5 to OmniLauncher 1.0.0+ when released.
+
+## Portugues
+
+### Correcoes de Energia e Reinicializacao
+- **Reinicializacao Limpa de Payload no Atmosphere**: Substituidas chamadas diretas de desligamento `spsmShutdown` por `appletStartRebootSequence()`, permitindo que o servico `bpc-mitm` do Atmosphere carregue com seguranca `sdmc:/atmosphere/reboot_payload.bin` na IRAM antes de reiniciar. Elimina a tela preta com queda no modo RCM ao reiniciar pelo menu de energia em consoles Erista com AutoRCM.
+- **Seguranca na Sequencia de Energia**: Tratamento resiliente caso a gravacao no cartao SD ou chamada de energia falhem, evitando travamento do daemon.
+
+### Grade e Interface
+- **Movimentacao Livre de Icones na Grade**: Realocacao dinamica do streamer permite mover e posicionar jogos em qualquer espaco vazio, sem exigir posicoes sequenciais.
+- **Limpeza de Fantasmas**: Remocao de entradas com ID zero em pastas e correcao da navegacao por celulas de continuacao.
+- **Ativacao por Toque na Barra Lateral e Botao de Energia**: Toques diretos na tela na barra lateral e no icone de energia agora abrem imediatamente as opcoes e applets.
+
+### Personalizacao e SteamGridDB
+- **Aba Dedicada do SteamGridDB**: Todas as opcoes do SteamGridDB (ativar arte, controle deslizante de opacidade, chave de API e busca de artes ausentes) agora ficam em uma aba dedicada no Menu SwitchU.
+- **Ajuste de Opacidade da Arte de Fundo SteamGridDB**: Controle de opacidade da arte de fundo de 0% a 100% com indicador em tempo real.
+- **Configuracoes do Sistema Mais Limpas**: Menu de Ajustes agora focado exclusivamente em opcoes do console.
+
+### Atualizacoes Futuras
+- **Ponte de Migracao para o OmniLauncher**: Mecanismo de atualizacao preparado para migrar do SwitchU 2.6.5 para o OmniLauncher 1.0.0+ assim que publicado.
+
+
 # SwitchU 2.6.4
 
 Major feature release introducing **Phase 6.1: YouTube Music Store & In-Console Downloader**, the **Multimedia Center (`Central Multimídia`)** with live audio visualizer and hardware volume synchronization, custom soundtrack BGM management, and virtual keyboard touch isolation.
