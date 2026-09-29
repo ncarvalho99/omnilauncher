@@ -901,7 +901,6 @@ void WiiUMenuApp::syncSteamGridDb() {
 void WiiUMenuApp::showFocusedSteamGridDbArtwork(bool forceReload) {
     if (!m_steamGridDbBackdrop || !m_config.steamGridDbEnabled) return;
     std::uint64_t titleId = 0;
-    std::vector<std::uint64_t> nearbyTitleIds;
     if (m_grid) {
         auto* current = m_grid->focusManager().current();
         if (current && current->tag() == "glossy_icon") {
@@ -910,8 +909,16 @@ void WiiUMenuApp::showFocusedSteamGridDbArtwork(bool forceReload) {
                 && m_model.at(focused).isApplication())
                 titleId = static_cast<GlossyIcon*>(current)->titleId();
         }
+    }
+
+    static std::uint64_t s_lastFocusedTitleId = 0xFFFFFFFFFFFFFFFFULL;
+    if (!forceReload && titleId == s_lastFocusedTitleId) return;
+    s_lastFocusedTitleId = titleId;
+
+    std::vector<std::uint64_t> nearbyTitleIds;
+    if (m_grid) {
         const int focused = m_grid->focusedGlobalIndex();
-        for (int distance = 1; focused >= 0 && nearbyTitleIds.size() < 8
+        for (int distance = 1; focused >= 0 && nearbyTitleIds.size() < 4
                                && distance < m_model.count(); ++distance) {
             for (int direction : {1, -1}) {
                 const int index = focused + direction * distance;
@@ -919,7 +926,7 @@ void WiiUMenuApp::showFocusedSteamGridDbArtwork(bool forceReload) {
                 const auto& entry = m_model.at(index);
                 if (!entry.isApplication() || entry.titleId == 0) continue;
                 nearbyTitleIds.push_back(entry.titleId);
-                if (nearbyTitleIds.size() >= 8) break;
+                if (nearbyTitleIds.size() >= 4) break;
             }
         }
     }

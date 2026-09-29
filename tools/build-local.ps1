@@ -74,7 +74,7 @@ function Copy-TreeToConsole {
         [Parameter(Mandatory)] [string] $Label
     )
 
-    & robocopy $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Host
+    & robocopy $Source $Destination /E /IS /IT /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Host
     $copyExitCode = $LASTEXITCODE
     # Robocopy uses 0–7 for success, including files copied or metadata changed.
     if ($copyExitCode -gt 7) {

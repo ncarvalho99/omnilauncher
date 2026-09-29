@@ -12,14 +12,25 @@
 #include <sys/stat.h>
 #include <cstdio>
 #include <string>
+#include <mutex>
+#include <unordered_map>
 
 
 IconGrid::IconGrid() {}
 
 namespace {
 
+static std::unordered_map<std::uint64_t, std::string> s_coverPathCache;
+static std::mutex s_coverPathMutex;
+
 std::string resolveFlowCoverPath(std::uint64_t titleId) {
     if (titleId == 0) return {};
+    {
+        std::lock_guard<std::mutex> lock(s_coverPathMutex);
+        auto it = s_coverPathCache.find(titleId);
+        if (it != s_coverPathCache.end()) return it->second;
+    }
+
     char hexUpper[17];
     char hexLower[17];
     std::snprintf(hexUpper, sizeof(hexUpper), "%016llX", static_cast<unsigned long long>(titleId));
@@ -27,27 +38,33 @@ std::string resolveFlowCoverPath(std::uint64_t titleId) {
 
     const char* exts[] = {".jpg", ".png", ".jpeg"};
     struct stat st;
+    std::string found;
 
     for (const char* ext : exts) {
         // 1. SwitchU covers root (SteamGridDB 600x900 covers or manual drops)
         std::string p1 = std::string("sdmc:/config/SwitchU/covers/") + hexUpper + ext;
-        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p1;
+        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p1); break; }
         p1 = std::string("sdmc:/config/SwitchU/covers/") + hexLower + ext;
-        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p1;
+        if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p1); break; }
 
         // 2. SwitchU game_art cover slot (custom covers applied from Dossier/Gallery)
         std::string p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexUpper + "/cover" + ext;
-        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p2;
+        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p2); break; }
         p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexLower + "/cover" + ext;
-        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p2;
+        if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p2); break; }
 
         // 3. sLaunch covers root (shared SD cover art)
         std::string p3 = std::string("sdmc:/slaunch/covers/") + hexUpper + ext;
-        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p3;
+        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p3); break; }
         p3 = std::string("sdmc:/slaunch/covers/") + hexLower + ext;
-        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) return p3;
+        if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p3); break; }
     }
-    return {};
+
+    {
+        std::lock_guard<std::mutex> lock(s_coverPathMutex);
+        s_coverPathCache[titleId] = found;
+    }
+    return found;
 }
 
 float clamp01(float v) {
@@ -164,25 +181,27 @@ void IconGrid::preloadFlowCoversAround(int centerIdx) {
         auto& cov = m_flowCovers[tid];
         if (!cov.checked) {
             cov.checked = true;
-            const std::string coverPath = resolveFlowCoverPath(tid);
-            if (!coverPath.empty()) {
-                cov.loading = true;
-                auto decodeState = std::make_shared<CoverDecodeState>();
-                auto work = [decodeState, coverPath]() {
-                    try {
+            cov.loading = true;
+            auto decodeState = std::make_shared<CoverDecodeState>();
+            auto work = [decodeState, tid]() {
+                try {
+                    const std::string coverPath = resolveFlowCoverPath(tid);
+                    if (!coverPath.empty()) {
                         decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
                         decodeState->failed = !decodeState->decoded.valid();
-                    } catch (...) {
+                    } else {
                         decodeState->failed = true;
                     }
-                    decodeState->done = true;
-                };
-                PendingCoverDecode pcd;
-                pcd.titleId = tid;
-                pcd.state = decodeState;
-                pcd.future = m_threadPool->submit(std::move(work));
-                m_pendingCoverDecodes.push_back(std::move(pcd));
-            }
+                } catch (...) {
+                    decodeState->failed = true;
+                }
+                decodeState->done = true;
+            };
+            PendingCoverDecode pcd;
+            pcd.titleId = tid;
+            pcd.state = decodeState;
+            pcd.future = m_threadPool->submit(std::move(work));
+            m_pendingCoverDecodes.push_back(std::move(pcd));
         }
     }
 }
@@ -961,8 +980,6 @@ nxui::Rect IconGrid::projected3DIconRect(int index) const {
             auto it = m_flowCovers.find(tid);
             if (it != m_flowCovers.end() && it->second.available && it->second.texture.valid()) {
                 hasCover = true;
-            } else if (!resolveFlowCoverPath(tid).empty()) {
-                hasCover = true;
             }
         }
         const float halfW = hasCover ? 0.44f : 0.5625f;
@@ -1405,26 +1422,28 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             auto& cov = m_flowCovers[tid];
             if (!cov.checked) {
                 cov.checked = true;
-                const std::string coverPath = resolveFlowCoverPath(tid);
-                if (!coverPath.empty()) {
-                    cov.loading = true;
-                    if (m_threadPool) {
-                        auto decodeState = std::make_shared<CoverDecodeState>();
-                        auto work = [decodeState, coverPath]() {
-                            try {
+                cov.loading = true;
+                if (m_threadPool) {
+                    auto decodeState = std::make_shared<CoverDecodeState>();
+                    auto work = [decodeState, tid]() {
+                        try {
+                            const std::string coverPath = resolveFlowCoverPath(tid);
+                            if (!coverPath.empty()) {
                                 decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
                                 decodeState->failed = !decodeState->decoded.valid();
-                            } catch (...) {
+                            } else {
                                 decodeState->failed = true;
                             }
-                            decodeState->done = true;
-                        };
-                        PendingCoverDecode pcd;
-                        pcd.titleId = tid;
-                        pcd.state = decodeState;
-                        pcd.future = m_threadPool->submit(std::move(work));
-                        m_pendingCoverDecodes.push_back(std::move(pcd));
-                    }
+                        } catch (...) {
+                            decodeState->failed = true;
+                        }
+                        decodeState->done = true;
+                    };
+                    PendingCoverDecode pcd;
+                    pcd.titleId = tid;
+                    pcd.state = decodeState;
+                    pcd.future = m_threadPool->submit(std::move(work));
+                    m_pendingCoverDecodes.push_back(std::move(pcd));
                 }
             }
             if (cov.available && cov.texture.valid()) {
@@ -1663,26 +1682,28 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
             auto& cov = m_flowCovers[tid];
             if (!cov.checked) {
                 cov.checked = true;
-                const std::string coverPath = resolveFlowCoverPath(tid);
-                if (!coverPath.empty()) {
-                    cov.loading = true;
-                    if (m_threadPool) {
-                        auto decodeState = std::make_shared<CoverDecodeState>();
-                        auto work = [decodeState, coverPath]() {
-                            try {
+                cov.loading = true;
+                if (m_threadPool) {
+                    auto decodeState = std::make_shared<CoverDecodeState>();
+                    auto work = [decodeState, tid]() {
+                        try {
+                            const std::string coverPath = resolveFlowCoverPath(tid);
+                            if (!coverPath.empty()) {
                                 decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
                                 decodeState->failed = !decodeState->decoded.valid();
-                            } catch (...) {
+                            } else {
                                 decodeState->failed = true;
                             }
-                            decodeState->done = true;
-                        };
-                        PendingCoverDecode pcd;
-                        pcd.titleId = tid;
-                        pcd.state = decodeState;
-                        pcd.future = m_threadPool->submit(std::move(work));
-                        m_pendingCoverDecodes.push_back(std::move(pcd));
-                    }
+                        } catch (...) {
+                            decodeState->failed = true;
+                        }
+                        decodeState->done = true;
+                    };
+                    PendingCoverDecode pcd;
+                    pcd.titleId = tid;
+                    pcd.state = decodeState;
+                    pcd.future = m_threadPool->submit(std::move(work));
+                    m_pendingCoverDecodes.push_back(std::move(pcd));
                 }
             }
             if (cov.available && cov.texture.valid()) {
@@ -1889,26 +1910,28 @@ void IconGrid::renderDeck(nxui::Renderer& ren) {
             auto& cov = m_flowCovers[tid];
             if (!cov.checked) {
                 cov.checked = true;
-                const std::string coverPath = resolveFlowCoverPath(tid);
-                if (!coverPath.empty()) {
-                    cov.loading = true;
-                    if (m_threadPool) {
-                        auto decodeState = std::make_shared<CoverDecodeState>();
-                        auto work = [decodeState, coverPath]() {
-                            try {
+                cov.loading = true;
+                if (m_threadPool) {
+                    auto decodeState = std::make_shared<CoverDecodeState>();
+                    auto work = [decodeState, tid]() {
+                        try {
+                            const std::string coverPath = resolveFlowCoverPath(tid);
+                            if (!coverPath.empty()) {
                                 decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
                                 decodeState->failed = !decodeState->decoded.valid();
-                            } catch (...) {
+                            } else {
                                 decodeState->failed = true;
                             }
-                            decodeState->done = true;
-                        };
-                        PendingCoverDecode pcd;
-                        pcd.titleId = tid;
-                        pcd.state = decodeState;
-                        pcd.future = m_threadPool->submit(std::move(work));
-                        m_pendingCoverDecodes.push_back(std::move(pcd));
-                    }
+                        } catch (...) {
+                            decodeState->failed = true;
+                        }
+                        decodeState->done = true;
+                    };
+                    PendingCoverDecode pcd;
+                    pcd.titleId = tid;
+                    pcd.state = decodeState;
+                    pcd.future = m_threadPool->submit(std::move(work));
+                    m_pendingCoverDecodes.push_back(std::move(pcd));
                 }
             }
             if (cov.available && cov.texture.valid()) {
@@ -1999,8 +2022,6 @@ int IconGrid::hitTestCover(float screenX, float screenY) const {
         if (tid != 0) {
             auto it = m_flowCovers.find(tid);
             if (it != m_flowCovers.end() && it->second.available && it->second.texture.valid()) {
-                hasCover = true;
-            } else if (!resolveFlowCoverPath(tid).empty()) {
                 hasCover = true;
             }
         }
@@ -2110,26 +2131,28 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
             auto& cov = m_flowCovers[tid];
             if (!cov.checked) {
                 cov.checked = true;
-                const std::string coverPath = resolveFlowCoverPath(tid);
-                if (!coverPath.empty()) {
-                    cov.loading = true;
-                    if (m_threadPool) {
-                        auto decodeState = std::make_shared<CoverDecodeState>();
-                        auto work = [decodeState, coverPath]() {
-                            try {
+                cov.loading = true;
+                if (m_threadPool) {
+                    auto decodeState = std::make_shared<CoverDecodeState>();
+                    auto work = [decodeState, tid]() {
+                        try {
+                            const std::string coverPath = resolveFlowCoverPath(tid);
+                            if (!coverPath.empty()) {
                                 decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
                                 decodeState->failed = !decodeState->decoded.valid();
-                            } catch (...) {
+                            } else {
                                 decodeState->failed = true;
                             }
-                            decodeState->done = true;
-                        };
-                        PendingCoverDecode pcd;
-                        pcd.titleId = tid;
-                        pcd.state = decodeState;
-                        pcd.future = m_threadPool->submit(std::move(work));
-                        m_pendingCoverDecodes.push_back(std::move(pcd));
-                    }
+                        } catch (...) {
+                            decodeState->failed = true;
+                        }
+                        decodeState->done = true;
+                    };
+                    PendingCoverDecode pcd;
+                    pcd.titleId = tid;
+                    pcd.state = decodeState;
+                    pcd.future = m_threadPool->submit(std::move(work));
+                    m_pendingCoverDecodes.push_back(std::move(pcd));
                 }
             }
             if (cov.available && cov.texture.valid()) {
@@ -2204,9 +2227,6 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
-    if (!m_children.empty() && ren.gpu().offscreenReady())
-        ren.captureToOffscreen(true);
-
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         renderDynamicLine(ren);
         return;
@@ -2231,6 +2251,9 @@ void IconGrid::render(nxui::Renderer& ren) {
         renderCover(ren);
         return;
     }
+
+    if (!m_children.empty() && ren.gpu().offscreenReady())
+        ren.captureToOffscreen(true);
 
     const float reveal = clamp01(m_layoutReveal.value());
     if (reveal < 0.999f) {
