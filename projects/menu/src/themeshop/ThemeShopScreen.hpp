@@ -20,6 +20,7 @@ class InstalledTab;
 class CommunityTab;
 class AnimatedTab;
 class MusicTab;
+class SteamGridDbTab;
 class OptionsTab;
 class UpdateTab;
 class UninstallTab;
