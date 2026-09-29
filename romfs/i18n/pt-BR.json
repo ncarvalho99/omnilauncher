@@ -31,6 +31,7 @@
       "shelf": "Estante (Shelf)",
       "deck": "Deck",
       "cover": "Capa",
+      "xmb": "XMB",
       "menu": "Menu de contexto"
     },
     "roles": {
@@ -101,6 +102,7 @@
       "shelf": "Modo estante",
       "deck": "Modo deck",
       "cover": "Modo capa",
+      "xmb": "Modo XMB",
       "grid": "Modo de grade"
     }
   },
@@ -200,7 +202,8 @@
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
       "deck": "Deck (3D)",
-      "cover": "Capa"
+      "cover": "Capa",
+      "xmb": "XMB"
     },
     "tabs": {
       "system": "Sistema",

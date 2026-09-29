@@ -31,6 +31,7 @@
       "shelf": "Estantería",
       "deck": "Deck",
       "cover": "Portada",
+      "xmb": "XMB",
       "menu": "Menú contextual"
     },
     "roles": {
@@ -101,6 +102,7 @@
       "shelf": "Modo estantería",
       "deck": "Modo deck",
       "cover": "Modo portada",
+      "xmb": "Modo XMB",
       "grid": "Modo de cuadrícula"
     }
   },
@@ -200,7 +202,8 @@
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
       "deck": "Deck (3D)",
-      "cover": "Portada"
+      "cover": "Portada",
+      "xmb": "XMB"
     },
     "tabs": {
       "system": "Sistema",

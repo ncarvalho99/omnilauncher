@@ -31,6 +31,7 @@
       "shelf": "Étagère",
       "deck": "Deck",
       "cover": "Jaquette",
+      "xmb": "XMB",
       "menu": "Menu contextuel"
     },
     "roles": {
@@ -101,6 +102,7 @@
       "shelf": "Mode étagère",
       "deck": "Mode deck",
       "cover": "Mode jaquette",
+      "xmb": "Mode XMB",
       "grid": "Mode grille"
     }
   },
@@ -200,7 +202,8 @@
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
       "deck": "Deck (3D)",
-      "cover": "Jaquette"
+      "cover": "Jaquette",
+      "xmb": "XMB"
     },
     "tabs": {
       "system": "Système",

@@ -31,6 +31,7 @@
       "shelf": "Shelf",
       "deck": "Deck",
       "cover": "Cover",
+      "xmb": "XMB",
       "menu": "Context menu"
     },
     "roles": {
@@ -101,6 +102,7 @@
       "shelf": "Shelf mode",
       "deck": "Deck mode",
       "cover": "Cover mode",
+      "xmb": "XMB mode",
       "grid": "Grid mode"
     }
   },
@@ -200,7 +202,8 @@
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
       "deck": "Deck (3D)",
-      "cover": "Cover"
+      "cover": "Cover",
+      "xmb": "XMB"
     },
     "tabs": {
       "system": "System",

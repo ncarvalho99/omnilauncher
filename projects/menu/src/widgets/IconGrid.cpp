@@ -225,6 +225,23 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
     int cur = focusedGlobalIndex();
     m_layoutReveal.setImmediate(0.86f);
     m_layoutReveal.set(1.f, 0.24f, nxui::Easing::outCubic);
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        layoutXmb();
+        if (cur >= 0 && cur < (int)m_allIcons.size() && m_xmbCols.size() > 4) {
+            auto& gameCol = m_xmbCols[4];
+            for (size_t i = 0; i < gameCol.size(); ++i) {
+                if (gameCol[i] == m_allIcons[cur].get()) {
+                    m_xmbCol = 4;
+                    m_xmbItem = static_cast<int>(i);
+                    m_xmbColScroll = 4.0f;
+                    m_xmbItemScroll = static_cast<float>(i);
+                    m_focus.setFocus(gameCol[i]);
+                    break;
+                }
+            }
+        }
+        return;
+    }
     // Flow/Shelf share the carousel's model, focus bindings and scroll offset:
     // they are different presentations of the same row, so switching between
     // views keeps your place on the same title without re-deriving anything.
@@ -284,14 +301,16 @@ void IconGrid::reconfigureLayout(int cols, int rows,
     m_originX = (m_rect.width  - gridW) * 0.5f + m_rect.x;
     m_originY = (m_rect.height - gridH) * 0.5f + m_rect.y;
 
-    if (isCarousel())
+    if (m_layoutMode == AppLayoutMode::Xmb)
+        layoutXmb();
+    else if (isCarousel())
         layoutLine();
     else
         setPage(m_page);
 }
 
 void IconGrid::setPage(int page) {
-    if (isCarousel()) return;
+    if (isCarousel() || m_layoutMode == AppLayoutMode::Xmb) return;
     m_page = std::clamp(page, 0, m_totalPages - 1);
     layoutPage();
 }
@@ -653,6 +672,14 @@ nxui::Rect IconGrid::dynamicIconRect(int index, float* outScale,
 }
 
 nxui::Rect IconGrid::focusedDisplayRect() const {
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        constexpr float kXmbAnchorX = 352.f;
+        constexpr float kXmbIconBase = 85.f;
+        constexpr float kXmbMarginTop = 181.f;
+        float d = static_cast<float>(m_xmbItem) - m_xmbItemScroll;
+        float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
+        return {kXmbAnchorX - kXmbIconBase * 0.5f, cy - kXmbIconBase * 0.5f, kXmbIconBase, kXmbIconBase};
+    }
     if (isCarousel()) {
         const int focused = focusedGlobalIndex();
         if (focused >= 0) {
@@ -1016,6 +1043,9 @@ int IconGrid::hitTest(float screenX, float screenY) const {
     if (m_layoutMode == AppLayoutMode::Cover) {
         return hitTestCover(screenX, screenY);
     }
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        return hitTestXmb(screenX, screenY);
+    }
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
@@ -1039,6 +1069,14 @@ nxui::Widget* IconGrid::findTopHit(float x, float y) {
     if (!isVisible()) return nullptr;
     int hit = hitTest(x, y);
     if (hit < 0) return nullptr;
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        if (m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
+            auto& col = m_xmbCols[m_xmbCol];
+            if (m_xmbItem >= 0 && m_xmbItem < static_cast<int>(col.size()))
+                return col[m_xmbItem];
+        }
+        return nullptr;
+    }
     if (isCarousel()) {
         if (hit >= 0 && hit < (int)m_allIcons.size())
             return m_allIcons[hit].get();
@@ -1150,6 +1188,15 @@ void IconGrid::startWaveTransition(int targetPage) {
 
 void IconGrid::onUpdate(float dt) {
     m_layoutReveal.update(dt);
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        m_xmbColScroll += (static_cast<float>(m_xmbCol) - m_xmbColScroll) * 0.22f;
+        m_xmbItemScroll += (static_cast<float>(m_xmbItem) - m_xmbItemScroll) * 0.26f;
+        if (std::abs(static_cast<float>(m_xmbCol) - m_xmbColScroll) < 0.003f)
+            m_xmbColScroll = static_cast<float>(m_xmbCol);
+        if (std::abs(static_cast<float>(m_xmbItem) - m_xmbItemScroll) < 0.003f)
+            m_xmbItemScroll = static_cast<float>(m_xmbItem);
+        return;
+    }
     if (isCarousel()) {
         // Sampled once per frame so every case in the Flow row is placed
         // against the same instant. Wraps harmlessly; only its fractional
@@ -2224,6 +2271,400 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+void IconGrid::setXmbContext(const XmbContext& ctx) {
+    m_xmbContext = ctx;
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        layoutXmb();
+    }
+}
+
+void IconGrid::syncXmbFocusFromCurrent() {
+    if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty()) return;
+    nxui::Widget* cur = m_focus.current();
+    if (!cur) return;
+    for (size_t c = 0; c < m_xmbCols.size(); ++c) {
+        for (size_t i = 0; i < m_xmbCols[c].size(); ++i) {
+            if (m_xmbCols[c][i] == cur) {
+                m_xmbCol = static_cast<int>(c);
+                m_xmbItem = static_cast<int>(i);
+                return;
+            }
+        }
+    }
+}
+
+void IconGrid::stepXmb(int dCol, int dItem) {
+    if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty()) return;
+    if (dCol != 0) {
+        int newCol = std::clamp(m_xmbCol + dCol, 0, static_cast<int>(m_xmbCols.size()) - 1);
+        if (newCol != m_xmbCol && !m_xmbCols[newCol].empty()) {
+            m_xmbCol = newCol;
+            m_xmbItem = 0;
+            m_focus.setFocus(m_xmbCols[m_xmbCol][0]);
+        }
+    }
+    if (dItem != 0 && m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
+        auto& col = m_xmbCols[m_xmbCol];
+        if (!col.empty()) {
+            int newItem = std::clamp(m_xmbItem + dItem, 0, static_cast<int>(col.size()) - 1);
+            if (newItem != m_xmbItem) {
+                m_xmbItem = newItem;
+                m_focus.setFocus(col[m_xmbItem]);
+            }
+        }
+    }
+}
+
+float IconGrid::xmbRowOffset(float d) {
+    constexpr float kXmbSpacingV   = 42.67f;
+    constexpr float kXmbAboveItem  = -1.0f;
+    constexpr float kXmbActiveItem =  3.0f;
+    constexpr float kXmbUnderItem  =  5.0f;
+
+    const float active = kXmbSpacingV * kXmbActiveItem;
+    if (d <= -1.0f) return kXmbSpacingV * (d + kXmbAboveItem);
+    if (d >=  1.0f) return kXmbSpacingV * (d + kXmbUnderItem);
+    if (d < 0.0f) {
+        const float edge = kXmbSpacingV * (-1.0f + kXmbAboveItem);
+        return active + (edge - active) * (-d);
+    }
+    const float edge = kXmbSpacingV * (1.0f + kXmbUnderItem);
+    return active + (edge - active) * d;
+}
+
+int IconGrid::hitTestXmb(float screenX, float screenY) const {
+    if (m_xmbCols.empty()) return -1;
+    constexpr float kXmbAnchorX = 352.f;
+    constexpr float kXmbSpacingH = 128.f;
+    constexpr float kXmbTabY = 223.5f;
+    constexpr float kXmbIconBase = 85.f;
+    constexpr float kXmbMarginTop = 181.f;
+
+    // 1. Check Category Tabs
+    if (screenY >= kXmbTabY - 50.f && screenY <= kXmbTabY + 50.f) {
+        for (size_t c = 0; c < m_xmbCols.size(); ++c) {
+            float d = static_cast<float>(c) - m_xmbColScroll;
+            float cx = kXmbAnchorX + d * kXmbSpacingH;
+            if (std::abs(screenX - cx) <= 50.f) {
+                const_cast<IconGrid*>(this)->m_xmbCol = static_cast<int>(c);
+                const_cast<IconGrid*>(this)->m_xmbItem = 0;
+                if (!m_xmbCols[c].empty()) {
+                    const_cast<IconGrid*>(this)->m_focus.setFocus(m_xmbCols[c][0]);
+                }
+                return (c == 4 && !m_xmbCols[c].empty()) ? focusedGlobalIndex() : -1;
+            }
+        }
+    }
+
+    // 2. Check Items in active column
+    if (m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
+        auto& col = m_xmbCols[m_xmbCol];
+        for (size_t i = 0; i < col.size(); ++i) {
+            float d = static_cast<float>(i) - m_xmbItemScroll;
+            float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
+            if (std::abs(screenY - cy) <= 30.f && screenX >= kXmbAnchorX - 60.f && screenX <= 1200.f) {
+                if (static_cast<int>(i) == m_xmbItem) {
+                    col[i]->activate();
+                } else {
+                    const_cast<IconGrid*>(this)->m_xmbItem = static_cast<int>(i);
+                    const_cast<IconGrid*>(this)->m_focus.setFocus(col[i]);
+                }
+                return (m_xmbCol == 4) ? focusedGlobalIndex() : -1;
+            }
+        }
+    }
+    return -1;
+}
+
+void IconGrid::layoutXmb() {
+    clearChildren();
+
+    if (m_xmbSystemIcons.empty()) {
+        m_xmbSystemIcons.resize(11);
+        for (auto& sys : m_xmbSystemIcons) {
+            sys = std::make_shared<GlossyIcon>();
+            sys->setTag("glossy_icon");
+            sys->setFocusable(true);
+            sys->setVisible(true);
+            sys->setCornerRadius(10.f);
+        }
+    }
+
+    auto bindSysAction = [](const std::shared_ptr<GlossyIcon>& icon,
+                            const std::string& title,
+                            const std::string& hint,
+                            nxui::Texture* tex,
+                            std::function<void()> act) {
+        icon->setTitle(title);
+        icon->setAccessibilityHint(hint);
+        icon->setTexture(tex);
+        icon->clearActions();
+        icon->setOnActivate(act);
+        if (act) {
+            icon->addAction(static_cast<uint64_t>(nxui::Button::A), act);
+        }
+    };
+
+    // Settings column items
+    bindSysAction(m_xmbSystemIcons[0], "Settings", "System and launcher preferences", m_xmbContext.texSettings, m_xmbContext.onOpenSettings);
+    bindSysAction(m_xmbSystemIcons[1], "Theme Shop", "Customize themes and sounds", m_xmbContext.texThemes, m_xmbContext.onOpenThemeShop);
+    bindSysAction(m_xmbSystemIcons[2], "Controllers", "Pair controllers and change grip", m_xmbContext.texControllers, m_xmbContext.onOpenControllers);
+    bindSysAction(m_xmbSystemIcons[3], "Power", "Sleep, restart or turn off console", m_xmbContext.texPower, m_xmbContext.onOpenPower);
+
+    // Media column items
+    bindSysAction(m_xmbSystemIcons[4], "Album", "Screenshots and captured videos", m_xmbContext.texAlbum, m_xmbContext.onOpenAlbum);
+    bindSysAction(m_xmbSystemIcons[5], "Media Center", "Play music and explore media", m_xmbContext.texMediaCenter, m_xmbContext.onOpenMediaCenter);
+
+    // User column items
+    bindSysAction(m_xmbSystemIcons[6], "User Page", "Account profile and activity log", m_xmbContext.texUser, m_xmbContext.onOpenUserPage);
+    bindSysAction(m_xmbSystemIcons[7], "Mii Editor", "Create and manage Mii characters", m_xmbContext.texMii, m_xmbContext.onOpenMiiEditor);
+
+    // Network column items
+    nxui::Texture* netTex = m_xmbContext.texNetwork ? m_xmbContext.texNetwork : m_xmbContext.texSettings;
+    bindSysAction(m_xmbSystemIcons[8], "Internet Settings", "Configure Wi-Fi connections", netTex, m_xmbContext.onOpenNetConnect);
+    bindSysAction(m_xmbSystemIcons[9], "Web Browser", "Browse the Internet", netTex, m_xmbContext.onOpenWebBrowser);
+
+    // Homebrew column items
+    nxui::Texture* hbTex = m_xmbContext.texHomebrew ? m_xmbContext.texHomebrew : m_xmbContext.texAlbum;
+    bindSysAction(m_xmbSystemIcons[10], "Homebrew Menu", "Launch homebrew applications (.nro)", hbTex, m_xmbContext.onOpenHbMenu);
+
+    // Assemble 6 columns
+    m_xmbCols.clear();
+    m_xmbCols.resize(6);
+
+    m_xmbColNames = {"Settings", "Media", "User", "Network", "Games", "Homebrew"};
+    m_xmbColIcons = {
+        m_xmbContext.texSettings,
+        m_xmbContext.texAlbum,
+        m_xmbContext.texUser,
+        m_xmbContext.texNetwork ? m_xmbContext.texNetwork : m_xmbContext.texSettings,
+        m_xmbContext.texGames,
+        m_xmbContext.texHomebrew ? m_xmbContext.texHomebrew : m_xmbContext.texAlbum
+    };
+
+    m_xmbCols[0] = { m_xmbSystemIcons[0].get(), m_xmbSystemIcons[1].get(), m_xmbSystemIcons[2].get(), m_xmbSystemIcons[3].get() };
+    m_xmbCols[1] = { m_xmbSystemIcons[4].get(), m_xmbSystemIcons[5].get() };
+    m_xmbCols[2] = { m_xmbSystemIcons[6].get(), m_xmbSystemIcons[7].get() };
+    m_xmbCols[3] = { m_xmbSystemIcons[8].get(), m_xmbSystemIcons[9].get() };
+
+    std::vector<GlossyIcon*> gameIcons;
+    gameIcons.reserve(m_allIcons.size());
+    for (auto& icon : m_allIcons) {
+        if (icon && icon->isFocusable() && (icon->titleId() != 0 || icon->entryKind() == GridEntryKind::Folder)) {
+            gameIcons.push_back(icon.get());
+        }
+    }
+    if (gameIcons.empty()) {
+        for (auto& icon : m_allIcons) {
+            if (icon) gameIcons.push_back(icon.get());
+        }
+    }
+    m_xmbCols[4] = std::move(gameIcons);
+
+    m_xmbCols[5] = { m_xmbSystemIcons[10].get() };
+
+    for (auto& sys : m_xmbSystemIcons) {
+        addChild(sys);
+    }
+    for (auto& icon : m_allIcons) {
+        if (icon) addChild(icon);
+    }
+
+    // Navigation graph
+    for (size_t c = 0; c < m_xmbCols.size(); ++c) {
+        auto& col = m_xmbCols[c];
+        const int colSize = static_cast<int>(col.size());
+        if (colSize == 0) continue;
+
+        for (int i = 0; i < colSize; ++i) {
+            GlossyIcon* cur = col[i];
+            int prev = (i > 0) ? (i - 1) : (colSize - 1);
+            int next = (i + 1 < colSize) ? (i + 1) : 0;
+            cur->setCustomNavigation(nxui::FocusDirection::UP, col[prev]);
+            cur->setCustomNavigation(nxui::FocusDirection::DOWN, col[next]);
+
+            if (c > 0) {
+                auto& leftCol = m_xmbCols[c - 1];
+                if (!leftCol.empty()) {
+                    int leftIdx = std::min(i, static_cast<int>(leftCol.size()) - 1);
+                    cur->setCustomNavigation(nxui::FocusDirection::LEFT, leftCol[leftIdx]);
+                } else {
+                    cur->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
+                }
+            } else {
+                cur->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
+            }
+
+            if (c + 1 < m_xmbCols.size()) {
+                auto& rightCol = m_xmbCols[c + 1];
+                if (!rightCol.empty()) {
+                    int rightIdx = std::min(i, static_cast<int>(rightCol.size()) - 1);
+                    cur->setCustomNavigation(nxui::FocusDirection::RIGHT, rightCol[rightIdx]);
+                } else {
+                    cur->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+                }
+            } else {
+                cur->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+            }
+        }
+    }
+
+    if (m_xmbCol < 0 || m_xmbCol >= static_cast<int>(m_xmbCols.size()))
+        m_xmbCol = 4;
+    if (m_xmbCols[m_xmbCol].empty())
+        m_xmbCol = 0;
+
+    auto& activeCol = m_xmbCols[m_xmbCol];
+    if (m_xmbItem < 0 || m_xmbItem >= static_cast<int>(activeCol.size()))
+        m_xmbItem = 0;
+
+    m_xmbColScroll = static_cast<float>(m_xmbCol);
+    m_xmbItemScroll = static_cast<float>(m_xmbItem);
+
+    if (!activeCol.empty()) {
+        m_focus.setFocus(activeCol[m_xmbItem]);
+    }
+}
+
+void IconGrid::renderXmb(nxui::Renderer& ren) {
+    if (m_xmbCols.empty()) return;
+    ren.pushClipRect(m_rect);
+
+    constexpr float kXmbAnchorX = 352.f;
+    constexpr float kXmbSpacingH = 128.f;
+    constexpr float kXmbTabY = 223.5f;
+    constexpr float kXmbIconBase = 85.f;
+    constexpr float kXmbMarginTop = 181.f;
+    constexpr float kXmbZoomActive = 1.0f;
+    constexpr float kXmbZoomPassive = 0.55f;
+    constexpr float kXmbAlphaActive = 1.0f;
+    constexpr float kXmbAlphaPassive = 0.65f;
+    constexpr float kXmbLabelLeft = 57.f;
+    constexpr float kXmbFadeEnd = 60.f;
+    constexpr float kXmbFadeStart = 181.f;
+    constexpr float kXmbFadeBotEnd = 700.f;
+    constexpr float kXmbFadeBotStart = 580.f;
+
+    // 1. Draw Category Header (Screen Title at top-left)
+    if (m_xmbContext.fontNormal && m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbColNames.size())) {
+        const std::string& catName = m_xmbColNames[m_xmbCol];
+        ren.drawText(catName, {88.f, 92.f}, m_xmbContext.fontNormal, nxui::Color(1.f, 1.f, 1.f, 0.95f), 1.15f);
+
+        if (m_xmbContext.fontSmall && !m_xmbCols[m_xmbCol].empty()) {
+            char countBuf[64];
+            std::snprintf(countBuf, sizeof(countBuf), "%zu items", m_xmbCols[m_xmbCol].size());
+            ren.drawText(countBuf, {88.f, 132.f}, m_xmbContext.fontSmall, nxui::Color(0.72f, 0.75f, 0.82f, 0.75f), 0.68f);
+        }
+    }
+
+    // 2. Category Row (Horizontal)
+    for (size_t c = 0; c < m_xmbCols.size(); ++c) {
+        float d = static_cast<float>(c) - m_xmbColScroll;
+        float cx = kXmbAnchorX + d * kXmbSpacingH;
+        if (cx < -100.f || cx > 1280.f + 100.f) continue;
+
+        float prox = std::max(0.0f, 1.0f - std::abs(d));
+        float zoom = kXmbZoomPassive + (kXmbZoomActive - kXmbZoomPassive) * prox;
+        float alpha = 0.50f + 0.50f * prox;
+        float sz = kXmbIconBase * zoom;
+        nxui::Rect iconRect{cx - sz * 0.5f, kXmbTabY - sz * 0.5f, sz, sz};
+
+        if (prox > 0.6f) {
+            float glowA = (prox - 0.6f) / 0.4f * 0.40f;
+            ren.drawRoundedRect(iconRect.expanded(10.f * prox), nxui::Color(0.20f, 0.55f, 0.95f, glowA), 18.f);
+        }
+
+        nxui::Texture* catTex = (c < m_xmbColIcons.size()) ? m_xmbColIcons[c] : nullptr;
+        if (catTex && catTex->valid()) {
+            ren.drawTextureRounded(catTex, iconRect, 10.f * zoom, nxui::Color::white().withAlpha(alpha));
+        } else {
+            ren.drawRoundedRect(iconRect, nxui::Color(0.2f, 0.25f, 0.35f, alpha * 0.8f), 10.f * zoom);
+        }
+    }
+
+    // 3. Entry Column (Vertical)
+    if (m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
+        auto& col = m_xmbCols[m_xmbCol];
+        const int count = static_cast<int>(col.size());
+        const int firstv = std::max(0, static_cast<int>(m_xmbItemScroll) - 4);
+        const int lastv = std::min(count - 1, static_cast<int>(m_xmbItemScroll) + 8);
+        const float textX = kXmbAnchorX + kXmbIconBase * 0.5f + kXmbLabelLeft;
+
+        for (int i = firstv; i <= lastv; ++i) {
+            float d = static_cast<float>(i) - m_xmbItemScroll;
+            float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
+            if (cy >= kXmbFadeBotEnd) break;
+            if (cy < kXmbFadeEnd) continue;
+
+            float fade = 1.0f;
+            if (cy < kXmbFadeStart) {
+                fade = (cy - kXmbFadeEnd) / (kXmbFadeStart - kXmbFadeEnd);
+            } else if (cy > kXmbFadeBotStart) {
+                fade = (kXmbFadeBotEnd - cy) / (kXmbFadeBotEnd - kXmbFadeBotStart);
+            }
+            fade = std::clamp(fade, 0.f, 1.f);
+
+            bool sel = (i == m_xmbItem && std::abs(d) < 0.5f);
+            float prox = std::max(0.0f, 1.0f - std::abs(d));
+            float zoom = kXmbZoomPassive + (kXmbZoomActive - kXmbZoomPassive) * prox;
+            float al = kXmbAlphaPassive + (kXmbAlphaActive - kXmbAlphaPassive) * prox;
+            float a = fade * al;
+            float sz = kXmbIconBase * zoom;
+
+            nxui::Rect itemRect{kXmbAnchorX - sz * 0.5f, cy - sz * 0.5f, sz, sz};
+
+            if (sel) {
+                ren.drawRoundedRectOutline(itemRect.expanded(4.f), nxui::Color(1.0f, 0.82f, 0.28f, a * 0.95f), 14.f, 2.5f);
+                ren.drawRoundedRect(itemRect.expanded(10.f), nxui::Color(1.0f, 0.82f, 0.28f, a * 0.18f), 18.f);
+            }
+
+            GlossyIcon* item = col[i];
+            nxui::Texture* tex = item ? item->texture() : nullptr;
+            if (tex && tex->valid()) {
+                ren.drawTextureRounded(tex, itemRect, 8.f * zoom, nxui::Color::white().withAlpha(a));
+            } else {
+                ren.drawRoundedRect(itemRect, nxui::Color(0.25f, 0.30f, 0.40f, a * 0.7f), 8.f * zoom);
+            }
+
+            if (item && item->isSuspended()) {
+                nxui::Rect badgeRect{itemRect.x + itemRect.width - 10.f, itemRect.y - 2.f, 9.f, 9.f};
+                ren.drawRoundedRect(badgeRect, nxui::Color(0.20f, 0.85f, 0.45f, a), 4.5f);
+            }
+
+            if (item && item->isGameCard()) {
+                nxui::Rect gcRect{itemRect.x - 2.f, itemRect.y - 2.f, 9.f, 9.f};
+                ren.drawRoundedRect(gcRect, nxui::Color(0.95f, 0.35f, 0.25f, a), 3.f);
+            }
+
+            if (m_xmbContext.fontNormal && item) {
+                const std::string& title = item->title();
+                nxui::Color titleColor = sel ? nxui::Color(1.0f, 1.0f, 1.0f, a)
+                                             : nxui::Color(0.74f, 0.76f, 0.82f, a * 0.85f);
+                float fontScale = sel ? 0.86f : 0.65f;
+                ren.drawText(title, {textX, cy - 8.f}, m_xmbContext.fontNormal, titleColor, fontScale);
+            }
+
+            if (sel && item && m_xmbContext.fontSmall) {
+                std::string sublabel = item->playtimeBadge();
+                if (item->isSuspended()) {
+                    sublabel = "Running";
+                } else if (item->isGameCard() && sublabel.empty()) {
+                    sublabel = "Game Card";
+                } else if (sublabel.empty() && item->accessibilityHint().length() > 0) {
+                    sublabel = item->accessibilityHint();
+                }
+
+                if (!sublabel.empty()) {
+                    nxui::Color subColor(0.70f, 0.74f, 0.82f, a * 0.80f);
+                    ren.drawText(sublabel, {textX, cy + 18.f}, m_xmbContext.fontSmall, subColor, 0.58f);
+                }
+            }
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
@@ -2249,6 +2690,11 @@ void IconGrid::render(nxui::Renderer& ren) {
 
     if (m_layoutMode == AppLayoutMode::Cover) {
         renderCover(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        renderXmb(ren);
         return;
     }
 

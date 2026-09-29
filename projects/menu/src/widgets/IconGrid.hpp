@@ -15,6 +15,7 @@
 
 namespace nxui {
 class ThreadPool;
+class Font;
 }
 
 class GlossyIcon;
@@ -38,6 +39,7 @@ public:
     bool isShelf() const { return m_layoutMode == AppLayoutMode::Shelf; }
     bool isDeck() const { return m_layoutMode == AppLayoutMode::Deck; }
     bool isCover() const { return m_layoutMode == AppLayoutMode::Cover; }
+    bool isXmb() const { return m_layoutMode == AppLayoutMode::Xmb; }
     bool is3D() const {
         return m_layoutMode == AppLayoutMode::Flow
             || m_layoutMode == AppLayoutMode::Shelf
@@ -78,6 +80,41 @@ public:
     void setThreadPool(nxui::ThreadPool* pool) { m_threadPool = pool; }
     void clearFlowCovers();
     void preloadFlowCoversAround(int centerIdx);
+
+    struct XmbContext {
+        nxui::Font* fontNormal = nullptr;
+        nxui::Font* fontSmall = nullptr;
+
+        nxui::Texture* texSettings = nullptr;
+        nxui::Texture* texThemes = nullptr;
+        nxui::Texture* texControllers = nullptr;
+        nxui::Texture* texPower = nullptr;
+        nxui::Texture* texAlbum = nullptr;
+        nxui::Texture* texMediaCenter = nullptr;
+        nxui::Texture* texUser = nullptr;
+        nxui::Texture* texMii = nullptr;
+        nxui::Texture* texNetwork = nullptr;
+        nxui::Texture* texGames = nullptr;
+        nxui::Texture* texHomebrew = nullptr;
+
+        std::function<void()> onOpenSettings;
+        std::function<void()> onOpenThemeShop;
+        std::function<void()> onOpenControllers;
+        std::function<void()> onOpenPower;
+        std::function<void()> onOpenAlbum;
+        std::function<void()> onOpenMediaCenter;
+        std::function<void()> onOpenUserPage;
+        std::function<void()> onOpenMiiEditor;
+        std::function<void()> onOpenNetConnect;
+        std::function<void()> onOpenWebBrowser;
+        std::function<void()> onOpenHbMenu;
+    };
+
+    void setXmbContext(const XmbContext& ctx);
+    void stepXmb(int dCol, int dItem);
+    int xmbCol() const { return m_xmbCol; }
+    int xmbItem() const { return m_xmbItem; }
+    void syncXmbFocusFromCurrent();
 
     int hitTest(float screenX, float screenY) const;
     nxui::Widget* findTopHit(float x, float y) override;
@@ -139,6 +176,12 @@ private:
     static void coverPlace(float d, float& x, float& y, float& z, float& a);
     static void coverCorners(float x, float y, float z,
                              float halfW, float halfH, nxui::Vec3 out[4]);
+
+    // XMB: PSP/PS3 cross-media bar with horizontal categories and vertical items.
+    void layoutXmb();
+    void renderXmb(nxui::Renderer& ren);
+    int hitTestXmb(float screenX, float screenY) const;
+    static float xmbRowOffset(float d);
 
     int hitTestFlow(float screenX, float screenY) const;
     int hitTestShelf(float screenX, float screenY) const;
@@ -235,6 +278,17 @@ private:
     nxui::Widget* m_lineDownTarget = nullptr;
     std::vector<nxui::Widget*> m_gridLeftTargets;
     std::vector<nxui::Widget*> m_gridRightTargets;
+
+    // XMB Cross-Media Bar state
+    XmbContext m_xmbContext;
+    std::vector<std::shared_ptr<GlossyIcon>> m_xmbSystemIcons;
+    std::vector<std::vector<GlossyIcon*>> m_xmbCols;
+    std::vector<std::string> m_xmbColNames;
+    std::vector<nxui::Texture*> m_xmbColIcons;
+    int m_xmbCol = 4;
+    int m_xmbItem = 0;
+    float m_xmbColScroll = 4.0f;
+    float m_xmbItemScroll = 0.0f;
 
     int m_cols = 5, m_rows = 3;
     int m_page = 0, m_totalPages = 1;

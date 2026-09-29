@@ -106,7 +106,7 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
         SettingItem it;
         it.label = i18n.tr("settings.display.launcher_view", "Launcher View");
         it.description = i18n.tr("settings.display.launcher_view_desc",
-                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, 3D Shelf, 3D Deck, or Fullscreen Cover.");
+                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, 3D Shelf, 3D Deck, Fullscreen Cover, or XMB.");
         it.type = ItemType::Selector;
         it.options = {
             i18n.tr("settings.layout.grid", "Grid"),
@@ -115,14 +115,17 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
             i18n.tr("settings.layout.shelf", "Shelf (3D)"),
             i18n.tr("settings.layout.deck", "Deck (3D)"),
             i18n.tr("settings.layout.cover", "Cover"),
+            i18n.tr("settings.layout.xmb", "XMB"),
         };
-        it.intVal = screen.m_layoutMode == AppLayoutMode::Cover ? 5
+        it.intVal = screen.m_layoutMode == AppLayoutMode::Xmb   ? 6
+                  : screen.m_layoutMode == AppLayoutMode::Cover ? 5
                   : screen.m_layoutMode == AppLayoutMode::Deck  ? 4
                   : screen.m_layoutMode == AppLayoutMode::Shelf ? 3
                   : screen.m_layoutMode == AppLayoutMode::Flow  ? 2
                   : screen.m_layoutMode == AppLayoutMode::DynamicLine ? 1 : 0;
         it.onChange = [&screen](SettingItem& self) {
-            AppLayoutMode mode = self.intVal == 5 ? AppLayoutMode::Cover
+            AppLayoutMode mode = self.intVal == 6 ? AppLayoutMode::Xmb
+                               : self.intVal == 5 ? AppLayoutMode::Cover
                                : self.intVal == 4 ? AppLayoutMode::Deck
                                : self.intVal == 3 ? AppLayoutMode::Shelf
                                : self.intVal == 2 ? AppLayoutMode::Flow

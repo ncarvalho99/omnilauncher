@@ -516,6 +516,9 @@ void WiiUMenuApp::wireFocusCallback() {
             m_audio.playSfx(Sfx::Navigate);
 
         if (cur && cur->tag() == "glossy_icon") {
+            if (m_grid && m_grid->isXmb()) {
+                m_grid->syncXmbFocusFromCurrent();
+            }
             m_grid->focusManager().setFocus(cur);
             auto* icon = static_cast<GlossyIcon*>(cur);
             auto& i18n = nxui::I18n::instance();
@@ -543,7 +546,7 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            m_titlePill->setVisible(true);
+            m_titlePill->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
         } else if (cur) {
             refreshGameArtworkBackdrop(0);
             if (m_editMode)
@@ -898,6 +901,11 @@ void WiiUMenuApp::handleSortShortcutRelease(float dt) {
     // and R has nothing to offer it.
     if (isCarouselLayout())
         return;
+    if (m_navigator.route() == switchu::navigation::Route::Home &&
+        focusRoot() == &rootBox() && m_grid && m_grid->isXmb()) {
+        m_grid->stepXmb(+1, 0);
+        return;
+    }
     // Taking a title out of a folder briefly lived here, and moved to X so that
     // one button does both halves of the same job. R stays inert inside a
     // folder, for the reason above.
@@ -1263,6 +1271,11 @@ void WiiUMenuApp::wireGlobalActions() {
     root.addAction(static_cast<uint64_t>(nxui::Button::L), [this]() {
         if (m_navigator.route() == switchu::navigation::Route::ControllerTest)
             return;
+        if (m_navigator.route() == switchu::navigation::Route::Home &&
+            focusRoot() == &rootBox() && m_grid && m_grid->isXmb()) {
+            m_grid->stepXmb(-1, 0);
+            return;
+        }
         m_accessibility.repeatLastAnnouncement();
     });
 

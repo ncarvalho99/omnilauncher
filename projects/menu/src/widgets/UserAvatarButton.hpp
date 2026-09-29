@@ -41,6 +41,8 @@ public:
     void setTheme(const nxui::Theme* theme);
 
     void setOnActivate(ActivateCallback cb) { m_onActivate = std::move(cb); }
+    nxui::Texture* avatarTexture() { return &m_avatarTexture; }
+    const nxui::Texture* avatarTexture() const { return &m_avatarTexture; }
 
     bool isFocusable() const override { return m_focusable; }
     void setFocusable(bool focusable) { m_focusable = focusable; }

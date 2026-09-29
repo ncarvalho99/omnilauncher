@@ -31,6 +31,7 @@
       "shelf": "Полка",
       "deck": "Дек",
       "cover": "Обложка",
+      "xmb": "XMB",
       "menu": "Контекстное меню"
     },
     "roles": {
@@ -101,6 +102,7 @@
       "shelf": "Режим полки",
       "deck": "Режим дека",
       "cover": "Режим обложки",
+      "xmb": "Режим XMB",
       "grid": "Режим сетки"
     }
   },
@@ -200,7 +202,8 @@
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
       "deck": "Deck (3D)",
-      "cover": "Cover"
+      "cover": "Cover",
+      "xmb": "XMB"
     },
     "tabs": {
       "system": "Система",

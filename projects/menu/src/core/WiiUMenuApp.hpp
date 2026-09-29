@@ -177,6 +177,7 @@ private:
     GridModel buildRootFolderModel();
     GridModel buildOpenFolderModel(std::uint32_t folderId) const;
     void applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate);
+    void updateGridXmbContext();
     void syncPageIndicator();
     void flipPageFromEdge(int dir);
     void requestOpenFolder(std::uint32_t folderId, std::uint64_t focusTitleId = 0);
@@ -466,6 +467,9 @@ private:
             || m_appLayoutMode == AppLayoutMode::Shelf
             || m_appLayoutMode == AppLayoutMode::Deck
             || m_appLayoutMode == AppLayoutMode::Cover;
+    }
+    bool isXmbLayout() const {
+        return m_appLayoutMode == AppLayoutMode::Xmb;
     }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }

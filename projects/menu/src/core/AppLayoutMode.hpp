@@ -11,4 +11,5 @@ enum class AppLayoutMode : std::uint8_t {
     Shelf,
     Deck,
     Cover,
+    Xmb,
 };
