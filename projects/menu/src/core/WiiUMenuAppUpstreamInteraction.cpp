@@ -393,6 +393,12 @@ void WiiUMenuApp::enterEditMode() {
     auto* cur = focusManager().current();
     if (!isEditableIcon(cur))
         return;
+    // Move mode rearranges home-grid slots, which the cross media bar does not
+    // present: its order comes from the model, and the system columns are not
+    // slots at all. It also rebinds the focused icon's actions, which would tear
+    // out the d-pad bindings XMB navigation depends on and freeze the bar.
+    if (m_grid && m_grid->isXmb())
+        return;
 
     auto* icon = static_cast<GlossyIcon*>(cur);
     m_editMode = true;
@@ -900,17 +906,12 @@ void WiiUMenuApp::wireFocusCallback() {
         if (cur && cur->tag() == "glossy_icon") {
             m_grid->focusManager().setFocus(cur);
             auto* icon = static_cast<GlossyIcon*>(cur);
-            // Carousel views stream around the focused index rather than
-            // by page, so all carousel modes must drive the streamer the same way or
-            // the row scrolls into titles whose icons were never requested.
-            if (isCarouselLayout()) {
-                const int focusedIndex = m_grid->focusedGlobalIndex();
-                if (focusedIndex >= 0) {
-                    m_iconStreamer.onPageChanged(focusedIndex, 1,
-                                                 app().gpu(), app().renderer(),
-                                                 m_grid->allIcons());
-                }
-            }
+            // Carousel views and XMB stream around the focused index rather
+            // than by page, so they must drive the streamer the same way or the
+            // list scrolls into titles whose icons were never requested. XMB was
+            // missing here, so moving along the bar never advanced the window.
+            if (isCarouselLayout() || m_grid->isXmb())
+                pumpIconStreamer();
             if (m_steamGridDbBackdrop && icon->titleId() != 0
                 && icon->titleId() < kFolderTitleIdPrefix)
                 m_steamGridDbBackdrop->showTitle(icon->titleId());
@@ -1031,13 +1032,7 @@ bool WiiUMenuApp::focusTitle(uint64_t titleId) {
         return false;
 
     if (m_grid->currentPage() != oldPage || titleId != 0) {
-        const bool line = isCarouselLayout();
-        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                                  : m_grid->currentPage();
-        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                     app().gpu(), app().renderer(),
-                                     m_grid->allIcons());
+        pumpIconStreamer();
     }
 
     if (auto* cur = m_grid->focusManager().current())
@@ -1791,7 +1786,14 @@ void WiiUMenuApp::updateCursor() {
         }
         const bool movingLineFocus = m_grid && m_grid->isDynamicLine()
                                   && cur->tag() == "glossy_icon";
-        nxui::Rect fr = movingLineFocus
+        // XMB places its own rects every time the selection moves, and its
+        // focused tile is scaled, so the ring must come from the view rather
+        // than from whatever rect the widget was last left with by another
+        // layout. Reading the stale rect is what drew the selection frame
+        // across the whole screen instead of around the focused item.
+        const bool xmbFocus = m_grid && m_grid->isXmb()
+                           && cur->tag() == "glossy_icon";
+        nxui::Rect fr = (movingLineFocus || xmbFocus)
             ? m_grid->focusedDisplayRect()
             : cur->focusRect();
         if (m_editMode && m_editGhostIcon && m_grid) {

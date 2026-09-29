@@ -94,6 +94,7 @@ public:
         nxui::Texture* texUser = nullptr;
         nxui::Texture* texMii = nullptr;
         nxui::Texture* texNetwork = nullptr;
+        nxui::Texture* texBrowser = nullptr;
         nxui::Texture* texGames = nullptr;
         nxui::Texture* texHomebrew = nullptr;
 
@@ -110,11 +111,31 @@ public:
         std::function<void()> onOpenHbMenu;
     };
 
+    // XMB geometry. Rendering, focus rects and touch hit-testing all derive
+    // from these, so a tweak here moves the picture and everything that has to
+    // line up with it together.
+    static constexpr float kXmbAnchorX     = 352.f;
+    static constexpr float kXmbSpacingH    = 128.f;
+    static constexpr float kXmbTabY        = 223.5f;
+    static constexpr float kXmbIconBase    = 85.f;
+    static constexpr float kXmbMarginTop   = 181.f;
+    static constexpr float kXmbZoomActive  = 1.0f;
+    static constexpr float kXmbZoomPassive = 0.55f;
+
     void setXmbContext(const XmbContext& ctx);
     void stepXmb(int dCol, int dItem);
     int xmbCol() const { return m_xmbCol; }
     int xmbItem() const { return m_xmbItem; }
+    int xmbColumnCount() const { return static_cast<int>(m_xmbCols.size()); }
+    // Index into m_allIcons that the icon streamer should centre its window on
+    // while XMB is active, even when a system category currently holds focus.
+    // -1 when there is nothing to centre on.
+    int xmbStreamCenterIndex() const;
     void syncXmbFocusFromCurrent();
+    // True when the focused XMB entry is a real app/folder tile rather than one
+    // of the synthesized system shortcuts, so the app can keep the grid-only
+    // behaviour (title pill, options menu, edit mode) off the system columns.
+    bool xmbFocusIsAppEntry() const;
 
     int hitTest(float screenX, float screenY) const;
     nxui::Widget* findTopHit(float x, float y) override;
@@ -180,8 +201,14 @@ private:
     // XMB: PSP/PS3 cross-media bar with horizontal categories and vertical items.
     void layoutXmb();
     void renderXmb(nxui::Renderer& ren);
-    int hitTestXmb(float screenX, float screenY) const;
+    int hitTestXmb(float screenX, float screenY);
     static float xmbRowOffset(float d);
+    // Places every icon at the rect XMB actually draws it into, and takes the
+    // inactive columns out of the focus tree. Called whenever the column, the
+    // item or the model changes.
+    void syncXmbChildRects();
+    nxui::Rect xmbItemRect(int itemIndex) const;
+    nxui::Rect xmbCategoryRect(int columnIndex) const;
 
     int hitTestFlow(float screenX, float screenY) const;
     int hitTestShelf(float screenX, float screenY) const;
@@ -287,6 +314,10 @@ private:
     std::vector<nxui::Texture*> m_xmbColIcons;
     int m_xmbCol = 4;
     int m_xmbItem = 0;
+    // Row last selected in the games column. Kept so leaving the games category
+    // and coming back restores the player's place, and so the icon streamer has
+    // somewhere sensible to centre while a system category is selected.
+    int m_xmbGamesRow = 0;
     float m_xmbColScroll = 4.0f;
     float m_xmbItemScroll = 0.0f;
 

@@ -1071,9 +1071,7 @@ void WiiUMenuApp::reflowHomeGrid() {
             icon->forceVisible();
     }
 
-    m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
-                                 app().gpu(), app().renderer(),
-                                 m_grid->allIcons());
+    pumpIconStreamer();
     DebugLog::log("[grid] icon cache rebuilt for sort=%d", m_config.sortMode);
 
     const bool overlayActive =
@@ -1432,6 +1430,22 @@ void WiiUMenuApp::loadStaticTextures() {
                                           std::string(SD_ASSETS) + "/icons/widget_battery_joycon_right.png");
     m_batteryControllerTex.loadFromFile(app().gpu(), app().renderer(),
                                          std::string(SD_ASSETS) + "/icons/widget_battery_controller.png");
+
+    // Cross media bar artwork. media_center.png already shipped and was simply
+    // never wired up, which is why Media Center drew the Album icon.
+    m_xmbMediaCenterTex.loadFromFile(app().gpu(), app().renderer(),
+                                     std::string(SD_ASSETS) + "/icons/media_center.png");
+    m_xmbNetworkTex.loadFromFile(app().gpu(), app().renderer(),
+                                 std::string(SD_ASSETS) + "/icons/network.png");
+    m_xmbBrowserTex.loadFromFile(app().gpu(), app().renderer(),
+                                 std::string(SD_ASSETS) + "/icons/web_browser.png");
+    m_xmbHomebrewTex.loadFromFile(app().gpu(), app().renderer(),
+                                  std::string(SD_ASSETS) + "/icons/homebrew.png");
+    DebugLog::log("[xmb-icons] media=%d network=%d browser=%d homebrew=%d",
+                  m_xmbMediaCenterTex.valid() ? 1 : 0,
+                  m_xmbNetworkTex.valid() ? 1 : 0,
+                  m_xmbBrowserTex.valid() ? 1 : 0,
+                  m_xmbHomebrewTex.valid() ? 1 : 0);
 
     m_miiAvatarManager.initialize(app().gpu(), app().renderer(), SD_ASSETS);
     m_plazaDialogueEngine.initialize(SD_ASSETS);
@@ -1848,9 +1862,7 @@ void WiiUMenuApp::reflowHomeGrid() {
             icon->forceVisible();
     }
 
-    m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
-                                 app().gpu(), app().renderer(),
-                                 m_grid->allIcons());
+    pumpIconStreamer();
 
     const bool overlayActive =
         (m_dialog && m_dialog->isActive()) ||
@@ -2558,6 +2570,40 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
     return model;
 }
 
+WiiUMenuApp::StreamPump WiiUMenuApp::gridStreamPump() const {
+    StreamPump pump;
+    if (!m_grid)
+        return pump;
+    if (m_appLayoutMode == AppLayoutMode::Xmb) {
+        // XMB walks one long column, so "one icon per page, page == the index
+        // the selection sits on" is the window the streamer needs. It was
+        // missing from this test and fell through to the branch below,
+        // reporting a page index and page size that describe a grid it is not
+        // drawing: the streamer then evicted everything the bar had on screen.
+        // That is what emptied the icons after returning from DBI, and why only
+        // some of them came back on the next visit.
+        pump.page = std::max(0, m_grid->xmbStreamCenterIndex());
+        pump.perPage = 1;
+        return pump;
+    }
+    if (isCarouselLayout()) {
+        pump.page = std::max(0, m_grid->focusedGlobalIndex());
+        pump.perPage = 1;
+        return pump;
+    }
+    pump.page = m_grid->currentPage();
+    pump.perPage = m_grid->iconsPerPage();
+    return pump;
+}
+
+void WiiUMenuApp::pumpIconStreamer() {
+    if (!m_grid)
+        return;
+    const StreamPump pump = gridStreamPump();
+    m_iconStreamer.onPageChanged(pump.page, pump.perPage,
+                                 app().gpu(), app().renderer(), m_grid->allIcons());
+}
+
 void WiiUMenuApp::updateGridXmbContext() {
     if (!m_grid) return;
     IconGrid::XmbContext ctx;
@@ -2572,11 +2618,19 @@ void WiiUMenuApp::updateGridXmbContext() {
         ctx.texPower = m_sidebar.rightButtons()[1]->icon();
         ctx.texThemes = m_sidebar.rightButtons()[2]->icon();
     }
-    ctx.texMediaCenter = ctx.texAlbum;
+    // Prefer the dedicated cross-media-bar artwork and only fall back to a
+    // borrowed sidebar icon when a file is genuinely absent from romfs. The
+    // first version borrowed unconditionally, so Media Center showed the Album
+    // icon and the whole Network category showed the settings gear.
+    const auto pick = [](nxui::Texture& preferred, nxui::Texture* fallback) -> nxui::Texture* {
+        return preferred.valid() ? &preferred : fallback;
+    };
+    ctx.texMediaCenter = pick(m_xmbMediaCenterTex, ctx.texAlbum);
     ctx.texUser = m_userAvatarButtons.empty() ? ctx.texMii : m_userAvatarButtons[0]->avatarTexture();
-    ctx.texNetwork = ctx.texSettings;
+    ctx.texNetwork = pick(m_xmbNetworkTex, ctx.texSettings);
+    ctx.texBrowser = pick(m_xmbBrowserTex, ctx.texNetwork);
     ctx.texGames = &m_gameCardTex;
-    ctx.texHomebrew = ctx.texAlbum;
+    ctx.texHomebrew = pick(m_xmbHomebrewTex, ctx.texAlbum);
 
     ctx.onOpenSettings = [this]() {
         m_audio.playSfx(Sfx::ModalShow);
@@ -2640,7 +2694,10 @@ void WiiUMenuApp::updateGridXmbContext() {
     };
     ctx.onOpenMiiEditor = [this]() { m_launcher.launchMiiEditor(); };
     ctx.onOpenNetConnect = [this]() { m_launcher.launchNetConnect(); };
-    ctx.onOpenWebBrowser = [this]() { m_launcher.launchNetConnect(); };
+    // No integrated browser launch path exists yet. Do not expose a second
+    // Internet Settings shortcut under a false Web Browser label; layoutXmb()
+    // only adds the browser row when this callback is present.
+    ctx.onOpenWebBrowser = {};
     ctx.onOpenHbMenu = [this]() { m_launcher.launchAlbum(); };
 
     m_grid->setXmbContext(ctx);
@@ -2772,12 +2829,7 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
                     m_editGhostIcon->gridSpanColumns(),
                     m_editGhostIcon->gridSpanRows());
         }
-        const bool line = isCarouselLayout();
-        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                                  : m_grid->currentPage();
-        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                     app().gpu(), app().renderer(), m_grid->allIcons());
+        pumpIconStreamer();
         if (auto* target = m_grid->focusManager().current())
             focusManager().setFocus(target);
         updateCursor();
@@ -2786,12 +2838,7 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
         if (auto* first = m_grid->focusManager().current())
             focusManager().setFocus(first);
     }
-    const bool line = isCarouselLayout();
-    const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                              : m_grid->currentPage();
-    const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-    m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                 app().gpu(), app().renderer(), m_grid->allIcons());
+    pumpIconStreamer();
     m_widgetAssetPage = -1;
     if (animate) m_grid->startAppearAnimation();
     else for (auto& icon : m_grid->allIcons()) icon->forceVisible();
@@ -5293,9 +5340,7 @@ void WiiUMenuApp::buildGrid() {
                     m_editGhostIcon->gridSpanRows());
         }
         // Stream icon textures for the new page.
-        m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
-                                     app().gpu(), app().renderer(),
-                                     m_grid->allIcons());
+        pumpIconStreamer();
         auto* target = m_grid->focusManager().current();
         if (target)
             focusManager().setFocus(target);
@@ -5331,13 +5376,7 @@ void WiiUMenuApp::buildGrid() {
         DebugLog::log("[init] return path: deferring initial icon/sidebar uploads");
     } else {
         // Load textures for the initial visible page/row.
-        const bool line = isCarouselLayout();
-        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                                  : m_grid->currentPage();
-        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-        m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                     app().gpu(), app().renderer(),
-                                     m_grid->allIcons());
+        pumpIconStreamer();
     }
 
     if (returningFromSuspendedApp) {
@@ -6231,19 +6270,22 @@ void WiiUMenuApp::finalizeRefresh() {
                     m_editGhostIcon->gridSpanColumns(),
                     m_editGhostIcon->gridSpanRows());
         }
-        m_iconStreamer.onPageChanged(m_grid->currentPage(), m_grid->iconsPerPage(),
-                                     app().gpu(), app().renderer(),
-                                     m_grid->allIcons());
+        pumpIconStreamer();
         auto* target = m_grid->focusManager().current();
         if (target) focusManager().setFocus(target);
         updateCursor();
     });
 
-    // Load textures for the restored page.
-    int page = m_refreshPrevPage > 0 ? m_refreshPrevPage : 0;
-    m_iconStreamer.onPageChanged(page, m_grid->iconsPerPage(),
-                                 app().gpu(), app().renderer(),
-                                 m_grid->allIcons());
+    // Load textures for the restored page. XMB has no restored page -- its
+    // window follows the selection -- so it takes the shared pump instead.
+    if (m_appLayoutMode == AppLayoutMode::Xmb) {
+        pumpIconStreamer();
+    } else {
+        int page = m_refreshPrevPage > 0 ? m_refreshPrevPage : 0;
+        m_iconStreamer.onPageChanged(page, m_grid->iconsPerPage(),
+                                     app().gpu(), app().renderer(),
+                                     m_grid->allIcons());
+    }
 
     // The ring's wrap-around navigation is wired per grid build, so it has to be
     // re-applied to the one just built.
@@ -6619,15 +6661,12 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     if (m_grid && m_deferredInitialAssetFrames == 0
         && !(m_launchAnim && m_launchAnim->isPlaying())) {
-        const bool line = isCarouselLayout();
-        const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                                  : m_grid->currentPage();
-        const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-        if (m_iconStreamer.needsVisibleLoads(pumpPage, pumpPerPage)) {
-            m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                         app().gpu(), app().renderer(),
-                                         m_grid->allIcons());
-        }
+        // Per-frame top-up. This is the path that repairs the icons after a
+        // return from a launched title, so it has to ask for the same window
+        // the current view actually shows.
+        const StreamPump pump = gridStreamPump();
+        if (m_iconStreamer.needsVisibleLoads(pump.page, pump.perPage))
+            pumpIconStreamer();
     }
 
     // updateCursor() returns early whenever the route is not Home, and returns
@@ -6978,15 +7017,7 @@ void WiiUMenuApp::onUpdate(float dt) {
         --m_deferredInitialAssetFrames;
         if (m_deferredInitialAssetFrames == 0) {
             DebugLog::log("[init] deferred initial icon/sidebar uploads start");
-            if (m_grid) {
-                const bool line = isCarouselLayout();
-                const int pumpPage = line ? std::max(0, m_grid->focusedGlobalIndex())
-                                          : m_grid->currentPage();
-                const int pumpPerPage = line ? 1 : m_grid->iconsPerPage();
-                m_iconStreamer.onPageChanged(pumpPage, pumpPerPage,
-                                             app().gpu(), app().renderer(),
-                                             m_grid->allIcons());
-            }
+            pumpIconStreamer();
             m_sidebar.reloadAssets(app().gpu(), app().renderer(), SD_ASSETS,
                                    resolveThemeAssetPath(m_effectivePreset,
                                                          m_effectivePreset.icons.basePath));
@@ -8377,7 +8408,11 @@ bool WiiUMenuApp::flipPage(int dir) {
     if (!m_grid || m_grid->isTransitioning())
         return false;
     if (m_grid->isXmb()) {
-        m_grid->stepXmb(0, dir * 5);
+        // The shoulder pair is "change page" everywhere else, and on the cross
+        // media bar the category row is the page: ZL/ZR step categories. It used
+        // to jump five rows inside the current column, which read on hardware as
+        // the trigger scrambling the current list instead of paging it.
+        m_grid->stepXmb(dir, 0);
         return true;
     }
     if (isCarouselLayout())

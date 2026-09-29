@@ -178,6 +178,19 @@ private:
     GridModel buildOpenFolderModel(std::uint32_t folderId) const;
     void applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate);
     void updateGridXmbContext();
+    // The streamer thinks in pages. Each view has to say which "page" it is on
+    // and how many icons that page holds, and the three models answer
+    // differently: the paged grid reports its real page, the carousel reports
+    // the focused index with one icon per page, and XMB reports the focused
+    // index of its games column. Deriving that in one place is what keeps a
+    // view from silently reporting the paged-grid geometry -- which is what
+    // blanked the bar's icons after returning from a game.
+    struct StreamPump {
+        int page = 0;
+        int perPage = 1;
+    };
+    StreamPump gridStreamPump() const;
+    void pumpIconStreamer();
     void syncPageIndicator();
     void flipPageFromEdge(int dir);
     void requestOpenFolder(std::uint32_t folderId, std::uint64_t focusTitleId = 0);
@@ -563,6 +576,16 @@ private:
     nxui::Texture m_batteryJoyconLeftTex;
     nxui::Texture m_batteryJoyconRightTex;
     nxui::Texture m_batteryControllerTex;
+    // XMB needs artwork the sidebar does not carry: the bar shows a Media, a
+    // Network and a Homebrew category that have no sidebar button to borrow an
+    // icon from. Without these every one of those rows fell back to the
+    // settings gear or the album icon, so a whole category rendered as repeats
+    // of one picture. Loaded once with the other static textures; any that is
+    // missing from romfs stays invalid and the existing fallback still applies.
+    nxui::Texture m_xmbMediaCenterTex;
+    nxui::Texture m_xmbNetworkTex;
+    nxui::Texture m_xmbBrowserTex;
+    nxui::Texture m_xmbHomebrewTex;
     nxui::AnimatedFloat m_arrowCenterY;
     bool m_arrowCenterInit = false;
 

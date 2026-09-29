@@ -221,7 +221,49 @@ void IconGrid::setup(std::vector<std::shared_ptr<GlossyIcon>> icons,
 
 void IconGrid::setLayoutMode(AppLayoutMode mode) {
     if (m_layoutMode == mode) return;
+    const AppLayoutMode previous = m_layoutMode;
     m_layoutMode = mode;
+    // XMB takes the icons of every non-selected category out of the focus tree
+    // (see syncXmbChildRects). Those are the same shared GlossyIcon objects the
+    // other views use, so leaving XMB without putting them back would carry the
+    // non-focusable state into Grid or Flow and make most of the library
+    // unreachable there. Restoring is cheap and only runs on the way out.
+    if (previous == AppLayoutMode::Xmb) {
+        for (auto& icon : m_allIcons) {
+            if (!icon) continue;
+            // addDirectionAction stores one callback per d-pad/stick button.
+            // Repeated XMB layouts overwrite those map entries (they do not
+            // accumulate), but leaving them installed would make another view
+            // consume every direction press and call stepXmb(), which now
+            // returns immediately because the mode is no longer XMB -- a new
+            // navigation freeze. Remove precisely the twelve actions XMB owns;
+            // normal layouts navigate through FocusManager/customNavigation.
+            for (nxui::Button button : {
+                     nxui::Button::DLeft, nxui::Button::DRight,
+                     nxui::Button::DUp, nxui::Button::DDown,
+                     nxui::Button::LStickL, nxui::Button::LStickR,
+                     nxui::Button::LStickU, nxui::Button::LStickD,
+                     nxui::Button::RStickL, nxui::Button::RStickR,
+                     nxui::Button::RStickU, nxui::Button::RStickD}) {
+                icon->removeAction(static_cast<uint64_t>(button));
+            }
+            switch (icon->entryKind()) {
+                case GridEntryKind::WidgetContinuation:
+                    // The hidden second half of a 2x1 widget is never focusable.
+                    icon->setFocusable(false);
+                    break;
+                case GridEntryKind::Empty:
+                    // Padding at the end of the model. The carousel compacts
+                    // real entries to the front and must not stop on these;
+                    // the paged grid uses them as placeable slots.
+                    icon->setFocusable(!isCarousel());
+                    break;
+                default:
+                    icon->setFocusable(true);
+                    break;
+            }
+        }
+    }
     int cur = focusedGlobalIndex();
     m_layoutReveal.setImmediate(0.86f);
     m_layoutReveal.set(1.f, 0.24f, nxui::Easing::outCubic);
@@ -233,8 +275,13 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
                 if (gameCol[i] == m_allIcons[cur].get()) {
                     m_xmbCol = 4;
                     m_xmbItem = static_cast<int>(i);
+                    m_xmbGamesRow = m_xmbItem;
                     m_xmbColScroll = 4.0f;
                     m_xmbItemScroll = static_cast<float>(i);
+                    // The column and row just changed, so the rects layoutXmb()
+                    // placed are for the old selection. Re-place before focus
+                    // so the ring lands on the right tile on the first frame.
+                    syncXmbChildRects();
                     m_focus.setFocus(gameCol[i]);
                     break;
                 }
@@ -603,6 +650,33 @@ int IconGrid::focusedGlobalIndex() const {
     return -1;
 }
 
+int IconGrid::xmbStreamCenterIndex() const {
+    if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.size() <= 4)
+        return -1;
+    const auto& games = m_xmbCols[4];
+    if (games.empty())
+        return -1;
+    const int gamesRow = std::clamp(m_xmbGamesRow, 0, static_cast<int>(games.size()) - 1);
+    // While a system category is selected the focused widget is not an app at
+    // all, so focusedGlobalIndex() reports -1 and the streamer would be told to
+    // centre on index 0 -- evicting every game icon the player had just been
+    // looking at. The games column keeps its own row, so the window stays put
+    // over the apps while the player visits Settings or Network and is still
+    // correct when they come back.
+    // Both indices are clamped here rather than trusted: the games column is
+    // rebuilt from m_allIcons whenever the model changes (uninstall, folder
+    // open, sort, filter) and can shrink under a remembered row.
+    const int row = std::clamp(m_xmbItem, 0, static_cast<int>(games.size()) - 1);
+    GlossyIcon* target = (m_xmbCol == 4) ? games[row] : games[gamesRow];
+    if (!target)
+        return -1;
+    for (int i = 0; i < (int)m_allIcons.size(); ++i) {
+        if (m_allIcons[i].get() == target)
+            return i;
+    }
+    return -1;
+}
+
 // Shortest signed distance from `from` to `to` around the line, which is a
 // ring. Everything the carousel measures goes through here so that the item
 // after the last one is the first, both for placement and for the scroll
@@ -673,12 +747,10 @@ nxui::Rect IconGrid::dynamicIconRect(int index, float* outScale,
 
 nxui::Rect IconGrid::focusedDisplayRect() const {
     if (m_layoutMode == AppLayoutMode::Xmb) {
-        constexpr float kXmbAnchorX = 352.f;
-        constexpr float kXmbIconBase = 85.f;
-        constexpr float kXmbMarginTop = 181.f;
-        float d = static_cast<float>(m_xmbItem) - m_xmbItemScroll;
-        float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
-        return {kXmbAnchorX - kXmbIconBase * 0.5f, cy - kXmbIconBase * 0.5f, kXmbIconBase, kXmbIconBase};
+        // Exactly the rect renderXmb draws the focused tile into, so the
+        // selection ring tracks the tile through its zoom instead of framing a
+        // fixed box that no longer matches it.
+        return xmbItemRect(m_xmbItem);
     }
     if (isCarousel()) {
         const int focused = focusedGlobalIndex();
@@ -742,6 +814,22 @@ bool IconGrid::swapSlots(int a, int b) {
 
 std::vector<GlossyIcon*> IconGrid::pageIcons() const {
     std::vector<GlossyIcon*> out;
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        // "The icons on screen" for the bar is the neighbourhood of the
+        // selection in the games column, matching the window the streamer is
+        // asked to keep resident. The paged branch would have returned the
+        // first page's worth regardless of where the selection actually is.
+        if (m_xmbCols.size() > 4) {
+            const auto& col = m_xmbCols[4];
+            const int center = std::clamp(m_xmbCol == 4 ? m_xmbItem : 0,
+                                          0, std::max(0, (int)col.size() - 1));
+            const int start = std::max(0, center - 4);
+            const int end = std::min((int)col.size(), center + 5);
+            for (int i = start; i < end; ++i)
+                if (col[i]) out.push_back(col[i]);
+        }
+        return out;
+    }
     if (isCarousel()) {
         int cur = focusedGlobalIndex();
         int center = cur >= 0 ? cur : 0;
@@ -1043,9 +1131,11 @@ int IconGrid::hitTest(float screenX, float screenY) const {
     if (m_layoutMode == AppLayoutMode::Cover) {
         return hitTestCover(screenX, screenY);
     }
-    if (m_layoutMode == AppLayoutMode::Xmb) {
-        return hitTestXmb(screenX, screenY);
-    }
+    // XMB touch is resolved in findTopHit(): a tap there changes the selected
+    // category or row, which is a mutation, and hitTest() is const by contract
+    // for every other view. The old code cast the const away from here instead.
+    if (m_layoutMode == AppLayoutMode::Xmb)
+        return -1;
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
@@ -1067,9 +1157,13 @@ int IconGrid::hitTest(float screenX, float screenY) const {
 
 nxui::Widget* IconGrid::findTopHit(float x, float y) {
     if (!isVisible()) return nullptr;
-    int hit = hitTest(x, y);
-    if (hit < 0) return nullptr;
     if (m_layoutMode == AppLayoutMode::Xmb) {
+        // hitTestXmb moves the selection (and activates on a second tap on the
+        // same row) and reports nothing back: the caller must not then treat
+        // the tap as a launch of whatever the selection happens to be, which is
+        // how a single touch on the bar could start an app the player only
+        // meant to highlight.
+        hitTestXmb(x, y);
         if (m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
             auto& col = m_xmbCols[m_xmbCol];
             if (m_xmbItem >= 0 && m_xmbItem < static_cast<int>(col.size()))
@@ -1077,6 +1171,8 @@ nxui::Widget* IconGrid::findTopHit(float x, float y) {
         }
         return nullptr;
     }
+    int hit = hitTest(x, y);
+    if (hit < 0) return nullptr;
     if (isCarousel()) {
         if (hit >= 0 && hit < (int)m_allIcons.size())
             return m_allIcons[hit].get();
@@ -1089,6 +1185,20 @@ nxui::Widget* IconGrid::findTopHit(float x, float y) {
 }
 
 void IconGrid::startAppearAnimation() {
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        // XMB draws one long column, not a page. Taking the paged branch below
+        // only started the appear animation for the first cols*rows icons, so
+        // everything past that stayed at zero opacity: after returning from a
+        // game the bar came back with blank tiles that only filled in once the
+        // player scrolled far enough to rebuild them.
+        for (auto& icon : m_allIcons) {
+            if (icon) icon->forceVisible();
+        }
+        for (auto& sys : m_xmbSystemIcons) {
+            if (sys) sys->forceVisible();
+        }
+        return;
+    }
     if (isCarousel()) {
         int cur = focusedGlobalIndex();
         int center = cur >= 0 ? cur : 0;
@@ -1189,12 +1299,22 @@ void IconGrid::startWaveTransition(int targetPage) {
 void IconGrid::onUpdate(float dt) {
     m_layoutReveal.update(dt);
     if (m_layoutMode == AppLayoutMode::Xmb) {
+        const float prevColScroll = m_xmbColScroll;
+        const float prevItemScroll = m_xmbItemScroll;
         m_xmbColScroll += (static_cast<float>(m_xmbCol) - m_xmbColScroll) * 0.22f;
         m_xmbItemScroll += (static_cast<float>(m_xmbItem) - m_xmbItemScroll) * 0.26f;
         if (std::abs(static_cast<float>(m_xmbCol) - m_xmbColScroll) < 0.003f)
             m_xmbColScroll = static_cast<float>(m_xmbCol);
         if (std::abs(static_cast<float>(m_xmbItem) - m_xmbItemScroll) < 0.003f)
             m_xmbItemScroll = static_cast<float>(m_xmbItem);
+        // Every XMB rect is a function of these two scroll values, and they move
+        // every frame while the bar settles. renderXmb() recomputes from them
+        // live, so without re-placing the children here the widget rects would
+        // describe the position the selection was in before the animation
+        // started -- a touch during the slide would land on the wrong row, and
+        // the selection ring would sit off the tile it is framing.
+        if (prevColScroll != m_xmbColScroll || prevItemScroll != m_xmbItemScroll)
+            syncXmbChildRects();
         return;
     }
     if (isCarousel()) {
@@ -2287,6 +2407,9 @@ void IconGrid::syncXmbFocusFromCurrent() {
             if (m_xmbCols[c][i] == cur) {
                 m_xmbCol = static_cast<int>(c);
                 m_xmbItem = static_cast<int>(i);
+                if (m_xmbCol == 4)
+                    m_xmbGamesRow = m_xmbItem;
+                syncXmbChildRects();
                 return;
             }
         }
@@ -2295,24 +2418,70 @@ void IconGrid::syncXmbFocusFromCurrent() {
 
 void IconGrid::stepXmb(int dCol, int dItem) {
     if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty()) return;
+
+    const int colCount = static_cast<int>(m_xmbCols.size());
+    bool moved = false;
+
     if (dCol != 0) {
-        int newCol = std::clamp(m_xmbCol + dCol, 0, static_cast<int>(m_xmbCols.size()) - 1);
-        if (newCol != m_xmbCol && !m_xmbCols[newCol].empty()) {
-            m_xmbCol = newCol;
-            m_xmbItem = 0;
-            m_focus.setFocus(m_xmbCols[m_xmbCol][0]);
+        // Walk past empty categories instead of stopping dead on one, and stop
+        // at the ends rather than wrapping: on the real bar the row has a first
+        // and a last category, and clamping is what makes the ends findable.
+        const int stepDir = (dCol > 0) ? 1 : -1;
+        int probe = m_xmbCol;
+        for (int guard = 0; guard < colCount; ++guard) {
+            probe += stepDir;
+            if (probe < 0 || probe >= colCount)
+                break;
+            if (m_xmbCols[probe].empty())
+                continue;
+            m_xmbCol = probe;
+            // Land on the first entry of the new category. Carrying the old
+            // row index across columns of different lengths is what made the
+            // selection appear to jump to an unrelated item. The games column
+            // is the exception: it is the long one the player scrolls through,
+            // so returning to it restores where they were.
+            m_xmbItem = (m_xmbCol == 4)
+                ? std::clamp(m_xmbGamesRow, 0,
+                             std::max(0, static_cast<int>(m_xmbCols[4].size()) - 1))
+                : 0;
+            moved = true;
+            break;
         }
     }
-    if (dItem != 0 && m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
+
+    if (dItem != 0 && m_xmbCol >= 0 && m_xmbCol < colCount) {
         auto& col = m_xmbCols[m_xmbCol];
         if (!col.empty()) {
-            int newItem = std::clamp(m_xmbItem + dItem, 0, static_cast<int>(col.size()) - 1);
+            const int newItem =
+                std::clamp(m_xmbItem + dItem, 0, static_cast<int>(col.size()) - 1);
             if (newItem != m_xmbItem) {
                 m_xmbItem = newItem;
-                m_focus.setFocus(col[m_xmbItem]);
+                moved = true;
             }
         }
     }
+
+    if (!moved)
+        return;
+
+    if (m_xmbCol == 4)
+        m_xmbGamesRow = m_xmbItem;
+
+    // Rects first, focus second: the focus callback reads focusRect() to place
+    // the selection ring, so moving focus before the rects are current would
+    // draw the ring at the previous position for a frame.
+    syncXmbChildRects();
+    auto& col = m_xmbCols[m_xmbCol];
+    if (!col.empty() && m_xmbItem < static_cast<int>(col.size()))
+        m_focus.setFocus(col[m_xmbItem]);
+}
+
+bool IconGrid::xmbFocusIsAppEntry() const {
+    if (m_layoutMode != AppLayoutMode::Xmb) return false;
+    // Column 4 is the one built from m_allIcons; every other column holds the
+    // synthesized system shortcuts, which own no title and must not reach the
+    // grid's app-only paths.
+    return m_xmbCol == 4;
 }
 
 float IconGrid::xmbRowOffset(float d) {
@@ -2332,44 +2501,72 @@ float IconGrid::xmbRowOffset(float d) {
     return active + (edge - active) * d;
 }
 
-int IconGrid::hitTestXmb(float screenX, float screenY) const {
-    if (m_xmbCols.empty()) return -1;
-    constexpr float kXmbAnchorX = 352.f;
-    constexpr float kXmbSpacingH = 128.f;
-    constexpr float kXmbTabY = 223.5f;
-    constexpr float kXmbIconBase = 85.f;
-    constexpr float kXmbMarginTop = 181.f;
+nxui::Rect IconGrid::xmbCategoryRect(int columnIndex) const {
+    const float d = static_cast<float>(columnIndex) - m_xmbColScroll;
+    const float prox = std::max(0.0f, 1.0f - std::abs(d));
+    const float zoom = kXmbZoomPassive + (kXmbZoomActive - kXmbZoomPassive) * prox;
+    const float sz = kXmbIconBase * zoom;
+    const float cx = kXmbAnchorX + d * kXmbSpacingH;
+    return {cx - sz * 0.5f, kXmbTabY - sz * 0.5f, sz, sz};
+}
 
-    // 1. Check Category Tabs
+int IconGrid::hitTestXmb(float screenX, float screenY) {
+    if (m_xmbCols.empty()) return -1;
+
+    // A tap on a category selects it; it never activates. Selecting a category
+    // and launching whatever happened to sit at index 0 of it was how a touch
+    // on the bar could fire an applet the player never picked.
     if (screenY >= kXmbTabY - 50.f && screenY <= kXmbTabY + 50.f) {
         for (size_t c = 0; c < m_xmbCols.size(); ++c) {
-            float d = static_cast<float>(c) - m_xmbColScroll;
-            float cx = kXmbAnchorX + d * kXmbSpacingH;
-            if (std::abs(screenX - cx) <= 50.f) {
-                const_cast<IconGrid*>(this)->m_xmbCol = static_cast<int>(c);
-                const_cast<IconGrid*>(this)->m_xmbItem = 0;
-                if (!m_xmbCols[c].empty()) {
-                    const_cast<IconGrid*>(this)->m_focus.setFocus(m_xmbCols[c][0]);
+            const float cx = kXmbAnchorX +
+                             (static_cast<float>(c) - m_xmbColScroll) * kXmbSpacingH;
+            if (std::abs(screenX - cx) <= kXmbSpacingH * 0.5f) {
+                if (m_xmbCols[c].empty())
+                    return -1;
+                if (static_cast<int>(c) != m_xmbCol) {
+                    m_xmbCol = static_cast<int>(c);
+                    m_xmbItem = (m_xmbCol == 4)
+                        ? std::clamp(m_xmbGamesRow, 0,
+                                     std::max(0, static_cast<int>(m_xmbCols[4].size()) - 1))
+                        : 0;
+                    syncXmbChildRects();
+                    m_focus.setFocus(m_xmbCols[m_xmbCol][m_xmbItem]);
                 }
-                return (c == 4 && !m_xmbCols[c].empty()) ? focusedGlobalIndex() : -1;
+                // Handled as selection-only. findTopHit() will return the grid,
+                // not the newly focused item, so FocusManager cannot interpret
+                // this same tap-up as an activation.
+                return 0;
             }
         }
+        return -1;
     }
 
-    // 2. Check Items in active column
+    // Items: first tap moves the selection onto the row, a second tap on the
+    // already-selected row activates it. The band is the drawn rect widened to
+    // the label, so tapping a title works as well as tapping its icon.
     if (m_xmbCol >= 0 && m_xmbCol < static_cast<int>(m_xmbCols.size())) {
         auto& col = m_xmbCols[m_xmbCol];
         for (size_t i = 0; i < col.size(); ++i) {
-            float d = static_cast<float>(i) - m_xmbItemScroll;
-            float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
-            if (std::abs(screenY - cy) <= 30.f && screenX >= kXmbAnchorX - 60.f && screenX <= 1200.f) {
-                if (static_cast<int>(i) == m_xmbItem) {
-                    col[i]->activate();
-                } else {
-                    const_cast<IconGrid*>(this)->m_xmbItem = static_cast<int>(i);
-                    const_cast<IconGrid*>(this)->m_focus.setFocus(col[i]);
+            if (!col[i]) continue;
+            const nxui::Rect r = xmbItemRect(static_cast<int>(i));
+            const float cy = r.y + r.height * 0.5f;
+            const float halfBand = std::max(22.f, r.height * 0.5f);
+            if (std::abs(screenY - cy) <= halfBand &&
+                screenX >= kXmbAnchorX - kXmbIconBase &&
+                screenX <= 1200.f) {
+                // Do not activate here. findTopHit() returns this widget to
+                // FocusManager, whose touch-up path implements the expected
+                // rule: first tap focuses; tapping an already-focused item
+                // fires A/activate. Activating during hit-testing fired once on
+                // touch-down and then a second time on touch-up.
+                if (static_cast<int>(i) != m_xmbItem) {
+                    m_xmbItem = static_cast<int>(i);
+                    if (m_xmbCol == 4)
+                        m_xmbGamesRow = m_xmbItem;
+                    syncXmbChildRects();
+                    m_focus.setFocus(col[m_xmbItem]);
                 }
-                return (m_xmbCol == 4) ? focusedGlobalIndex() : -1;
+                return -1;
             }
         }
     }
@@ -2419,10 +2616,16 @@ void IconGrid::layoutXmb() {
     bindSysAction(m_xmbSystemIcons[6], "User Page", "Account profile and activity log", m_xmbContext.texUser, m_xmbContext.onOpenUserPage);
     bindSysAction(m_xmbSystemIcons[7], "Mii Editor", "Create and manage Mii characters", m_xmbContext.texMii, m_xmbContext.onOpenMiiEditor);
 
-    // Network column items
+    // Network column items.
     nxui::Texture* netTex = m_xmbContext.texNetwork ? m_xmbContext.texNetwork : m_xmbContext.texSettings;
     bindSysAction(m_xmbSystemIcons[8], "Internet Settings", "Configure Wi-Fi connections", netTex, m_xmbContext.onOpenNetConnect);
-    bindSysAction(m_xmbSystemIcons[9], "Web Browser", "Browse the Internet", netTex, m_xmbContext.onOpenWebBrowser);
+    // The system browser is not wired yet. The old placeholder called
+    // launchNetConnect(), so selecting "Web Browser" opened Internet Settings
+    // again -- a duplicate action presented as a feature. Keep the prepared
+    // slot out of the column until a real Web applet launch path exists.
+    bindSysAction(m_xmbSystemIcons[9], "Web Browser", "Browse the Internet",
+                  m_xmbContext.texBrowser ? m_xmbContext.texBrowser : netTex,
+                  m_xmbContext.onOpenWebBrowser);
 
     // Homebrew column items
     nxui::Texture* hbTex = m_xmbContext.texHomebrew ? m_xmbContext.texHomebrew : m_xmbContext.texAlbum;
@@ -2445,7 +2648,9 @@ void IconGrid::layoutXmb() {
     m_xmbCols[0] = { m_xmbSystemIcons[0].get(), m_xmbSystemIcons[1].get(), m_xmbSystemIcons[2].get(), m_xmbSystemIcons[3].get() };
     m_xmbCols[1] = { m_xmbSystemIcons[4].get(), m_xmbSystemIcons[5].get() };
     m_xmbCols[2] = { m_xmbSystemIcons[6].get(), m_xmbSystemIcons[7].get() };
-    m_xmbCols[3] = { m_xmbSystemIcons[8].get(), m_xmbSystemIcons[9].get() };
+    m_xmbCols[3] = { m_xmbSystemIcons[8].get() };
+    if (m_xmbContext.onOpenWebBrowser)
+        m_xmbCols[3].push_back(m_xmbSystemIcons[9].get());
 
     std::vector<GlossyIcon*> gameIcons;
     gameIcons.reserve(m_allIcons.size());
@@ -2470,42 +2675,31 @@ void IconGrid::layoutXmb() {
         if (icon) addChild(icon);
     }
 
-    // Navigation graph
-    for (size_t c = 0; c < m_xmbCols.size(); ++c) {
-        auto& col = m_xmbCols[c];
-        const int colSize = static_cast<int>(col.size());
-        if (colSize == 0) continue;
-
-        for (int i = 0; i < colSize; ++i) {
-            GlossyIcon* cur = col[i];
-            int prev = (i > 0) ? (i - 1) : (colSize - 1);
-            int next = (i + 1 < colSize) ? (i + 1) : 0;
-            cur->setCustomNavigation(nxui::FocusDirection::UP, col[prev]);
-            cur->setCustomNavigation(nxui::FocusDirection::DOWN, col[next]);
-
-            if (c > 0) {
-                auto& leftCol = m_xmbCols[c - 1];
-                if (!leftCol.empty()) {
-                    int leftIdx = std::min(i, static_cast<int>(leftCol.size()) - 1);
-                    cur->setCustomNavigation(nxui::FocusDirection::LEFT, leftCol[leftIdx]);
-                } else {
-                    cur->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
-                }
-            } else {
-                cur->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
-            }
-
-            if (c + 1 < m_xmbCols.size()) {
-                auto& rightCol = m_xmbCols[c + 1];
-                if (!rightCol.empty()) {
-                    int rightIdx = std::min(i, static_cast<int>(rightCol.size()) - 1);
-                    cur->setCustomNavigation(nxui::FocusDirection::RIGHT, rightCol[rightIdx]);
-                } else {
-                    cur->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
-                }
-            } else {
-                cur->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
-            }
+    // Navigation.
+    //
+    // The first version wired a custom-navigation graph between individual
+    // icons and let FocusManager resolve the d-pad through it. On hardware that
+    // left the bar feeling locked: the graph pointed LEFT/RIGHT at icons in
+    // other columns, but those icons still carried the previous view's rects
+    // and a stale focusable state, so a move either resolved to a widget that
+    // is not drawn anywhere near the bar or was rejected outright -- and the
+    // player saw nothing happen at all.
+    //
+    // Direction actions are checked on the focused widget *before* any spatial
+    // search (see Application::tickFocusNavigation), so binding them here makes
+    // the d-pad a direct call into stepXmb: LEFT/RIGHT change category, UP/DOWN
+    // change row, and no geometry is consulted to decide where a press goes.
+    for (auto& col : m_xmbCols) {
+        for (GlossyIcon* cur : col) {
+            if (!cur) continue;
+            cur->setCustomNavigation(nxui::FocusDirection::UP, nullptr);
+            cur->setCustomNavigation(nxui::FocusDirection::DOWN, nullptr);
+            cur->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
+            cur->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+            cur->addDirectionAction(nxui::FocusDirection::LEFT,  [this]() { stepXmb(-1, 0); });
+            cur->addDirectionAction(nxui::FocusDirection::RIGHT, [this]() { stepXmb(+1, 0); });
+            cur->addDirectionAction(nxui::FocusDirection::UP,    [this]() { stepXmb(0, -1); });
+            cur->addDirectionAction(nxui::FocusDirection::DOWN,  [this]() { stepXmb(0, +1); });
         }
     }
 
@@ -2518,25 +2712,76 @@ void IconGrid::layoutXmb() {
     if (m_xmbItem < 0 || m_xmbItem >= static_cast<int>(activeCol.size()))
         m_xmbItem = 0;
 
+    // The games column was just rebuilt from the current model and may be
+    // shorter than it was, so the remembered row is re-clamped here -- at the
+    // one place its bound can change -- rather than at each use site.
+    m_xmbGamesRow = m_xmbCols.size() > 4
+        ? std::clamp(m_xmbGamesRow, 0, std::max(0, static_cast<int>(m_xmbCols[4].size()) - 1))
+        : 0;
+    if (m_xmbCol == 4)
+        m_xmbGamesRow = m_xmbItem;
+
     m_xmbColScroll = static_cast<float>(m_xmbCol);
     m_xmbItemScroll = static_cast<float>(m_xmbItem);
+
+    // Every icon in the tree keeps whatever rect the previous view left on it,
+    // and renderXmb draws from its own maths instead of those rects. The
+    // selection ring, the spatial focus search and touch hit-testing all read
+    // Widget::focusRect(), so without this pass they were working against the
+    // paged grid's geometry: the ring framed a cell that is not on screen in
+    // this view -- which is what read as "focus jumped to the whole screen" --
+    // and d-pad LEFT/RIGHT resolved against those stale rects instead of the
+    // columns. Placing every icon where XMB actually draws it makes all three
+    // agree with the picture.
+    syncXmbChildRects();
 
     if (!activeCol.empty()) {
         m_focus.setFocus(activeCol[m_xmbItem]);
     }
 }
 
+// The single source of truth for where an XMB icon *is*. renderXmb() draws the
+// same rects from the same constants; keeping the placement here means focus,
+// touch and the cursor cannot drift away from what the player sees.
+void IconGrid::syncXmbChildRects() {
+    if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty())
+        return;
+
+    // Off-view icons are parked far outside the screen AND made non-focusable
+    // rather than left at their old rect: the spatial search in FocusManager
+    // walks every focusable widget in the tree, so an inactive column's icons
+    // sitting at grid coordinates would win the nearest-neighbour test and
+    // steal LEFT/RIGHT. Only the active column takes part in navigation.
+    for (size_t c = 0; c < m_xmbCols.size(); ++c) {
+        const bool active = (static_cast<int>(c) == m_xmbCol);
+        auto& col = m_xmbCols[c];
+        for (size_t i = 0; i < col.size(); ++i) {
+            GlossyIcon* item = col[i];
+            if (!item) continue;
+            if (!active) {
+                item->setFocusable(false);
+                item->setRect({-4000.f, -4000.f, kXmbIconBase, kXmbIconBase});
+                continue;
+            }
+            item->setFocusable(true);
+            item->setRect(xmbItemRect(static_cast<int>(i)));
+        }
+    }
+}
+
+nxui::Rect IconGrid::xmbItemRect(int itemIndex) const {
+    const float d = static_cast<float>(itemIndex) - m_xmbItemScroll;
+    const float prox = std::max(0.0f, 1.0f - std::abs(d));
+    const float zoom = kXmbZoomPassive + (kXmbZoomActive - kXmbZoomPassive) * prox;
+    const float sz = kXmbIconBase * zoom;
+    const float cy = kXmbMarginTop + kXmbIconBase * 0.5f + xmbRowOffset(d);
+    return {kXmbAnchorX - sz * 0.5f, cy - sz * 0.5f, sz, sz};
+}
+
 void IconGrid::renderXmb(nxui::Renderer& ren) {
     if (m_xmbCols.empty()) return;
     ren.pushClipRect(m_rect);
 
-    constexpr float kXmbAnchorX = 352.f;
-    constexpr float kXmbSpacingH = 128.f;
-    constexpr float kXmbTabY = 223.5f;
-    constexpr float kXmbIconBase = 85.f;
-    constexpr float kXmbMarginTop = 181.f;
-    constexpr float kXmbZoomActive = 1.0f;
-    constexpr float kXmbZoomPassive = 0.55f;
     constexpr float kXmbAlphaActive = 1.0f;
     constexpr float kXmbAlphaPassive = 0.65f;
     constexpr float kXmbLabelLeft = 57.f;
@@ -2566,8 +2811,7 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
         float prox = std::max(0.0f, 1.0f - std::abs(d));
         float zoom = kXmbZoomPassive + (kXmbZoomActive - kXmbZoomPassive) * prox;
         float alpha = 0.50f + 0.50f * prox;
-        float sz = kXmbIconBase * zoom;
-        nxui::Rect iconRect{cx - sz * 0.5f, kXmbTabY - sz * 0.5f, sz, sz};
+        const nxui::Rect iconRect = xmbCategoryRect(static_cast<int>(c));
 
         if (prox > 0.6f) {
             float glowA = (prox - 0.6f) / 0.4f * 0.40f;
@@ -2611,7 +2855,9 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
             float a = fade * al;
             float sz = kXmbIconBase * zoom;
 
-            nxui::Rect itemRect{kXmbAnchorX - sz * 0.5f, cy - sz * 0.5f, sz, sz};
+            // Same rect the focus ring and touch use: xmbItemRect() is the one
+            // definition, so the picture and the hit box cannot disagree.
+            const nxui::Rect itemRect = xmbItemRect(i);
 
             if (sel) {
                 ren.drawRoundedRectOutline(itemRect.expanded(4.f), nxui::Color(1.0f, 0.82f, 0.28f, a * 0.95f), 14.f, 2.5f);

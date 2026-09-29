@@ -2013,7 +2013,8 @@ void WiiUMenuApp::restoreGameArtworkFromOptions(
     const auto result = gallery::GameArtworkStore::restoreDefault(titleId, kind);
     const bool cover = kind == gallery::ArtworkKind::Cover;
     if (result.ok && cover && m_grid) {
-        m_iconStreamer.forceReload(m_grid->currentPage(), m_grid->iconsPerPage(),
+        const StreamPump pump = gridStreamPump();
+        m_iconStreamer.forceReload(pump.page, pump.perPage,
                                    app().gpu(), app().renderer(), m_grid->allIcons());
     }
     DebugLog::log("[gallery] options restore %s: title=%016llX ok=%d error=%s",
@@ -2361,7 +2362,8 @@ void WiiUMenuApp::syncGameArtworkSave() {
             // The visible icon may already own a streamed system texture. Reload
             // this small page cache so the new cover appears before navigating
             // away and back.
-            m_iconStreamer.forceReload(m_grid->currentPage(), m_grid->iconsPerPage(),
+            const StreamPump pump = gridStreamPump();
+            m_iconStreamer.forceReload(pump.page, pump.perPage,
                                        app().gpu(), app().renderer(), m_grid->allIcons());
         } else if (!cover) {
             auto* focused = focusManager().current();
