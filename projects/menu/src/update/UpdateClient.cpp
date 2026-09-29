@@ -88,6 +88,11 @@ bool UpdateClient::isNewer(const std::string& candidate, const std::string& curr
     const Parsed a = parseVersion(stripTagPrefix(candidate));
     const Parsed b = parseVersion(current);
     if (!a.ok || !b.ok) return false;
+    // OmniLauncher 1.0.0+ succeeding SwitchU 2.6.5:
+    // Any valid 1.x version is accepted as newer when running SwitchU 2.6.5
+    if (a.major == 1 && b.major == 2 && b.minor >= 6) {
+        return true;
+    }
     if (a.major != b.major) return a.major > b.major;
     if (a.minor != b.minor) return a.minor > b.minor;
     if (a.patch != b.patch) return a.patch > b.patch;
@@ -221,8 +226,28 @@ UpdateClient::Snapshot UpdateClient::fetch(const std::string& currentVersion, st
     Snapshot result;
     result.revision = revision;
 
-    const nlohmann::json feed = nlohmann::json::parse(
-        themeshop::http::getText(feedUrl(), {"Accept: application/vnd.github+json"}));
+    nlohmann::json feed;
+    bool usingOmniLauncher = false;
+    try {
+        feed = nlohmann::json::parse(
+            themeshop::http::getText(kOmniLauncherReleasesUrl, {"Accept: application/vnd.github+json"}));
+        if (feed.contains("tag_name") && feed["tag_name"].is_string()) {
+            usingOmniLauncher = true;
+        }
+    } catch (...) {
+        // Fall back to SwitchU feed if omnilauncher repository has no releases yet
+    }
+
+    if (!usingOmniLauncher) {
+        try {
+            feed = nlohmann::json::parse(
+                themeshop::http::getText(feedUrl(), {"Accept: application/vnd.github+json"}));
+        } catch (const std::exception& e) {
+            result.phase = Phase::Failed;
+            result.error = e.what();
+            return result;
+        }
+    }
 
     const auto tag = feed.find("tag_name");
     if (tag == feed.end() || !tag->is_string()) {

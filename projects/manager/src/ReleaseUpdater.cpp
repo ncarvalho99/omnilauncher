@@ -24,6 +24,8 @@ namespace {
 
 constexpr const char* kLatestReleaseUrl =
     "https://api.github.com/repos/ncarvalho99/SwitchU/releases/latest";
+constexpr const char* kOmniLauncherReleaseUrl =
+    "https://api.github.com/repos/ncarvalho99/omnilauncher/releases/latest";
 constexpr const char* kWorkRoot = "sdmc:/config/SwitchU/update";
 constexpr const char* kArchivePath = "sdmc:/config/SwitchU/update/SwitchU-update.zip";
 constexpr const char* kArchivePartPath = "sdmc:/config/SwitchU/update/SwitchU-update.zip.part";
@@ -71,6 +73,10 @@ std::vector<int> versionParts(std::string version) {
 bool isNewerVersion(const std::string& candidate, const std::string& current) {
     auto a = versionParts(candidate);
     auto b = versionParts(current);
+    // OmniLauncher 1.0.0+ succeeding SwitchU 2.6.5:
+    if (!a.empty() && a[0] == 1 && !b.empty() && b[0] == 2 && b.size() >= 2 && b[1] >= 6) {
+        return true;
+    }
     const std::size_t count = std::max(a.size(), b.size());
     a.resize(count, 0);
     b.resize(count, 0);
@@ -492,7 +498,21 @@ void installFiles(const std::vector<std::string>& files,
 
 ReleaseInfo ReleaseUpdater::checkLatest() {
     std::lock_guard<std::mutex> lock(g_networkMutex);
-    const std::string response = getTextLocked(kLatestReleaseUrl);
+    std::string response;
+    bool usingOmni = false;
+    try {
+        response = getTextLocked(kOmniLauncherReleaseUrl);
+        const auto checkJson = nlohmann::json::parse(response);
+        if (checkJson.is_object() && !checkJson.value("draft", true) && !checkJson.value("prerelease", true) && checkJson.contains("tag_name")) {
+            usingOmni = true;
+        }
+    } catch (...) {
+        // Fall back to SwitchU repository
+    }
+
+    if (!usingOmni) {
+        response = getTextLocked(kLatestReleaseUrl);
+    }
     const auto json = nlohmann::json::parse(response);
     if (!json.is_object() || json.value("draft", true) || json.value("prerelease", true))
         throw std::runtime_error("GitHub did not return a stable release");
