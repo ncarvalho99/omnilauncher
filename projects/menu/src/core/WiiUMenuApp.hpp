@@ -456,7 +456,7 @@ private:
     void setAppLayoutMode(AppLayoutMode mode);
     void configureDynamicLineNavigation();
     AppLayoutMode appLayoutMode() const { return m_appLayoutMode; }
-    // DynamicLine, Flow, Shelf, and Deck are presentations of one carousel model: a
+    // DynamicLine, Flow, Shelf, Deck, and Cover are presentations of one carousel model: a
     // single wrapping row, ring icon streaming, no paging, and reordering by
     // visible row order. Behaviour common to all carousel views must test this
     // rather than DynamicLine alone.
@@ -464,7 +464,8 @@ private:
         return m_appLayoutMode == AppLayoutMode::DynamicLine
             || m_appLayoutMode == AppLayoutMode::Flow
             || m_appLayoutMode == AppLayoutMode::Shelf
-            || m_appLayoutMode == AppLayoutMode::Deck;
+            || m_appLayoutMode == AppLayoutMode::Deck
+            || m_appLayoutMode == AppLayoutMode::Cover;
     }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }

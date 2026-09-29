@@ -30,6 +30,7 @@
       "flow": "Flujo de portadas",
       "shelf": "Estantería",
       "deck": "Deck",
+      "cover": "Portada",
       "menu": "Menú contextual"
     },
     "roles": {
@@ -99,6 +100,7 @@
       "flow": "Modo flujo",
       "shelf": "Modo estantería",
       "deck": "Modo deck",
+      "cover": "Modo portada",
       "grid": "Modo de cuadrícula"
     }
   },
@@ -197,7 +199,8 @@
       "dynamic_line": "Línea Dinámica",
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
-      "deck": "Deck (3D)"
+      "deck": "Deck (3D)",
+      "cover": "Portada"
     },
     "tabs": {
       "system": "Sistema",

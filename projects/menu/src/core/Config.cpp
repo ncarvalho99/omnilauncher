@@ -76,6 +76,8 @@ bool AppConfig::load() {
             appLayoutMode = AppLayoutMode::Shelf;
         else if (mode == "deck")
             appLayoutMode = AppLayoutMode::Deck;
+        else if (mode == "cover")
+            appLayoutMode = AppLayoutMode::Cover;
         else if (mode == "grid")
             appLayoutMode = AppLayoutMode::Grid;
     }
@@ -214,6 +216,7 @@ bool AppConfig::save() const {
                        : appLayoutMode == AppLayoutMode::Flow        ? "flow"
                        : appLayoutMode == AppLayoutMode::Shelf       ? "shelf"
                        : appLayoutMode == AppLayoutMode::Deck        ? "deck"
+                       : appLayoutMode == AppLayoutMode::Cover       ? "cover"
                                                                      : "grid";
     j["actionHintStyle"] = actionHintStyle == "panel" ? "panel" : "capsules";
     j["uiLanguageOverride"] = uiLanguageOverride;

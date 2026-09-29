@@ -41,7 +41,7 @@ bool parseType(const std::string& value, WidgetType& type) {
 }
 
 std::vector<WidgetSize> supportedSizes(WidgetType type, AppLayoutMode layout) {
-    if (layout == AppLayoutMode::DynamicLine) {
+    if (layout != AppLayoutMode::Grid) {
         if (type == WidgetType::RecentlyPlayed || type == WidgetType::RecentPlaytime ||
             type == WidgetType::RandomScreenshot || type == WidgetType::Batteries)
             return {};

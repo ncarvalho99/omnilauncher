@@ -37,10 +37,12 @@ public:
     bool isFlow() const { return m_layoutMode == AppLayoutMode::Flow; }
     bool isShelf() const { return m_layoutMode == AppLayoutMode::Shelf; }
     bool isDeck() const { return m_layoutMode == AppLayoutMode::Deck; }
+    bool isCover() const { return m_layoutMode == AppLayoutMode::Cover; }
     bool is3D() const {
         return m_layoutMode == AppLayoutMode::Flow
             || m_layoutMode == AppLayoutMode::Shelf
-            || m_layoutMode == AppLayoutMode::Deck;
+            || m_layoutMode == AppLayoutMode::Deck
+            || m_layoutMode == AppLayoutMode::Cover;
     }
     // All carousel views share one model: a single wrapping row driven by
     // m_lineScrollOffset, with the same focus bindings and the same per-item
@@ -51,7 +53,8 @@ public:
         return m_layoutMode == AppLayoutMode::DynamicLine
             || m_layoutMode == AppLayoutMode::Flow
             || m_layoutMode == AppLayoutMode::Shelf
-            || m_layoutMode == AppLayoutMode::Deck;
+            || m_layoutMode == AppLayoutMode::Deck
+            || m_layoutMode == AppLayoutMode::Cover;
     }
     bool isDynamicLineScrolling() const;
     void setDynamicLineUpTarget(nxui::Widget* target);
@@ -130,10 +133,17 @@ private:
     static void deckPlace(float d, float& x, float& y, float& z, float& ang, float& a);
     static void deckCorners(float x, float y, float z, float ang,
                             float halfW, float halfH, nxui::Vec3 out[4]);
+    // Cover: sLaunch-style fullscreen single-cover showcase with screen-width
+    // horizontal slide paging, reflection, glow frame, and 2:3 or 1:1 artwork.
+    void renderCover(nxui::Renderer& ren);
+    static void coverPlace(float d, float& x, float& y, float& z, float& a);
+    static void coverCorners(float x, float y, float z,
+                             float halfW, float halfH, nxui::Vec3 out[4]);
 
     int hitTestFlow(float screenX, float screenY) const;
     int hitTestShelf(float screenX, float screenY) const;
     int hitTestDeck(float screenX, float screenY) const;
+    int hitTestCover(float screenX, float screenY) const;
     static bool projectPoint3D(const nxui::Vec3& p, float screenW, float screenH, nxui::Vec2& out);
     static bool pointInQuad(float px, float py, const nxui::Vec2 pts[4]);
     nxui::Rect projected3DIconRect(int index) const;

@@ -30,6 +30,7 @@
       "flow": "Coverstroom",
       "shelf": "Plank",
       "deck": "Deck",
+      "cover": "Cover",
       "menu": "Contextmenu"
     },
     "roles": {
@@ -99,6 +100,7 @@
       "flow": "Stroommodus",
       "shelf": "Plankmodus",
       "deck": "Deck-modus",
+      "cover": "Covermodus",
       "grid": "Rastermodus"
     }
   },
@@ -197,7 +199,8 @@
       "dynamic_line": "Dynamische Lijn",
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
-      "deck": "Deck (3D)"
+      "deck": "Deck (3D)",
+      "cover": "Cover"
     },
     "tabs": {
       "system": "Systeem",

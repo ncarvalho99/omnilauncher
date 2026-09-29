@@ -30,6 +30,7 @@
       "flow": "Flux de jaquettes",
       "shelf": "Étagère",
       "deck": "Deck",
+      "cover": "Jaquette",
       "menu": "Menu contextuel"
     },
     "roles": {
@@ -99,6 +100,7 @@
       "flow": "Mode flux",
       "shelf": "Mode étagère",
       "deck": "Mode deck",
+      "cover": "Mode jaquette",
       "grid": "Mode grille"
     }
   },
@@ -197,7 +199,8 @@
       "dynamic_line": "Ligne Dynamique",
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
-      "deck": "Deck (3D)"
+      "deck": "Deck (3D)",
+      "cover": "Jaquette"
     },
     "tabs": {
       "system": "Système",

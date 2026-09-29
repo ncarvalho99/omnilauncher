@@ -282,12 +282,12 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
     const nxui::Rect screen = rect();
 
     if (set.hasHero && set.hero.valid()) {
-        const float heroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck) ? 0.60f : 0.16f;
+        const float heroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) ? 0.60f : 0.16f;
         renderer.pushClipRect(screen);
         renderer.drawTexture(&set.hero, fillRect(set.hero, screen),
                              nxui::Color::white().withAlpha(alpha * heroAlpha));
         renderer.popClipRect();
-        if (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck) {
+        if (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) {
             renderer.drawGradientRect(
                 screen,
                 nxui::Color(0.f, 0.f, 0.f, 0.04f * alpha),

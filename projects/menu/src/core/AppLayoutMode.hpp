@@ -10,4 +10,5 @@ enum class AppLayoutMode : std::uint8_t {
     Flow,
     Shelf,
     Deck,
+    Cover,
 };

@@ -30,6 +30,7 @@
       "flow": "Fluxo de capas",
       "shelf": "Estante (Shelf)",
       "deck": "Deck",
+      "cover": "Capa",
       "menu": "Menu de contexto"
     },
     "roles": {
@@ -99,6 +100,7 @@
       "flow": "Modo fluxo",
       "shelf": "Modo estante",
       "deck": "Modo deck",
+      "cover": "Modo capa",
       "grid": "Modo de grade"
     }
   },
@@ -197,7 +199,8 @@
       "dynamic_line": "Linha Dinâmica",
       "flow": "Flow (3D)",
       "shelf": "Shelf (3D)",
-      "deck": "Deck (3D)"
+      "deck": "Deck (3D)",
+      "cover": "Capa"
     },
     "tabs": {
       "system": "Sistema",

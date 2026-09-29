@@ -951,6 +951,23 @@ nxui::Rect IconGrid::projected3DIconRect(int index) const {
         const float halfW = 0.36f;
         const float halfH = 0.54f;
         deckCorners(x, y, z, ang, halfW, halfH, quad);
+    } else if (m_layoutMode == AppLayoutMode::Cover) {
+        float x, y, z, a;
+        coverPlace(d, x, y, z, a);
+        const auto& icon = m_allIcons[(size_t)index];
+        const std::uint64_t tid = icon ? icon->titleId() : 0;
+        bool hasCover = false;
+        if (tid != 0) {
+            auto it = m_flowCovers.find(tid);
+            if (it != m_flowCovers.end() && it->second.available && it->second.texture.valid()) {
+                hasCover = true;
+            } else if (!resolveFlowCoverPath(tid).empty()) {
+                hasCover = true;
+            }
+        }
+        const float halfW = hasCover ? 0.44f : 0.5625f;
+        const float halfH = hasCover ? 0.66f : 0.5625f;
+        coverCorners(x, y, z, halfW, halfH, quad);
     } else {
         return dynamicIconRect(index);
     }
@@ -978,6 +995,9 @@ int IconGrid::hitTest(float screenX, float screenY) const {
     }
     if (m_layoutMode == AppLayoutMode::Deck) {
         return hitTestDeck(screenX, screenY);
+    }
+    if (m_layoutMode == AppLayoutMode::Cover) {
+        return hitTestCover(screenX, screenY);
     }
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
@@ -1936,6 +1956,251 @@ void IconGrid::renderDeck(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+void IconGrid::coverPlace(float d, float& x, float& y, float& z, float& a) {
+    const float absD = std::abs(d);
+    // At z = 3.0f and focal length 960, one screen width (1280px) equals 4.0 world units.
+    // Neighboring items are spaced exactly 4.0 units apart (1 screen width), matching sLaunch.
+    x = d * 4.0f;
+    // Cover center sits slightly above mid-screen (screenY = 300px)
+    y = 0.1875f;
+    // Subtle z-receding during transition slide gives a refined depth cue
+    z = 3.0f + std::min(absD, 1.0f) * 0.15f;
+    a = std::clamp(1.0f - absD * 0.65f, 0.0f, 1.0f);
+}
+
+void IconGrid::coverCorners(float x, float y, float z,
+                            float halfW, float halfH, nxui::Vec3 out[4]) {
+    // Ordered TL, TR, BR, BL
+    out[0] = { x - halfW, y + halfH, z };
+    out[1] = { x + halfW, y + halfH, z };
+    out[2] = { x + halfW, y - halfH, z };
+    out[3] = { x - halfW, y - halfH, z };
+}
+
+int IconGrid::hitTestCover(float screenX, float screenY) const {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return -1;
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+    const int offsets[] = {0, 1, -1};
+    for (int off : offsets) {
+        int idx = centre + off;
+        const float d = (float)idx - scroll;
+        if (std::abs(d) > 1.25f) continue;
+        int wrapped = flowWrap(idx, n);
+        auto& icon = m_allIcons[(size_t)wrapped];
+        if (!icon) continue;
+
+        float x, y, z, a;
+        coverPlace(d, x, y, z, a);
+
+        const std::uint64_t tid = icon->titleId();
+        bool hasCover = false;
+        if (tid != 0) {
+            auto it = m_flowCovers.find(tid);
+            if (it != m_flowCovers.end() && it->second.available && it->second.texture.valid()) {
+                hasCover = true;
+            } else if (!resolveFlowCoverPath(tid).empty()) {
+                hasCover = true;
+            }
+        }
+        const float halfW = hasCover ? 0.44f : 0.5625f;
+        const float halfH = hasCover ? 0.66f : 0.5625f;
+
+        nxui::Vec3 quad[4];
+        coverCorners(x, y, z, halfW, halfH, quad);
+
+        nxui::Vec2 p2D[4];
+        bool ok = true;
+        for (int k = 0; k < 4; ++k) {
+            if (!projectPoint3D(quad[k], 1280.f, 720.f, p2D[k])) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
+        if (pointInQuad(screenX, screenY, p2D)) {
+            return wrapped;
+        }
+    }
+    return -1;
+}
+
+void IconGrid::renderCover(nxui::Renderer& ren) {
+    const int n = (int)m_allIcons.size();
+    if (n <= 0) return;
+
+    ren.pushClipRect(nxui::Rect{0.f, 60.f, 1280.f, 660.f});
+
+    const float reveal = clamp01(m_layoutReveal.value());
+
+    // Dark sleek floor plane grounding the cover reflection
+    const float floorTop = 490.f;
+    const float floorHeight = 720.f - floorTop;
+    ren.drawGradientRect(
+        nxui::Rect{0.f, floorTop, 1280.f, floorHeight},
+        nxui::Color(0.02f, 0.03f, 0.05f, 0.08f * reveal),
+        nxui::Color(0.01f, 0.01f, 0.03f, 0.70f * reveal)
+    );
+    ren.drawRect(
+        nxui::Rect{0.f, floorTop, 1280.f, 1.0f},
+        nxui::Color(1.f, 1.f, 1.f, 0.06f * reveal)
+    );
+
+    // Harvest completed asynchronous cover decodes (up to 2 uploads per frame)
+    int uploads = 0;
+    for (auto it = m_pendingCoverDecodes.begin(); it != m_pendingCoverDecodes.end() && uploads < 2;) {
+        if (it->state && it->state->done.load()) {
+            try {
+                if (it->future.valid()) it->future.get();
+            } catch (...) {}
+            auto covIt = m_flowCovers.find(it->titleId);
+            if (covIt != m_flowCovers.end()) {
+                if (!it->state->failed.load() && it->state->decoded.valid()) {
+                    if (covIt->second.texture.loadFromDecoded(ren.gpu(), ren, it->state->decoded)) {
+                        covIt->second.available = true;
+                    }
+                }
+                covIt->second.loading = false;
+            }
+            it = m_pendingCoverDecodes.erase(it);
+            ++uploads;
+        } else {
+            ++it;
+        }
+    }
+
+    const float scroll = m_lineScrollOffset.value();
+    const int centre = (int)std::round(scroll);
+    const int focusedIndex = focusedGlobalIndex();
+
+    struct CoverCandidate {
+        int index;
+        float d;
+        float absD;
+    };
+    std::vector<CoverCandidate> order;
+    order.reserve(3);
+    for (int off = -1; off <= 1; ++off) {
+        int idx = centre + off;
+        const float d = (float)idx - scroll;
+        if (std::abs(d) > 1.25f) continue;
+        order.push_back({flowWrap(idx, n), d, std::abs(d)});
+    }
+
+    // Draw farther items first so centered cover paints last (on top)
+    std::sort(order.begin(), order.end(), [](const CoverCandidate& a, const CoverCandidate& b) {
+        return a.absD > b.absD;
+    });
+
+    for (const auto& c : order) {
+        auto& icon = m_allIcons[(size_t)c.index];
+        if (!icon) continue;
+
+        float x, y, z, a;
+        coverPlace(c.d, x, y, z, a);
+
+        const bool isSel = (c.index == focusedIndex);
+
+        // Query 2:3 portrait cover art cache
+        const std::uint64_t tid = icon->titleId();
+        bool hasCover = false;
+        nxui::Texture* coverTex = nullptr;
+        if (tid != 0) {
+            auto& cov = m_flowCovers[tid];
+            if (!cov.checked) {
+                cov.checked = true;
+                const std::string coverPath = resolveFlowCoverPath(tid);
+                if (!coverPath.empty()) {
+                    cov.loading = true;
+                    if (m_threadPool) {
+                        auto decodeState = std::make_shared<CoverDecodeState>();
+                        auto work = [decodeState, coverPath]() {
+                            try {
+                                decodeState->decoded = nxui::Texture::decodeFile(coverPath, 720);
+                                decodeState->failed = !decodeState->decoded.valid();
+                            } catch (...) {
+                                decodeState->failed = true;
+                            }
+                            decodeState->done = true;
+                        };
+                        PendingCoverDecode pcd;
+                        pcd.titleId = tid;
+                        pcd.state = decodeState;
+                        pcd.future = m_threadPool->submit(std::move(work));
+                        m_pendingCoverDecodes.push_back(std::move(pcd));
+                    }
+                }
+            }
+            if (cov.available && cov.texture.valid()) {
+                hasCover = true;
+                coverTex = &cov.texture;
+            }
+        }
+
+        const float halfW = hasCover ? 0.44f : 0.5625f;
+        const float halfH = hasCover ? 0.66f : 0.5625f;
+
+        nxui::Vec3 quad[4];
+        coverCorners(x, y, z, halfW, halfH, quad);
+
+        const float prox = std::max(0.0f, 1.0f - c.absD);
+        const float selectedLift = isSel ? 0.08f : 0.f;
+        const float lit = std::clamp((170.f + 85.f * prox) / 255.f + selectedLift, 0.f, 1.f);
+        const float blankLit = std::clamp((26.f + 18.f * prox) / 255.f + selectedLift * 0.25f, 0.f, 1.f);
+
+        const float alpha = m_opacity * icon->opacity() * reveal * a;
+        if (alpha <= 0.01f) continue;
+
+        const nxui::Color artTint {lit, lit, lit, alpha};
+        const nxui::Color blankCol{blankLit, blankLit, blankLit, alpha};
+
+        // Floor reflection (fading downwards)
+        const float floorY = y - halfH - 0.03f;
+        const float reflH = halfH * 0.45f;
+        nxui::Vec3 reflQuad[4];
+        reflQuad[0] = { x - halfW, floorY, z };
+        reflQuad[1] = { x + halfW, floorY, z };
+        reflQuad[2] = { x + halfW, floorY - reflH, z };
+        reflQuad[3] = { x - halfW, floorY - reflH, z };
+
+        if (hasCover && coverTex) {
+            ren.drawQuad3D(coverTex, reflQuad, artTint, 0.35f * alpha, 0.0f, true);
+        } else if (icon->texture()) {
+            ren.drawQuad3D(icon->texture(), reflQuad, artTint, 0.35f * alpha, 0.0f, true);
+        }
+
+        // Soft floor drop shadow
+        nxui::Vec3 shadowQuad[4];
+        coverCorners(x, floorY + 0.01f, z, halfW * 0.98f, halfH * 0.15f, shadowQuad);
+        ren.drawQuad3D(nullptr, shadowQuad, nxui::Color(0.f, 0.f, 0.f, 0.45f * alpha),
+                       0.45f * alpha, 0.0f);
+
+        // Selection glow frame
+        if (isSel) {
+            nxui::Vec3 glowQuad[4];
+            const float glowW = halfW + 0.028f;
+            const float glowH = halfH + 0.028f;
+            coverCorners(x, y, z + 0.005f, glowW, glowH, glowQuad);
+            // Signature golden/accent glow
+            const nxui::Color glowCol{1.0f, 0.88f, 0.35f, 0.90f * alpha};
+            ren.drawQuad3D(nullptr, glowQuad, glowCol, 0.90f * alpha, 0.90f * alpha);
+        }
+
+        // Card chassis / plate
+        ren.drawQuad3D(nullptr, quad, blankCol);
+
+        // Artwork
+        if (hasCover && coverTex) {
+            ren.drawQuad3D(coverTex, quad, artTint);
+        } else if (icon->texture()) {
+            ren.drawQuad3D(icon->texture(), quad, artTint);
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
@@ -1959,6 +2224,11 @@ void IconGrid::render(nxui::Renderer& ren) {
 
     if (m_layoutMode == AppLayoutMode::Deck) {
         renderDeck(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Cover) {
+        renderCover(ren);
         return;
     }
 

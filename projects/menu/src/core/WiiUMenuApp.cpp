@@ -2470,7 +2470,7 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         }
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover);
     return model;
 }
 
@@ -2547,7 +2547,7 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
             model.addEntry({});
     }
     if (isCarouselLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck);
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover);
     return model;
 }
 
@@ -4120,7 +4120,8 @@ void WiiUMenuApp::toggleAppLayoutMode() {
         case AppLayoutMode::DynamicLine: setAppLayoutMode(AppLayoutMode::Flow);        break;
         case AppLayoutMode::Flow:        setAppLayoutMode(AppLayoutMode::Shelf);       break;
         case AppLayoutMode::Shelf:       setAppLayoutMode(AppLayoutMode::Deck);        break;
-        case AppLayoutMode::Deck:        setAppLayoutMode(AppLayoutMode::Grid);        break;
+        case AppLayoutMode::Deck:        setAppLayoutMode(AppLayoutMode::Cover);       break;
+        case AppLayoutMode::Cover:       setAppLayoutMode(AppLayoutMode::Grid);        break;
     }
 }
 
@@ -4196,11 +4197,17 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_steamGridDbBackdrop)
         m_steamGridDbBackdrop->setLayoutMode(m_appLayoutMode);
     if (m_titlePill) {
-        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
+                                : (m_appLayoutMode == AppLayoutMode::Cover) ? 545.f
+                                : 630.f;
         m_titlePill->setTargetY(targetPillY, false);
     }
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf && m_appLayoutMode != AppLayoutMode::Deck);
+        m_background->setAmbientMiisEnabled(
+            m_appLayoutMode != AppLayoutMode::Flow &&
+            m_appLayoutMode != AppLayoutMode::Shelf &&
+            m_appLayoutMode != AppLayoutMode::Deck &&
+            m_appLayoutMode != AppLayoutMode::Cover);
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
@@ -4225,6 +4232,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             ? i18n.tr("accessibility.layout.shelf", "Shelf mode")
         : (m_appLayoutMode == AppLayoutMode::Deck)
             ? i18n.tr("accessibility.layout.deck", "Deck mode")
+        : (m_appLayoutMode == AppLayoutMode::Cover)
+            ? i18n.tr("accessibility.layout.cover", "Cover mode")
             : i18n.tr("accessibility.layout.grid", "Grid mode");
     m_accessibility.announce(announcement, true, true);
 
@@ -5034,7 +5043,11 @@ void WiiUMenuApp::buildGrid() {
     m_grid->setRect({kGridRectX, kGridRectY, kGridRectW, kGridRectH});
     m_grid->setThreadPool(&m_threadPool);
     if (m_background)
-        m_background->setAmbientMiisEnabled(m_appLayoutMode != AppLayoutMode::Flow && m_appLayoutMode != AppLayoutMode::Shelf && m_appLayoutMode != AppLayoutMode::Deck);
+        m_background->setAmbientMiisEnabled(
+            m_appLayoutMode != AppLayoutMode::Flow &&
+            m_appLayoutMode != AppLayoutMode::Shelf &&
+            m_appLayoutMode != AppLayoutMode::Deck &&
+            m_appLayoutMode != AppLayoutMode::Cover);
     // buildGrid() creates the grid and calls setup() directly, without going
     // through applyDisplayModel(), which is the only other place that sets this.
     // The grid therefore stayed in its default page mode after a restart while
@@ -5080,7 +5093,9 @@ void WiiUMenuApp::buildGrid() {
     buildUserAvatarBar();
 
     m_titlePill = std::make_shared<TitlePillWidget>();
-    const float initPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+    const float initPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
+                          : (m_appLayoutMode == AppLayoutMode::Cover) ? 545.f
+                          : 630.f;
     m_titlePill->setPosition(0, initPillY);
     m_titlePill->setTargetY(initPillY, true);
     m_titlePill->setFont(&m_fontNormal);
@@ -6523,7 +6538,9 @@ void WiiUMenuApp::onUpdate(float dt) {
         openCapturedFolder();
 
     if (m_titlePill) {
-        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f : 630.f;
+        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
+                                : (m_appLayoutMode == AppLayoutMode::Cover) ? 545.f
+                                : 630.f;
         m_titlePill->setTargetY(targetPillY);
     }
 
@@ -6532,7 +6549,9 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     if (m_grid) {
         const nxui::Rect gr = m_grid->rect();
-        const float target = gr.y + gr.height * 0.5f;
+        float target = gr.y + gr.height * 0.5f;
+        if (m_appLayoutMode == AppLayoutMode::Cover)
+            target = 300.f;
         if (!m_arrowCenterInit) {
             m_arrowCenterInit = true;
             m_arrowCenterY.setImmediate(target);
