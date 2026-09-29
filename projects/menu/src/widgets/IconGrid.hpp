@@ -160,6 +160,7 @@ public:
     void onEdgePageHold(std::function<bool(int dir)> cb) { m_onEdgePageHold = std::move(cb); }
 
     void onPageSwitched(std::function<void()> cb) { m_onPageSwitched = std::move(cb); }
+    void onFocusChanged(std::function<void(nxui::Widget*)> cb) { m_onFocusChanged = std::move(cb); }
 
     void render(nxui::Renderer& ren) override;
 
@@ -339,6 +340,7 @@ private:
     static constexpr float kSlideDuration = 0.30f;
 
     std::function<void()> m_onPageSwitched;
+    std::function<void(nxui::Widget*)> m_onFocusChanged;
     std::function<void(int)> m_onEdgePage;
     std::function<bool(int)> m_onEdgePageHold;
 };

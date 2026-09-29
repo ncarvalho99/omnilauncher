@@ -945,7 +945,11 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            m_titlePill->setVisible(true);
+            if (m_grid && m_grid->isXmb()) {
+                m_titlePill->setVisible(false);
+            } else {
+                m_titlePill->setVisible(true);
+            }
         } else if (cur) {
             if (m_editMode)
                 exitEditMode();

@@ -582,6 +582,12 @@ private:
     // settings gear or the album icon, so a whole category rendered as repeats
     // of one picture. Loaded once with the other static textures; any that is
     // missing from romfs stays invalid and the existing fallback still applies.
+    nxui::Texture m_xmbAlbumTex;
+    nxui::Texture m_xmbSettingsTex;
+    nxui::Texture m_xmbControllersTex;
+    nxui::Texture m_xmbPowerTex;
+    nxui::Texture m_xmbThemesTex;
+    nxui::Texture m_xmbMiiTex;
     nxui::Texture m_xmbMediaCenterTex;
     nxui::Texture m_xmbNetworkTex;
     nxui::Texture m_xmbBrowserTex;

@@ -16,7 +16,13 @@
 #include <unordered_map>
 
 
-IconGrid::IconGrid() {}
+IconGrid::IconGrid() {
+    m_focus.onFocusChanged([this](nxui::Widget* /*old*/, nxui::Widget* cur) {
+        if (m_onFocusChanged && cur) {
+            m_onFocusChanged(cur);
+        }
+    });
+}
 
 namespace {
 
@@ -2372,9 +2378,9 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
             const float glowW = halfW + 0.028f;
             const float glowH = halfH + 0.028f;
             coverCorners(x, y, z + 0.005f, glowW, glowH, glowQuad);
-            // Signature golden/accent glow
-            const nxui::Color glowCol{1.0f, 0.88f, 0.35f, 0.90f * alpha};
-            ren.drawQuad3D(nullptr, glowQuad, glowCol, 0.90f * alpha, 0.90f * alpha);
+            // Signature cyan/blue accent glow (matching Deck/Shelf)
+            const nxui::Color glowCol{0.10f, 0.65f, 0.98f, 0.88f * alpha};
+            ren.drawQuad3D(nullptr, glowQuad, glowCol, 0.88f * alpha, 0.88f * alpha);
         }
 
         // Card chassis / plate
@@ -2410,6 +2416,8 @@ void IconGrid::syncXmbFocusFromCurrent() {
                 if (m_xmbCol == 4)
                     m_xmbGamesRow = m_xmbItem;
                 syncXmbChildRects();
+                if (m_onFocusChanged)
+                    m_onFocusChanged(cur);
                 return;
             }
         }
@@ -2472,8 +2480,11 @@ void IconGrid::stepXmb(int dCol, int dItem) {
     // draw the ring at the previous position for a frame.
     syncXmbChildRects();
     auto& col = m_xmbCols[m_xmbCol];
-    if (!col.empty() && m_xmbItem < static_cast<int>(col.size()))
+    if (!col.empty() && m_xmbItem < static_cast<int>(col.size())) {
         m_focus.setFocus(col[m_xmbItem]);
+        if (m_onFocusChanged)
+            m_onFocusChanged(col[m_xmbItem]);
+    }
 }
 
 bool IconGrid::xmbFocusIsAppEntry() const {
@@ -2531,6 +2542,8 @@ int IconGrid::hitTestXmb(float screenX, float screenY) {
                         : 0;
                     syncXmbChildRects();
                     m_focus.setFocus(m_xmbCols[m_xmbCol][m_xmbItem]);
+                    if (m_onFocusChanged)
+                        m_onFocusChanged(m_xmbCols[m_xmbCol][m_xmbItem]);
                 }
                 // Handled as selection-only. findTopHit() will return the grid,
                 // not the newly focused item, so FocusManager cannot interpret
@@ -2565,6 +2578,8 @@ int IconGrid::hitTestXmb(float screenX, float screenY) {
                         m_xmbGamesRow = m_xmbItem;
                     syncXmbChildRects();
                     m_focus.setFocus(col[m_xmbItem]);
+                    if (m_onFocusChanged)
+                        m_onFocusChanged(col[m_xmbItem]);
                 }
                 return -1;
             }
@@ -2737,6 +2752,8 @@ void IconGrid::layoutXmb() {
 
     if (!activeCol.empty()) {
         m_focus.setFocus(activeCol[m_xmbItem]);
+        if (m_onFocusChanged)
+            m_onFocusChanged(activeCol[m_xmbItem]);
     }
 }
 
@@ -2858,11 +2875,6 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
             // Same rect the focus ring and touch use: xmbItemRect() is the one
             // definition, so the picture and the hit box cannot disagree.
             const nxui::Rect itemRect = xmbItemRect(i);
-
-            if (sel) {
-                ren.drawRoundedRectOutline(itemRect.expanded(4.f), nxui::Color(1.0f, 0.82f, 0.28f, a * 0.95f), 14.f, 2.5f);
-                ren.drawRoundedRect(itemRect.expanded(10.f), nxui::Color(1.0f, 0.82f, 0.28f, a * 0.18f), 18.f);
-            }
 
             GlossyIcon* item = col[i];
             nxui::Texture* tex = item ? item->texture() : nullptr;

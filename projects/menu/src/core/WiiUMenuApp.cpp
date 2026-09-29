@@ -1431,20 +1431,29 @@ void WiiUMenuApp::loadStaticTextures() {
     m_batteryControllerTex.loadFromFile(app().gpu(), app().renderer(),
                                          std::string(SD_ASSETS) + "/icons/widget_battery_controller.png");
 
-    // Cross media bar artwork. media_center.png already shipped and was simply
-    // never wired up, which is why Media Center drew the Album icon.
-    m_xmbMediaCenterTex.loadFromFile(app().gpu(), app().renderer(),
-                                     std::string(SD_ASSETS) + "/icons/media_center.png");
-    m_xmbNetworkTex.loadFromFile(app().gpu(), app().renderer(),
-                                 std::string(SD_ASSETS) + "/icons/network.png");
-    m_xmbBrowserTex.loadFromFile(app().gpu(), app().renderer(),
-                                 std::string(SD_ASSETS) + "/icons/web_browser.png");
-    m_xmbHomebrewTex.loadFromFile(app().gpu(), app().renderer(),
-                                  std::string(SD_ASSETS) + "/icons/homebrew.png");
-    DebugLog::log("[xmb-icons] media=%d network=%d browser=%d homebrew=%d",
+    // Cross media bar artwork. Loaded once into persistent static textures
+    // so they are ALWAYS resident, never unloaded on fast return, and never
+    // depend on whether hidden sidebar buttons have loaded their textures.
+    const std::string iconsBase = std::string(SD_ASSETS) + "/icons/";
+    m_xmbAlbumTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "album.png");
+    m_xmbSettingsTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "settings.png");
+    m_xmbControllersTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "controller.png");
+    m_xmbPowerTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "power.png");
+    m_xmbThemesTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "themes.png");
+    m_xmbMiiTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "mii_editor.png");
+    m_xmbMediaCenterTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "media_center.png");
+    m_xmbNetworkTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "network.png");
+    m_xmbBrowserTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "web_browser.png");
+    m_xmbHomebrewTex.loadFromFile(app().gpu(), app().renderer(), iconsBase + "homebrew.png");
+    DebugLog::log("[xmb-icons] album=%d settings=%d controllers=%d power=%d themes=%d mii=%d media=%d network=%d homebrew=%d",
+                  m_xmbAlbumTex.valid() ? 1 : 0,
+                  m_xmbSettingsTex.valid() ? 1 : 0,
+                  m_xmbControllersTex.valid() ? 1 : 0,
+                  m_xmbPowerTex.valid() ? 1 : 0,
+                  m_xmbThemesTex.valid() ? 1 : 0,
+                  m_xmbMiiTex.valid() ? 1 : 0,
                   m_xmbMediaCenterTex.valid() ? 1 : 0,
                   m_xmbNetworkTex.valid() ? 1 : 0,
-                  m_xmbBrowserTex.valid() ? 1 : 0,
                   m_xmbHomebrewTex.valid() ? 1 : 0);
 
     m_miiAvatarManager.initialize(app().gpu(), app().renderer(), SD_ASSETS);
@@ -2610,21 +2619,23 @@ void WiiUMenuApp::updateGridXmbContext() {
     ctx.fontNormal = &m_fontNormal;
     ctx.fontSmall = &m_fontSmall;
 
-    if (m_sidebar.leftButtons().size() >= 3 && m_sidebar.rightButtons().size() >= 3) {
-        ctx.texAlbum = m_sidebar.leftButtons()[0]->icon();
-        ctx.texMii = m_sidebar.leftButtons()[1]->icon();
-        ctx.texSettings = m_sidebar.leftButtons()[2]->icon();
-        ctx.texControllers = m_sidebar.rightButtons()[0]->icon();
-        ctx.texPower = m_sidebar.rightButtons()[1]->icon();
-        ctx.texThemes = m_sidebar.rightButtons()[2]->icon();
-    }
-    // Prefer the dedicated cross-media-bar artwork and only fall back to a
-    // borrowed sidebar icon when a file is genuinely absent from romfs. The
-    // first version borrowed unconditionally, so Media Center showed the Album
-    // icon and the whole Network category showed the settings gear.
     const auto pick = [](nxui::Texture& preferred, nxui::Texture* fallback) -> nxui::Texture* {
         return preferred.valid() ? &preferred : fallback;
     };
+
+    nxui::Texture* sidebarAlbum = (m_sidebar.leftButtons().size() >= 3) ? m_sidebar.leftButtons()[0]->icon() : nullptr;
+    nxui::Texture* sidebarMii = (m_sidebar.leftButtons().size() >= 3) ? m_sidebar.leftButtons()[1]->icon() : nullptr;
+    nxui::Texture* sidebarSettings = (m_sidebar.leftButtons().size() >= 3) ? m_sidebar.leftButtons()[2]->icon() : nullptr;
+    nxui::Texture* sidebarControllers = (m_sidebar.rightButtons().size() >= 3) ? m_sidebar.rightButtons()[0]->icon() : nullptr;
+    nxui::Texture* sidebarPower = (m_sidebar.rightButtons().size() >= 3) ? m_sidebar.rightButtons()[1]->icon() : nullptr;
+    nxui::Texture* sidebarThemes = (m_sidebar.rightButtons().size() >= 3) ? m_sidebar.rightButtons()[2]->icon() : nullptr;
+
+    ctx.texAlbum = pick(m_xmbAlbumTex, sidebarAlbum);
+    ctx.texSettings = pick(m_xmbSettingsTex, sidebarSettings);
+    ctx.texControllers = pick(m_xmbControllersTex, sidebarControllers);
+    ctx.texPower = pick(m_xmbPowerTex, sidebarPower);
+    ctx.texThemes = pick(m_xmbThemesTex, sidebarThemes);
+    ctx.texMii = pick(m_xmbMiiTex, sidebarMii);
     ctx.texMediaCenter = pick(m_xmbMediaCenterTex, ctx.texAlbum);
     ctx.texUser = m_userAvatarButtons.empty() ? ctx.texMii : m_userAvatarButtons[0]->avatarTexture();
     ctx.texNetwork = pick(m_xmbNetworkTex, ctx.texSettings);
@@ -2815,6 +2826,9 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
             return false;
         flipPageFromEdge(dir);
         return true;
+    });
+    m_grid->onFocusChanged([this](nxui::Widget* w) {
+        if (w) focusManager().setFocus(w);
     });
     m_grid->onPageSwitched([this]() {
         if (m_editMode && m_editTargetIndex >= 0) {
@@ -5326,6 +5340,9 @@ void WiiUMenuApp::buildGrid() {
     app().renderer().setBoxWireframeEnabled(m_showWireframe);
 
     wireFocusCallback();
+    m_grid->onFocusChanged([this](nxui::Widget* w) {
+        if (w) focusManager().setFocus(w);
+    });
     m_grid->onPageSwitched([this]() {
         if (m_editMode && m_editTargetIndex >= 0) {
             const int perPage = std::max(1, m_grid->iconsPerPage());
@@ -6257,6 +6274,9 @@ void WiiUMenuApp::finalizeRefresh() {
                   gridMetrics.padX, gridMetrics.padY);
     if (m_refreshPrevPage > 0) m_grid->setPage(m_refreshPrevPage);
     wireFocusCallback();
+    m_grid->onFocusChanged([this](nxui::Widget* w) {
+        if (w) focusManager().setFocus(w);
+    });
     m_grid->onPageSwitched([this]() {
         if (m_editMode && m_editTargetIndex >= 0) {
             const int perPage = std::max(1, m_grid->iconsPerPage());
@@ -7021,6 +7041,9 @@ void WiiUMenuApp::onUpdate(float dt) {
             m_sidebar.reloadAssets(app().gpu(), app().renderer(), SD_ASSETS,
                                    resolveThemeAssetPath(m_effectivePreset,
                                                          m_effectivePreset.icons.basePath));
+            if (m_appLayoutMode == AppLayoutMode::Xmb) {
+                updateGridXmbContext();
+            }
             DebugLog::log("[init] deferred initial icon/sidebar uploads done");
         }
     }
