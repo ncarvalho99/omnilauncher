@@ -1687,14 +1687,6 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             }
         }
 
-        // Selection glowing border
-        if (isSel) {
-            nxui::Vec3 glowFront[4];
-            flowFace(fx, fz, fang, -(halfW + 0.022f), -0.003f, (halfW + 0.022f), -0.003f, halfH + 0.022f, glowFront);
-            const nxui::Color glowCol{0.10f, 0.65f, 0.98f, 0.88f * alpha};
-            ren.drawQuad3D(nullptr, glowFront, glowCol, 0.88f * alpha, 0.88f * alpha);
-        }
-
         // Reflection. Mirrored about the case's OWN bottom edge rather than a
         // fixed floor, so it stays edge to edge at any scale, and every face is
         // mirrored so the reflection keeps the same silhouette. The corner
@@ -1738,6 +1730,36 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                     mirror(iconBack, mIcon);
                     ren.drawQuad3D(art, mIcon, artTint, reflTop, 0.f, true, kFlowStripsRefl);
                 }
+            }
+        }
+
+        // Selection glowing outline border around the front face (matching Shelf view)
+        if (isSel) {
+            nxui::Vec2 p[4];
+            if (ren.project3D(front[0], p[0]) && ren.project3D(front[1], p[1]) &&
+                ren.project3D(front[2], p[2]) && ren.project3D(front[3], p[3])) {
+                const float minX = std::min({p[0].x, p[1].x, p[2].x, p[3].x});
+                const float maxX = std::max({p[0].x, p[1].x, p[2].x, p[3].x});
+                const float minY = std::min({p[0].y, p[1].y, p[2].y, p[3].y});
+                const float maxY = std::max({p[0].y, p[1].y, p[2].y, p[3].y});
+
+                const float fx0 = minX - 4.f;
+                const float fy0 = minY - 4.f;
+                const float fw  = (maxX - minX) + 8.f;
+                const float fh  = (maxY - minY) + 8.f;
+
+                const nxui::Color frameCol{0.25f, 0.72f, 1.0f, 0.95f * alpha};
+                ren.drawRect(nxui::Rect{fx0, fy0, fw, 3.5f}, frameCol);
+                ren.drawRect(nxui::Rect{fx0, fy0 + fh - 3.5f, fw, 3.5f}, frameCol);
+                ren.drawRect(nxui::Rect{fx0, fy0, 3.5f, fh}, frameCol);
+                ren.drawRect(nxui::Rect{fx0 + fw - 3.5f, fy0, 3.5f, fh}, frameCol);
+
+                // Soft outer glow outline
+                const nxui::Color glowCol{0.25f, 0.72f, 1.0f, 0.35f * alpha};
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, fw + 4.f, 2.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 + fh, fw + 4.f, 2.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
+                ren.drawRect(nxui::Rect{fx0 + fw, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
             }
         }
     }
