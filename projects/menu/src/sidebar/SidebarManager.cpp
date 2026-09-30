@@ -99,13 +99,19 @@ void SidebarManager::build(nxui::GpuDevice& gpu, nxui::Renderer& ren,
         m_rightButtons.push_back(std::move(themeShop));
     }
 
-    if (!m_leftButtons.empty()) {
-        m_leftButtons.front()->setCustomNavigation(nxui::FocusDirection::UP, m_leftButtons.front().get());
-        m_leftButtons.back()->setCustomNavigation(nxui::FocusDirection::DOWN, m_leftButtons.back().get());
+    for (std::size_t i = 0; i < m_leftButtons.size(); ++i) {
+        auto* btn = m_leftButtons[i].get();
+        btn->setCustomNavigation(nxui::FocusDirection::UP,
+                                 i > 0 ? m_leftButtons[i - 1].get() : btn);
+        btn->setCustomNavigation(nxui::FocusDirection::DOWN,
+                                 i + 1 < m_leftButtons.size() ? m_leftButtons[i + 1].get() : btn);
     }
-    if (!m_rightButtons.empty()) {
-        m_rightButtons.front()->setCustomNavigation(nxui::FocusDirection::UP, m_rightButtons.front().get());
-        m_rightButtons.back()->setCustomNavigation(nxui::FocusDirection::DOWN, m_rightButtons.back().get());
+    for (std::size_t i = 0; i < m_rightButtons.size(); ++i) {
+        auto* btn = m_rightButtons[i].get();
+        btn->setCustomNavigation(nxui::FocusDirection::UP,
+                                 i > 0 ? m_rightButtons[i - 1].get() : btn);
+        btn->setCustomNavigation(nxui::FocusDirection::DOWN,
+                                 i + 1 < m_rightButtons.size() ? m_rightButtons[i + 1].get() : btn);
     }
 
     (void)gpu;
@@ -161,28 +167,31 @@ void SidebarManager::setDynamicLineLayout(bool enabled) {
                                         (kSidebarButtonSize + kSidebarColumnGap),
                                     kSidebarButtonSize, kSidebarButtonSize});
     }
-    if (!m_leftButtons.empty()) {
-        m_leftButtons.front()->setCustomNavigation(nxui::FocusDirection::UP,
-                                                   m_leftButtons.front().get());
-        m_leftButtons.back()->setCustomNavigation(nxui::FocusDirection::DOWN,
-                                                  m_leftButtons.back().get());
+    for (std::size_t i = 0; i < m_leftButtons.size(); ++i) {
+        auto* btn = m_leftButtons[i].get();
+        btn->setCustomNavigation(nxui::FocusDirection::UP,
+                                 i > 0 ? m_leftButtons[i - 1].get() : btn);
+        btn->setCustomNavigation(nxui::FocusDirection::DOWN,
+                                 i + 1 < m_leftButtons.size() ? m_leftButtons[i + 1].get() : btn);
     }
-    if (!m_rightButtons.empty()) {
-        m_rightButtons.front()->setCustomNavigation(nxui::FocusDirection::UP,
-                                                    m_rightButtons.front().get());
-        m_rightButtons.back()->setCustomNavigation(nxui::FocusDirection::DOWN,
-                                                   m_rightButtons.back().get());
+    for (std::size_t i = 0; i < m_rightButtons.size(); ++i) {
+        auto* btn = m_rightButtons[i].get();
+        btn->setCustomNavigation(nxui::FocusDirection::UP,
+                                 i > 0 ? m_rightButtons[i - 1].get() : btn);
+        btn->setCustomNavigation(nxui::FocusDirection::DOWN,
+                                 i + 1 < m_rightButtons.size() ? m_rightButtons[i + 1].get() : btn);
     }
 }
 
 void SidebarManager::setDynamicLineDownAction(std::function<void()> action) {
     auto configure = [&action](std::shared_ptr<AppletButton>& button) {
-        button->setCustomNavigation(nxui::FocusDirection::DOWN, nullptr);
         button->removeAction(static_cast<uint64_t>(nxui::Button::DDown));
         button->removeAction(static_cast<uint64_t>(nxui::Button::LStickD));
         button->removeAction(static_cast<uint64_t>(nxui::Button::RStickD));
-        if (action)
+        if (action) {
+            button->setCustomNavigation(nxui::FocusDirection::DOWN, nullptr);
             button->addDirectionAction(nxui::FocusDirection::DOWN, action);
+        }
     };
     for (auto& button : m_leftButtons) configure(button);
     for (auto& button : m_rightButtons) configure(button);

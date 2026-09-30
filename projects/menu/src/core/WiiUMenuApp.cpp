@@ -1547,7 +1547,9 @@ void WiiUMenuApp::appendAddUserButton() {
 }
 
 void WiiUMenuApp::wireUserAvatarNavigation() {
-    const bool dynamicLine = isCarouselLayout() || isXmbLayout();
+    const bool carousel = isCarouselLayout();
+    const bool xmb = isXmbLayout();
+    const bool dynamicLine = carousel;
     auto returnToGrid = [this]() {
         if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
             return;
@@ -1561,14 +1563,18 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         nxui::Widget* left = current;
         if (i > 0)
             left = m_userAvatarButtons[i - 1].get();
-        else if (dynamicLine && !m_sidebar.leftButtons().empty())
+        else if (carousel && !m_sidebar.leftButtons().empty())
             left = m_sidebar.leftButtons().back().get();
+        else if (xmb && !m_sidebar.leftButtons().empty())
+            left = m_sidebar.leftButtons().front().get();
         nxui::Widget* right = current;
         if (i + 1 < m_userAvatarButtons.size())
             right = m_userAvatarButtons[i + 1].get();
         else if (m_screenSwapButton)
             right = m_screenSwapButton.get();
-        else if (dynamicLine && !m_sidebar.rightButtons().empty())
+        else if (m_mediaCenterButton)
+            right = m_mediaCenterButton.get();
+        else if ((carousel || xmb) && !m_sidebar.rightButtons().empty())
             right = m_sidebar.rightButtons().front().get();
         current->setCustomNavigation(nxui::FocusDirection::LEFT, left);
         current->setCustomNavigation(nxui::FocusDirection::RIGHT, right);
@@ -1583,7 +1589,7 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         nxui::Widget* right = nullptr;
         if (m_mediaCenterButton)
             right = m_mediaCenterButton.get();
-        else if (dynamicLine && !m_sidebar.rightButtons().empty())
+        else if ((carousel || xmb) && !m_sidebar.rightButtons().empty())
             right = m_sidebar.rightButtons().front().get();
 
         m_screenSwapButton->setCustomNavigation(nxui::FocusDirection::LEFT, left);
@@ -1601,7 +1607,7 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         else if (!m_userAvatarButtons.empty())
             left = m_userAvatarButtons.back().get();
 
-        nxui::Widget* right = (dynamicLine && !m_sidebar.rightButtons().empty())
+        nxui::Widget* right = ((carousel || xmb) && !m_sidebar.rightButtons().empty())
             ? m_sidebar.rightButtons().front().get()
             : nullptr;
         m_mediaCenterButton->setCustomNavigation(nxui::FocusDirection::LEFT, left);
@@ -2650,6 +2656,10 @@ void WiiUMenuApp::updateGridXmbContext() {
 
     if (!m_userAvatarButtons.empty()) {
         ctx.upTarget = m_userAvatarButtons[m_userAvatarButtons.size() / 2].get();
+    } else if (m_screenSwapButton) {
+        ctx.upTarget = m_screenSwapButton.get();
+    } else if (m_mediaCenterButton) {
+        ctx.upTarget = m_mediaCenterButton.get();
     }
     for (const auto& btn : m_sidebar.leftButtons()) {
         if (btn && btn->isVisible() && btn->isFocusable())
@@ -4364,38 +4374,90 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
             if (auto* cur = m_grid->focusManager().current())
                 focusManager().setFocus(cur);
         };
-        for (auto& btn : m_sidebar.leftButtons()) {
-            if (btn) {
-                btn->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::DRight));
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickR));
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickR));
-                btn->addDirectionAction(nxui::FocusDirection::RIGHT, returnFromLeftSidebar);
-            }
+
+        nxui::Widget* leftUpTarget = !m_userAvatarButtons.empty()
+            ? static_cast<nxui::Widget*>(m_userAvatarButtons.front().get())
+            : nullptr;
+        for (std::size_t i = 0; i < m_sidebar.leftButtons().size(); ++i) {
+            auto& btn = m_sidebar.leftButtons()[i];
+            if (!btn) continue;
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DDown));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickD));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickD));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DUp));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickU));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickU));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DLeft));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickL));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickL));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DRight));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickR));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickR));
+
+            nxui::Widget* up = (i > 0)
+                ? static_cast<nxui::Widget*>(m_sidebar.leftButtons()[i - 1].get())
+                : (leftUpTarget ? leftUpTarget : btn.get());
+            nxui::Widget* down = (i + 1 < m_sidebar.leftButtons().size())
+                ? static_cast<nxui::Widget*>(m_sidebar.leftButtons()[i + 1].get())
+                : btn.get();
+
+            btn->setCustomNavigation(nxui::FocusDirection::UP, up);
+            btn->setCustomNavigation(nxui::FocusDirection::DOWN, down);
+            btn->setCustomNavigation(nxui::FocusDirection::LEFT, btn.get());
+            btn->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+            btn->addDirectionAction(nxui::FocusDirection::RIGHT, returnFromLeftSidebar);
         }
-        for (auto& btn : m_sidebar.rightButtons()) {
-            if (btn) {
-                btn->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::DLeft));
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickL));
-                btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickL));
-                btn->addDirectionAction(nxui::FocusDirection::LEFT, returnFromRightSidebar);
-            }
+
+        nxui::Widget* rightUpTarget = m_mediaCenterButton
+            ? static_cast<nxui::Widget*>(m_mediaCenterButton.get())
+            : (m_screenSwapButton
+                ? static_cast<nxui::Widget*>(m_screenSwapButton.get())
+                : (!m_userAvatarButtons.empty()
+                    ? static_cast<nxui::Widget*>(m_userAvatarButtons.back().get())
+                    : nullptr));
+        for (std::size_t i = 0; i < m_sidebar.rightButtons().size(); ++i) {
+            auto& btn = m_sidebar.rightButtons()[i];
+            if (!btn) continue;
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DDown));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickD));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickD));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DUp));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickU));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickU));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DLeft));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickL));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickL));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::DRight));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickR));
+            btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickR));
+
+            nxui::Widget* up = (i > 0)
+                ? static_cast<nxui::Widget*>(m_sidebar.rightButtons()[i - 1].get())
+                : (rightUpTarget ? rightUpTarget : btn.get());
+            nxui::Widget* down = (i + 1 < m_sidebar.rightButtons().size())
+                ? static_cast<nxui::Widget*>(m_sidebar.rightButtons()[i + 1].get())
+                : btn.get();
+
+            btn->setCustomNavigation(nxui::FocusDirection::UP, up);
+            btn->setCustomNavigation(nxui::FocusDirection::DOWN, down);
+            btn->setCustomNavigation(nxui::FocusDirection::RIGHT, btn.get());
+            btn->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
+            btn->addDirectionAction(nxui::FocusDirection::LEFT, returnFromRightSidebar);
         }
     }
 
-    // Resolve the app when DOWN is pressed. A persistent raw pointer here can
-    // outlive icons rebuilt by a move or catalogue refresh.
-    m_sidebar.setDynamicLineDownAction([this]() {
-        if (!m_grid || (!isCarouselLayout() && !isXmbLayout()) ||
-            m_navigator.route() != switchu::navigation::Route::Home)
-            return;
-        if (m_grid->isXmb())
-            m_grid->syncXmbFocusFromCurrent();
-        auto* target = m_grid->focusManager().current();
-        if (target && isCurrentFocusableWidget(target))
-            focusManager().setFocus(target);
-    });
+    if (dynamicLine) {
+        m_sidebar.setDynamicLineDownAction([this]() {
+            if (!m_grid || !isCarouselLayout() ||
+                m_navigator.route() != switchu::navigation::Route::Home)
+                return;
+            auto* target = m_grid->focusManager().current();
+            if (target && isCurrentFocusableWidget(target))
+                focusManager().setFocus(target);
+        });
+    } else {
+        m_sidebar.setDynamicLineDownAction({});
+    }
 }
 
 void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {

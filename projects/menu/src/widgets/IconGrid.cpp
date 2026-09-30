@@ -2422,7 +2422,7 @@ void IconGrid::setXmbPosition(int col, int item) {
     auto& c = m_xmbCols[m_xmbCol];
     m_xmbItem = (m_xmbCol == 4)
         ? std::clamp(item < 0 ? m_xmbGamesRow : item, 0, static_cast<int>(c.size()) - 1)
-        : std::clamp(item < 0 ? 0 : item, 0, static_cast<int>(c.size()) - 1);
+        : std::clamp(item < 0 ? m_xmbItem : item, 0, static_cast<int>(c.size()) - 1);
     if (m_xmbCol == 4)
         m_xmbGamesRow = m_xmbItem;
 
