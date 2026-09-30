@@ -906,6 +906,11 @@ void WiiUMenuApp::handleSortShortcutRelease(float dt) {
         m_grid->stepXmb(+1, 0);
         return;
     }
+    if (m_navigator.route() == switchu::navigation::Route::Home &&
+        focusRoot() == &rootBox() && isListLayout()) {
+        jumpList(+1);
+        return;
+    }
     // Taking a title out of a folder briefly lived here, and moved to X so that
     // one button does both halves of the same job. R stays inert inside a
     // folder, for the reason above.
@@ -1274,6 +1279,11 @@ void WiiUMenuApp::wireGlobalActions() {
         if (m_navigator.route() == switchu::navigation::Route::Home &&
             focusRoot() == &rootBox() && m_grid && m_grid->isXmb()) {
             m_grid->stepXmb(-1, 0);
+            return;
+        }
+        if (m_navigator.route() == switchu::navigation::Route::Home &&
+            focusRoot() == &rootBox() && isListLayout()) {
+            jumpList(-1);
             return;
         }
         m_accessibility.repeatLastAnnouncement();

@@ -40,6 +40,7 @@ public:
     bool isDeck() const { return m_layoutMode == AppLayoutMode::Deck; }
     bool isCover() const { return m_layoutMode == AppLayoutMode::Cover; }
     bool isXmb() const { return m_layoutMode == AppLayoutMode::Xmb; }
+    bool isList() const { return m_layoutMode == AppLayoutMode::List; }
     bool is3D() const {
         return m_layoutMode == AppLayoutMode::Flow
             || m_layoutMode == AppLayoutMode::Shelf
@@ -125,6 +126,22 @@ public:
     static constexpr float kXmbMarginTop   = 181.f;
     static constexpr float kXmbZoomActive  = 1.0f;
     static constexpr float kXmbZoomPassive = 0.55f;
+
+    struct ListContext {
+        nxui::Font* fontNormal = nullptr;
+        nxui::Font* fontSmall = nullptr;
+    };
+    static constexpr float kListLeft       = 114.f;
+    static constexpr float kListWidth      = 540.f;
+    static constexpr float kListCenterY    = 360.f;
+    static constexpr float kListRowHeight  = 54.f;
+
+    void setListContext(const ListContext& ctx) { m_listContext = ctx; }
+    const ListContext& listContext() const { return m_listContext; }
+    nxui::Rect listIconRect(int idx) const;
+    void layoutList();
+    void syncListChildRects();
+    void renderList(nxui::Renderer& ren);
 
     void setXmbContext(const XmbContext& ctx);
     void stepXmb(int dCol, int dItem);
@@ -311,6 +328,11 @@ private:
     nxui::Widget* m_lineDownTarget = nullptr;
     std::vector<nxui::Widget*> m_gridLeftTargets;
     std::vector<nxui::Widget*> m_gridRightTargets;
+
+    // List (Niagara) state
+    ListContext m_listContext;
+    float m_listScrollOffset = 0.0f;
+    float m_listTargetScroll = 0.0f;
 
     // XMB Cross-Media Bar state
     XmbContext m_xmbContext;

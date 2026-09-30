@@ -178,6 +178,7 @@ private:
     GridModel buildOpenFolderModel(std::uint32_t folderId) const;
     void applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate);
     void updateGridXmbContext();
+    void updateGridListContext();
     // The streamer thinks in pages. Each view has to say which "page" it is on
     // and how many icons that page holds, and the three models answer
     // differently: the paged grid reports its real page, the carousel reports
@@ -345,6 +346,11 @@ private:
     int   m_lineRepeatDir = 0;
     float m_lineRepeatTimer = 0.f;
     bool stepDynamicLine(int dir);
+    int  listNeighbour(int dir) const;
+    int   m_listRepeatDir = 0;
+    float m_listRepeatTimer = 0.f;
+    bool stepList(int dir);
+    bool jumpList(int dir);
     struct PageArrowAnim {
         float show = 0.f;
         float press = 0.f;
@@ -483,6 +489,9 @@ private:
     }
     bool isXmbLayout() const {
         return m_appLayoutMode == AppLayoutMode::Xmb;
+    }
+    bool isListLayout() const {
+        return m_appLayoutMode == AppLayoutMode::List;
     }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }

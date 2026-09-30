@@ -80,6 +80,8 @@ bool AppConfig::load() {
             appLayoutMode = AppLayoutMode::Cover;
         else if (mode == "xmb")
             appLayoutMode = AppLayoutMode::Xmb;
+        else if (mode == "list")
+            appLayoutMode = AppLayoutMode::List;
         else if (mode == "grid")
             appLayoutMode = AppLayoutMode::Grid;
     }
@@ -221,6 +223,7 @@ bool AppConfig::save() const {
                        : appLayoutMode == AppLayoutMode::Deck        ? "deck"
                        : appLayoutMode == AppLayoutMode::Cover       ? "cover"
                        : appLayoutMode == AppLayoutMode::Xmb         ? "xmb"
+                       : appLayoutMode == AppLayoutMode::List        ? "list"
                                                                      : "grid";
     j["actionHintStyle"] = actionHintStyle == "panel" ? "panel" : "capsules";
     j["uiLanguageOverride"] = uiLanguageOverride;

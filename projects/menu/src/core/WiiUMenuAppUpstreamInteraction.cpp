@@ -397,7 +397,7 @@ void WiiUMenuApp::enterEditMode() {
     // present: its order comes from the model, and the system columns are not
     // slots at all. It also rebinds the focused icon's actions, which would tear
     // out the d-pad bindings XMB navigation depends on and freeze the bar.
-    if (m_grid && m_grid->isXmb())
+    if (m_grid && (m_grid->isXmb() || isListLayout()))
         return;
 
     auto* icon = static_cast<GlossyIcon*>(cur);
@@ -910,7 +910,7 @@ void WiiUMenuApp::wireFocusCallback() {
             // than by page, so they must drive the streamer the same way or the
             // list scrolls into titles whose icons were never requested. XMB was
             // missing here, so moving along the bar never advanced the window.
-            if (isCarouselLayout() || m_grid->isXmb())
+            if (isCarouselLayout() || m_grid->isXmb() || isListLayout())
                 pumpIconStreamer();
             if (m_steamGridDbBackdrop && icon->titleId() != 0
                 && icon->titleId() < kFolderTitleIdPrefix)
@@ -945,7 +945,7 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            if (m_grid && m_grid->isXmb()) {
+            if (m_grid && (m_grid->isXmb() || isListLayout())) {
                 m_titlePill->setVisible(false);
             } else {
                 m_titlePill->setVisible(true);
@@ -1795,7 +1795,7 @@ void WiiUMenuApp::updateCursor() {
         // than from whatever rect the widget was last left with by another
         // layout. Reading the stale rect is what drew the selection frame
         // across the whole screen instead of around the focused item.
-        const bool xmbFocus = m_grid && m_grid->isXmb()
+        const bool xmbFocus = m_grid && (m_grid->isXmb() || isListLayout())
                            && cur->tag() == "glossy_icon";
         nxui::Rect fr = (movingLineFocus || xmbFocus)
             ? m_grid->focusedDisplayRect()

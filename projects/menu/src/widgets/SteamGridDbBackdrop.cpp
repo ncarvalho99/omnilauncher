@@ -286,13 +286,13 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
         // hero, the paged grid keeps it as a faint wash. Upstream 2.6.5 added a
         // user-facing opacity slider, so the ceiling is scaled by it rather than
         // replaced -- otherwise the slider would also undo the per-layout tuning.
-        const float maxHeroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) ? 0.60f : 0.16f;
+        const float maxHeroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover || m_layoutMode == AppLayoutMode::List) ? 0.60f : 0.16f;
         const float heroAlpha = maxHeroAlpha * m_artworkOpacityScale;
         renderer.pushClipRect(screen);
         renderer.drawTexture(&set.hero, fillRect(set.hero, screen),
                              nxui::Color::white().withAlpha(alpha * heroAlpha));
         renderer.popClipRect();
-        if (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover) {
+        if (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover || m_layoutMode == AppLayoutMode::List) {
             renderer.drawGradientRect(
                 screen,
                 nxui::Color(0.f, 0.f, 0.f, 0.04f * alpha),

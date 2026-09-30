@@ -3,6 +3,7 @@
 #include "GridNavigation.hpp"
 #include "core/DebugLog.hpp"
 #include <nxui/core/Renderer.hpp>
+#include <nxui/core/Font.hpp>
 #include <nxui/core/Animation.hpp>
 #include <nxui/core/Input.hpp>
 #include <nxui/core/ThreadPool.hpp>
@@ -298,7 +299,12 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
     // Flow/Shelf share the carousel's model, focus bindings and scroll offset:
     // they are different presentations of the same row, so switching between
     // views keeps your place on the same title without re-deriving anything.
-    if (isCarousel()) {
+    if (m_layoutMode == AppLayoutMode::List) {
+        m_listScrollOffset = cur >= 0 ? static_cast<float>(cur) : 0.f;
+        m_listTargetScroll = m_listScrollOffset;
+        layoutList();
+        syncListChildRects();
+    } else if (isCarousel()) {
         m_lineScrollOffset.setImmediate(cur >= 0 ? static_cast<float>(cur) : 0.f);
         layoutLine();
         if (is3D()) {
@@ -320,6 +326,10 @@ bool IconGrid::isDynamicLineScrolling() const {
 
 void IconGrid::setDynamicLineUpTarget(nxui::Widget* target) {
     m_lineUpTarget = target;
+    if (m_layoutMode == AppLayoutMode::List) {
+        layoutList();
+        return;
+    }
     if (!isCarousel())
         return;
     for (auto& icon : m_allIcons) {
@@ -356,6 +366,10 @@ void IconGrid::reconfigureLayout(int cols, int rows,
 
     if (m_layoutMode == AppLayoutMode::Xmb)
         layoutXmb();
+    else if (m_layoutMode == AppLayoutMode::List) {
+        layoutList();
+        syncListChildRects();
+    }
     else if (isCarousel())
         layoutLine();
     else
@@ -363,7 +377,7 @@ void IconGrid::reconfigureLayout(int cols, int rows,
 }
 
 void IconGrid::setPage(int page) {
-    if (isCarousel() || m_layoutMode == AppLayoutMode::Xmb) return;
+    if (isCarousel() || m_layoutMode == AppLayoutMode::Xmb || m_layoutMode == AppLayoutMode::List) return;
     m_page = std::clamp(page, 0, m_totalPages - 1);
     layoutPage();
 }
@@ -494,6 +508,8 @@ void IconGrid::setGridSideTargets(std::vector<nxui::Widget*> left,
     m_gridRightTargets = std::move(right);
     if (m_layoutMode == AppLayoutMode::Grid)
         layoutPage();
+    else if (m_layoutMode == AppLayoutMode::List)
+        layoutList();
 }
 
 nxui::Rect IconGrid::gridSpanRect(int globalIndex, int columns, int rows) const {
@@ -504,6 +520,8 @@ nxui::Rect IconGrid::gridSpanRect(int globalIndex, int columns, int rows) const 
     // a cell from the configurable grid dimensions.
     if (isCarousel())
         return dynamicIconRect(globalIndex);
+    if (m_layoutMode == AppLayoutMode::List)
+        return listIconRect(globalIndex);
     const int local = globalIndex % std::max(1, iconsPerPage());
     const int column = local % std::max(1, m_cols);
     const int row = local / std::max(1, m_cols);
@@ -758,6 +776,11 @@ nxui::Rect IconGrid::focusedDisplayRect() const {
         // fixed box that no longer matches it.
         return xmbItemRect(m_xmbItem);
     }
+    if (m_layoutMode == AppLayoutMode::List) {
+        const int focused = focusedGlobalIndex();
+        if (focused >= 0)
+            return listIconRect(focused);
+    }
     if (isCarousel()) {
         const int focused = focusedGlobalIndex();
         if (focused >= 0) {
@@ -779,6 +802,12 @@ bool IconGrid::focusGlobalIndex(int idx) {
 
     if (m_layoutMode == AppLayoutMode::Xmb) {
         setXmbPosition(4, idx);
+        return true;
+    }
+
+    if (m_layoutMode == AppLayoutMode::List) {
+        m_focus.setFocus(m_allIcons[idx].get());
+        m_listTargetScroll = static_cast<float>(idx);
         return true;
     }
 
@@ -1148,6 +1177,17 @@ int IconGrid::hitTest(float screenX, float screenY) const {
     if (m_layoutMode == AppLayoutMode::Xmb)
         return -1;
 
+    if (m_layoutMode == AppLayoutMode::List) {
+        for (int i = 0; i < (int)m_allIcons.size(); ++i) {
+            if (m_allIcons[i] && m_allIcons[i]->isFocusable()) {
+                const nxui::Rect r = listIconRect(i);
+                if (r.contains(screenX, screenY))
+                    return i;
+            }
+        }
+        return -1;
+    }
+
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
             nxui::Rect r = dynamicIconRect(i);
@@ -1326,6 +1366,20 @@ void IconGrid::onUpdate(float dt) {
         // the selection ring would sit off the tile it is framing.
         if (prevColScroll != m_xmbColScroll || prevItemScroll != m_xmbItemScroll)
             syncXmbChildRects();
+        return;
+    }
+    if (m_layoutMode == AppLayoutMode::List) {
+        const int cur = focusedGlobalIndex();
+        if (cur >= 0) {
+            m_listTargetScroll = static_cast<float>(cur);
+        }
+        const float prevScroll = m_listScrollOffset;
+        m_listScrollOffset += (m_listTargetScroll - m_listScrollOffset) * 0.28f;
+        if (std::abs(m_listTargetScroll - m_listScrollOffset) < 0.003f)
+            m_listScrollOffset = m_listTargetScroll;
+        if (std::abs(prevScroll - m_listScrollOffset) > 0.0001f) {
+            syncListChildRects();
+        }
         return;
     }
     if (isCarousel()) {
@@ -3021,8 +3075,280 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+nxui::Rect IconGrid::listIconRect(int idx) const {
+    if (idx < 0 || idx >= static_cast<int>(m_allIcons.size()))
+        return {};
+    const float d = static_cast<float>(idx) - m_listScrollOffset;
+    const float rowCenterY = kListCenterY + d * kListRowHeight;
+    return {kListLeft, rowCenterY - kListRowHeight * 0.5f, kListWidth, kListRowHeight};
+}
+
+void IconGrid::layoutList() {
+    clearChildren();
+
+    std::vector<std::shared_ptr<GlossyIcon>> focusableItems;
+    focusableItems.reserve(m_allIcons.size());
+
+    for (size_t i = 0; i < m_allIcons.size(); ++i) {
+        auto& icon = m_allIcons[i];
+        if (!icon) continue;
+        if (icon->entryKind() == GridEntryKind::WidgetContinuation ||
+            icon->entryKind() == GridEntryKind::Empty) {
+            icon->setFocusable(false);
+            continue;
+        }
+        icon->setFocusable(true);
+        focusableItems.push_back(icon);
+    }
+
+    const auto nearestSideTarget = [](const GlossyIcon& source,
+                                      const std::vector<nxui::Widget*>& targets) -> nxui::Widget* {
+        nxui::Widget* best = nullptr;
+        float bestDistance = std::numeric_limits<float>::max();
+        const float sourceY = source.focusRect().y + source.focusRect().height * 0.5f;
+        for (auto* target : targets) {
+            if (!target || !target->isVisible() || !target->isFocusable()) continue;
+            const auto rect = target->focusRect();
+            const float distance = std::abs(rect.y + rect.height * 0.5f - sourceY);
+            if (distance < bestDistance) {
+                best = target;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    };
+
+    for (size_t i = 0; i < focusableItems.size(); ++i) {
+        auto& icon = focusableItems[i];
+        nxui::Widget* up = (i > 0) ? focusableItems[i - 1].get() : m_lineUpTarget;
+        nxui::Widget* down = (i + 1 < focusableItems.size()) ? focusableItems[i + 1].get() : nullptr;
+
+        icon->setCustomNavigation(nxui::FocusDirection::UP, up);
+        icon->setCustomNavigation(nxui::FocusDirection::DOWN, down);
+
+        nxui::Widget* left = nearestSideTarget(*icon, m_gridLeftTargets);
+        nxui::Widget* right = nearestSideTarget(*icon, m_gridRightTargets);
+        icon->setCustomNavigation(nxui::FocusDirection::LEFT, left);
+        icon->setCustomNavigation(nxui::FocusDirection::RIGHT, right);
+
+        addChild(icon);
+    }
+}
+
+void IconGrid::syncListChildRects() {
+    if (m_layoutMode != AppLayoutMode::List)
+        return;
+    for (int i = 0; i < static_cast<int>(m_allIcons.size()); ++i) {
+        auto& icon = m_allIcons[i];
+        if (!icon) continue;
+        const nxui::Rect r = listIconRect(i);
+        icon->setRect(r);
+        icon->setFocusable(icon->entryKind() != GridEntryKind::WidgetContinuation &&
+                           icon->entryKind() != GridEntryKind::Empty);
+    }
+}
+
+void IconGrid::renderList(nxui::Renderer& ren) {
+    if (m_allIcons.empty()) return;
+    ren.pushClipRect(m_rect);
+
+    const int focusedIndex = focusedGlobalIndex();
+    nxui::Font* fontNormal = m_listContext.fontNormal ? m_listContext.fontNormal : m_xmbContext.fontNormal;
+    nxui::Font* fontSmall = m_listContext.fontSmall ? m_listContext.fontSmall : m_xmbContext.fontSmall;
+
+    // 1. Right Detail/Hero Panel for the focused game
+    if (focusedIndex >= 0 && focusedIndex < static_cast<int>(m_allIcons.size())) {
+        auto* activeIcon = m_allIcons[focusedIndex].get();
+        if (activeIcon) {
+            const nxui::Rect heroPanelRect{696.f, 116.f, 484.f, 508.f};
+
+            // Background card (frosted glass)
+            ren.drawFrostedInset(heroPanelRect,
+                                 nxui::Color(0.04f, 0.06f, 0.11f, 0.65f),
+                                 nxui::Color(0.24f, 0.35f, 0.52f, 0.40f),
+                                 nxui::Color(1.f, 1.f, 1.f, 0.18f),
+                                 18.f);
+
+            // Index counter top-left: e.g. "05 / 24"
+            if (fontSmall) {
+                char counterBuf[32];
+                std::snprintf(counterBuf, sizeof(counterBuf), "%02d / %02d",
+                              focusedIndex + 1, static_cast<int>(m_allIcons.size()));
+                ren.drawText(counterBuf, {heroPanelRect.x + 28.f, heroPanelRect.y + 24.f},
+                             fontSmall, nxui::Color(0.65f, 0.72f, 0.85f, 0.75f), 0.72f);
+            }
+
+            // Running badge top-right if suspended
+            if (activeIcon->isSuspended() && fontSmall) {
+                const nxui::Rect runPill{heroPanelRect.right() - 110.f, heroPanelRect.y + 20.f, 82.f, 22.f};
+                ren.drawRoundedRect(runPill, nxui::Color(0.15f, 0.75f, 0.35f, 0.85f), 6.f);
+                ren.drawText("RUNNING", {runPill.x + 10.f, runPill.y + 4.f}, fontSmall, nxui::Color::white(), 0.55f);
+            }
+
+            // Big Artwork / Icon
+            constexpr float kArtSize = 224.f;
+            const float artX = heroPanelRect.x + (heroPanelRect.width - kArtSize) * 0.5f;
+            const float artY = heroPanelRect.y + 46.f;
+            const nxui::Rect artRect{artX, artY, kArtSize, kArtSize};
+
+            // Subtle drop shadow / border
+            ren.drawRoundedRect(artRect.expanded(3.f), nxui::Color(0.f, 0.f, 0.f, 0.45f), 16.f);
+            ren.drawRoundedRectOutline(artRect.expanded(1.f), nxui::Color(1.f, 1.f, 1.f, 0.20f), 15.f, 1.5f);
+
+            if (activeIcon->texture() && activeIcon->texture()->valid()) {
+                ren.drawTextureRounded(activeIcon->texture(), artRect, 14.f);
+            } else {
+                ren.drawRoundedRect(artRect, nxui::Color(0.20f, 0.24f, 0.32f, 0.85f), 14.f);
+            }
+
+            // Game Card badge on art
+            if (activeIcon->isGameCard() && activeIcon->gameCardTexture() && activeIcon->gameCardTexture()->valid()) {
+                ren.drawTextureRounded(activeIcon->gameCardTexture(),
+                                       {artRect.x + 10.f, artRect.y + 10.f, 28.f, 28.f}, 4.f);
+            }
+
+            // Title
+            float titleY = artRect.bottom() + 18.f;
+            if (fontNormal) {
+                std::string titleStr = activeIcon->title();
+                if (titleStr.empty()) titleStr = (activeIcon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+                constexpr float maxTitleW = 420.f;
+                while (titleStr.length() > 3 && fontNormal->measure(titleStr).x * 1.0f > maxTitleW) {
+                    titleStr.pop_back();
+                }
+                if (titleStr != activeIcon->title() && titleStr.length() > 3) {
+                    titleStr += "...";
+                }
+                ren.drawText(titleStr, {heroPanelRect.x + 28.f, titleY},
+                             fontNormal, nxui::Color::white(), 1.0f);
+            }
+
+            // Playtime or Folder stats
+            float statsY = titleY + 36.f;
+            if (activeIcon->entryKind() == GridEntryKind::Folder) {
+                if (fontSmall) {
+                    ren.drawText("Game Folder", {heroPanelRect.x + 28.f, statsY},
+                                 fontSmall, nxui::Color(0.40f, 0.82f, 1.0f, 0.90f), 0.82f);
+                }
+            } else if (!activeIcon->playtimeBadge().empty()) {
+                if (fontSmall) {
+                    ren.drawText(activeIcon->playtimeBadge(), {heroPanelRect.x + 28.f, statsY},
+                                 fontSmall, nxui::Color(0.38f, 0.85f, 1.0f, 0.90f), 0.82f);
+                }
+            }
+
+            // Divider line
+            const float divY = heroPanelRect.bottom() - 48.f;
+            ren.drawLine({heroPanelRect.x + 24.f, divY},
+                         {heroPanelRect.right() - 24.f, divY},
+                         nxui::Color(1.f, 1.f, 1.f, 0.15f), 1.f);
+
+            // Action hints at the bottom of the card
+            if (fontSmall) {
+                const std::string actionHint = activeIcon->entryKind() == GridEntryKind::Folder
+                    ? "A  Open Folder    X  Options"
+                    : "A  Start Game    X  Options";
+                ren.drawText(actionHint, {heroPanelRect.x + 28.f, divY + 14.f},
+                             fontSmall, nxui::Color(0.72f, 0.78f, 0.88f, 0.80f), 0.72f);
+            }
+        }
+    }
+
+    // 2. Left Niagara List Column
+    const int count = static_cast<int>(m_allIcons.size());
+    const int firstv = std::max(0, static_cast<int>(m_listScrollOffset) - 7);
+    const int lastv = std::min(count - 1, static_cast<int>(m_listScrollOffset) + 7);
+
+    for (int i = firstv; i <= lastv; ++i) {
+        auto* icon = m_allIcons[i].get();
+        if (!icon) continue;
+
+        const float d = static_cast<float>(i) - m_listScrollOffset;
+        const float absD = std::abs(d);
+        if (absD > 6.0f) continue;
+
+        const float rowCenterY = kListCenterY + d * kListRowHeight;
+        if (rowCenterY < 80.f || rowCenterY > 640.f) continue;
+
+        // Smooth fade at the top and bottom edges
+        float edgeFade = 1.0f;
+        if (rowCenterY < 160.f) {
+            edgeFade = std::clamp((rowCenterY - 90.f) / 70.f, 0.f, 1.f);
+        } else if (rowCenterY > 560.f) {
+            edgeFade = std::clamp((630.f - rowCenterY) / 70.f, 0.f, 1.f);
+        }
+
+        const bool isSelected = (i == focusedIndex);
+        const float prox = std::max(0.0f, 1.0f - absD * 0.45f);
+        const float zoom = 0.90f + 0.18f * prox;
+        const float alpha = std::clamp((0.35f + 0.65f * prox) * edgeFade, 0.f, 1.f);
+
+        const float rowH = kListRowHeight * zoom;
+        const nxui::Rect rowRect{kListLeft, rowCenterY - rowH * 0.5f, kListWidth, rowH};
+
+        // Selection highlight / glowing pill
+        if (isSelected) {
+            ren.drawFrostedInset(rowRect.expanded(4.f),
+                                 nxui::Color(0.10f, 0.45f, 0.88f, 0.42f * alpha),
+                                 nxui::Color(0.35f, 0.75f, 1.0f, 0.85f * alpha),
+                                 nxui::Color(1.f, 1.f, 1.f, 0.30f * alpha),
+                                 12.f);
+            // Left cursor bar (Niagara cursor indicator)
+            ren.drawRoundedRect({rowRect.x - 2.f, rowCenterY - 14.f, 4.f, 28.f},
+                                nxui::Color(0.25f, 0.85f, 1.0f, 0.95f * alpha), 2.f);
+        } else if (prox > 0.6f) {
+            ren.drawRoundedRect(rowRect, nxui::Color(1.f, 1.f, 1.f, 0.05f * prox * edgeFade), 10.f);
+        }
+
+        // Small thumbnail / Icon on the left
+        const float iconSz = 38.f * zoom;
+        const nxui::Rect iconRect{rowRect.x + 12.f, rowCenterY - iconSz * 0.5f, iconSz, iconSz};
+
+        if (icon->texture() && icon->texture()->valid()) {
+            ren.drawTextureRounded(icon->texture(), iconRect, 8.f, nxui::Color::white().withAlpha(alpha));
+        } else {
+            ren.drawRoundedRect(iconRect, nxui::Color(0.25f, 0.30f, 0.40f, 0.6f * alpha), 8.f);
+        }
+
+        // Running indicator dot
+        if (icon->isSuspended()) {
+            ren.drawCircle({iconRect.right() - 4.f, iconRect.bottom() - 4.f}, 4.f,
+                           nxui::Color(0.2f, 0.9f, 0.4f, alpha));
+        }
+
+        // Title text
+        if (fontNormal) {
+            const float textX = iconRect.right() + 14.f;
+            const float textY = rowCenterY - 10.f * zoom;
+            std::string label = icon->isFavorite() ? ("* " + icon->title()) : icon->title();
+            if (label.empty()) label = (icon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+
+            constexpr float maxRowTextW = 440.f;
+            while (label.length() > 3 && fontNormal->measure(label).x * (0.90f * zoom) > maxRowTextW) {
+                label.pop_back();
+            }
+            if (label != icon->title() && label.length() > 3) {
+                label += "...";
+            }
+
+            const nxui::Color textCol = isSelected
+                ? nxui::Color::white().withAlpha(alpha)
+                : nxui::Color(0.85f, 0.88f, 0.95f, alpha * 0.85f);
+
+            ren.drawText(label, {textX, textY}, fontNormal, textCol, 0.90f * zoom);
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
+
+    if (m_layoutMode == AppLayoutMode::List) {
+        renderList(ren);
+        return;
+    }
 
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         renderDynamicLine(ren);
