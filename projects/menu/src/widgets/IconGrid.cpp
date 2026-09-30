@@ -1540,7 +1540,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
         float fx, fz, fang;
         flowPlace(c.p, fx, fz, fang);
 
-        const bool isSel = (c.index == focusedIndex);
+        const bool isSel = (c.index == focusedIndex) && icon->isFocused();
 
         // The running title turns slowly on its own so it can be picked out of
         // the row at a glance. Added on top of any other rotation.
@@ -1733,33 +1733,37 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             }
         }
 
-        // Selection glowing outline border around the front face (matching Shelf view)
+        // Selection glowing outline border around the active face (3D-aligned for rotating/spinning cases)
         if (isSel) {
+            const nxui::Vec3* activeFace = showingFront ? front : back;
             nxui::Vec2 p[4];
-            if (ren.project3D(front[0], p[0]) && ren.project3D(front[1], p[1]) &&
-                ren.project3D(front[2], p[2]) && ren.project3D(front[3], p[3])) {
-                const float minX = std::min({p[0].x, p[1].x, p[2].x, p[3].x});
-                const float maxX = std::max({p[0].x, p[1].x, p[2].x, p[3].x});
-                const float minY = std::min({p[0].y, p[1].y, p[2].y, p[3].y});
-                const float maxY = std::max({p[0].y, p[1].y, p[2].y, p[3].y});
+            if (ren.project3D(activeFace[0], p[0]) && ren.project3D(activeFace[1], p[1]) &&
+                ren.project3D(activeFace[2], p[2]) && ren.project3D(activeFace[3], p[3])) {
+                const nxui::Vec2 center = (p[0] + p[1] + p[2] + p[3]) * 0.25f;
 
-                const float fx0 = minX - 4.f;
-                const float fy0 = minY - 4.f;
-                const float fw  = (maxX - minX) + 8.f;
-                const float fh  = (maxY - minY) + 8.f;
+                nxui::Vec2 ep[4];
+                nxui::Vec2 gp[4];
+                for (int k = 0; k < 4; ++k) {
+                    nxui::Vec2 v = p[k] - center;
+                    float len = std::sqrt(v.x * v.x + v.y * v.y);
+                    nxui::Vec2 dir = (len > 0.001f) ? nxui::Vec2{v.x / len, v.y / len} : nxui::Vec2{0.f, 0.f};
+                    ep[k] = p[k] + dir * 3.0f;
+                    gp[k] = p[k] + dir * 5.0f;
+                }
 
+                // Inner bright frame
                 const nxui::Color frameCol{0.25f, 0.72f, 1.0f, 0.95f * alpha};
-                ren.drawRect(nxui::Rect{fx0, fy0, fw, 3.5f}, frameCol);
-                ren.drawRect(nxui::Rect{fx0, fy0 + fh - 3.5f, fw, 3.5f}, frameCol);
-                ren.drawRect(nxui::Rect{fx0, fy0, 3.5f, fh}, frameCol);
-                ren.drawRect(nxui::Rect{fx0 + fw - 3.5f, fy0, 3.5f, fh}, frameCol);
+                ren.drawLine(ep[0], ep[1], frameCol, 3.5f);
+                ren.drawLine(ep[1], ep[2], frameCol, 3.5f);
+                ren.drawLine(ep[2], ep[3], frameCol, 3.5f);
+                ren.drawLine(ep[3], ep[0], frameCol, 3.5f);
 
-                // Soft outer glow outline
-                const nxui::Color glowCol{0.25f, 0.72f, 1.0f, 0.35f * alpha};
-                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, fw + 4.f, 2.f}, glowCol);
-                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 + fh, fw + 4.f, 2.f}, glowCol);
-                ren.drawRect(nxui::Rect{fx0 - 2.f, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
-                ren.drawRect(nxui::Rect{fx0 + fw, fy0 - 2.f, 2.f, fh + 4.f}, glowCol);
+                // Outer soft glow
+                const nxui::Color glowCol{0.25f, 0.72f, 1.0f, 0.40f * alpha};
+                ren.drawLine(gp[0], gp[1], glowCol, 2.0f);
+                ren.drawLine(gp[1], gp[2], glowCol, 2.0f);
+                ren.drawLine(gp[2], gp[3], glowCol, 2.0f);
+                ren.drawLine(gp[3], gp[0], glowCol, 2.0f);
             }
         }
     }
@@ -1852,7 +1856,7 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
         float x, y, z, a;
         shelfPlace(c.p, x, y, z, a);
 
-        const bool isSel = (c.index == focusedIndex);
+        const bool isSel = (c.index == focusedIndex) && icon->isFocused();
 
         const float halfW = 0.44f;
         const float halfH = 0.66f;
@@ -2091,7 +2095,7 @@ void IconGrid::renderDeck(nxui::Renderer& ren) {
         float x, y, z, ang, a;
         deckPlace(c.d, x, y, z, ang, a);
 
-        const bool isSel = (c.index == focusedIndex);
+        const bool isSel = (c.index == focusedIndex) && icon->isFocused();
 
         const float halfW = 0.36f;
         const float halfH = 0.54f;
@@ -2329,7 +2333,7 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
         float x, y, z, a;
         coverPlace(c.d, x, y, z, a);
 
-        const bool isSel = (c.index == focusedIndex);
+        const bool isSel = (c.index == focusedIndex) && icon->isFocused();
 
         // Query 2:3 portrait cover art cache
         const std::uint64_t tid = icon->titleId();

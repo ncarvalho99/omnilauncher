@@ -118,6 +118,7 @@ public:
 
     void setFocusable(bool f) { m_focusable = f; }
     bool isFocusable() const override { return m_focusable; }
+    bool isFocused() const { return m_focused; }
     void onFocusGained() override;
     void onFocusLost() override;
 
