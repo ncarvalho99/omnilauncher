@@ -395,6 +395,7 @@ void GpuDevice::submitUploadBatch() {
     ++m_frameUploadBatches;
     m_uploadBatchOpen = false;
     m_uploadSlot = (slot + 1) % UPLOAD_SLOT_COUNT;
+    m_queue.flush();
 }
 
 void GpuDevice::retireSubmittedUploads() {

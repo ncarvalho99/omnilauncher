@@ -1551,6 +1551,8 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
     auto returnToGrid = [this]() {
         if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
             return;
+        if (m_grid->isXmb())
+            m_grid->syncXmbFocusFromCurrent();
         if (auto* target = m_grid->focusManager().current())
             focusManager().setFocus(target);
     };
@@ -1620,6 +1622,9 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
                                                m_userAvatarButtons.back().get());
     } else {
         m_sidebar.setDynamicLineProfileTargets(nullptr, nullptr);
+    }
+    if (m_appLayoutMode == AppLayoutMode::Xmb) {
+        updateGridXmbContext();
     }
 }
 
@@ -3158,7 +3163,8 @@ void WiiUMenuApp::refreshRecentActivityDuration() {
 }
 
 void WiiUMenuApp::ensureRecentWidgetAssets(std::uint64_t titleId) {
-    if (titleId == 0 || m_recentWidgetAssetTitleId == titleId) return;
+    if (titleId == 0 || m_recentWidgetAssetTitleId == titleId ||
+        m_appLayoutMode == AppLayoutMode::Xmb || isCarouselLayout()) return;
     if (m_recentWidgetAssetDecode)
         m_recentWidgetAssetDecode->cancelled.store(true);
     m_recentWidgetAssetTitleId = titleId;
@@ -3241,7 +3247,7 @@ void WiiUMenuApp::pollRecentWidgetAssets() {
         }
     }
 
-    if (!m_recentWidgetAssetReady)
+    if (!m_recentWidgetAssetReady || m_appLayoutMode == AppLayoutMode::Xmb || isCarouselLayout())
         return;
 
     auto& decoded = *m_recentWidgetAssetReady;
@@ -3830,7 +3836,7 @@ void WiiUMenuApp::syncFolderPreviews() {
 // Widget tiles are built once per model rebuild, so the values that move while
 // the menu is open have to be pushed in every frame.
 void WiiUMenuApp::syncWidgetIconContent() {
-    if (!m_grid)
+    if (!m_grid || m_appLayoutMode == AppLayoutMode::Xmb || isCarouselLayout())
         return;
     const auto& recent = m_widgetStore.recentActivity();
     if (recent.titleId != 0)
@@ -4343,12 +4349,49 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
 
     wireUserAvatarNavigation();
 
+    if (isXmbLayout()) {
+        auto returnFromLeftSidebar = [this]() {
+            if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
+                return;
+            m_grid->setXmbPosition(0, -1);
+            if (auto* cur = m_grid->focusManager().current())
+                focusManager().setFocus(cur);
+        };
+        auto returnFromRightSidebar = [this]() {
+            if (!m_grid || m_navigator.route() != switchu::navigation::Route::Home)
+                return;
+            m_grid->setXmbPosition(m_grid->xmbColumnCount() - 1, -1);
+            if (auto* cur = m_grid->focusManager().current())
+                focusManager().setFocus(cur);
+        };
+        for (auto& btn : m_sidebar.leftButtons()) {
+            if (btn) {
+                btn->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::DRight));
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickR));
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickR));
+                btn->addDirectionAction(nxui::FocusDirection::RIGHT, returnFromLeftSidebar);
+            }
+        }
+        for (auto& btn : m_sidebar.rightButtons()) {
+            if (btn) {
+                btn->setCustomNavigation(nxui::FocusDirection::LEFT, nullptr);
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::DLeft));
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::LStickL));
+                btn->removeAction(static_cast<uint64_t>(nxui::Button::RStickL));
+                btn->addDirectionAction(nxui::FocusDirection::LEFT, returnFromRightSidebar);
+            }
+        }
+    }
+
     // Resolve the app when DOWN is pressed. A persistent raw pointer here can
     // outlive icons rebuilt by a move or catalogue refresh.
     m_sidebar.setDynamicLineDownAction([this]() {
         if (!m_grid || (!isCarouselLayout() && !isXmbLayout()) ||
             m_navigator.route() != switchu::navigation::Route::Home)
             return;
+        if (m_grid->isXmb())
+            m_grid->syncXmbFocusFromCurrent();
         auto* target = m_grid->focusManager().current();
         if (target && isCurrentFocusableWidget(target))
             focusManager().setFocus(target);

@@ -292,7 +292,10 @@ int main(int argc, char* argv[]) {
             app.setActivity(std::make_unique<TutorialActivity>(makeMenuActivity));
         DebugLog::log("[hb] app.initialize...");
         app.setLogSink([](const char* msg) { DebugLog::log("%s", msg); });
-        nxui::GpuDevice::setDebugSink([](const char* msg) { DebugLog::log("%s", msg); });
+        nxui::GpuDevice::setDebugSink([](const char* msg) {
+            DebugLog::log("%s", msg);
+            switchu::FileLog::flush();
+        });
         if (app.initialize()) {
             DebugLog::log("[hb] app.run...");
             app.run();
@@ -334,7 +337,10 @@ int main(int argc, char* argv[]) {
                 totalRc, usedRc);
         }
         app.setLogSink([](const char* msg) { DebugLog::log("%s", msg); });
-        nxui::GpuDevice::setDebugSink([](const char* msg) { DebugLog::log("%s", msg); });
+        nxui::GpuDevice::setDebugSink([](const char* msg) {
+            DebugLog::log("%s", msg);
+            switchu::FileLog::flush();
+        });
         if (app.initialize()) {
             DebugLog::log("[menu] app.run...");
             app.run();

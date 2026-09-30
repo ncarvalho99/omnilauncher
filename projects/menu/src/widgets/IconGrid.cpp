@@ -777,6 +777,11 @@ bool IconGrid::focusGlobalIndex(int idx) {
     if (!m_allIcons[idx] || !m_allIcons[idx]->isFocusable())
         return false;
 
+    if (m_layoutMode == AppLayoutMode::Xmb) {
+        setXmbPosition(4, idx);
+        return true;
+    }
+
     if (isCarousel()) {
         m_focus.setFocus(m_allIcons[idx].get());
         if (is3D()) {
@@ -2404,6 +2409,33 @@ void IconGrid::setXmbContext(const XmbContext& ctx) {
     }
 }
 
+void IconGrid::setXmbPosition(int col, int item) {
+    if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty()) return;
+    const int colCount = static_cast<int>(m_xmbCols.size());
+    col = std::clamp(col, 0, colCount - 1);
+    while (col >= 0 && col < colCount && m_xmbCols[col].empty()) {
+        col = (col == 0) ? col + 1 : col - 1;
+    }
+    if (col < 0 || col >= colCount || m_xmbCols[col].empty()) return;
+
+    m_xmbCol = col;
+    auto& c = m_xmbCols[m_xmbCol];
+    m_xmbItem = (m_xmbCol == 4)
+        ? std::clamp(item < 0 ? m_xmbGamesRow : item, 0, static_cast<int>(c.size()) - 1)
+        : std::clamp(item < 0 ? 0 : item, 0, static_cast<int>(c.size()) - 1);
+    if (m_xmbCol == 4)
+        m_xmbGamesRow = m_xmbItem;
+
+    m_xmbColScroll = static_cast<float>(m_xmbCol);
+    m_xmbItemScroll = static_cast<float>(m_xmbItem);
+    syncXmbChildRects();
+    if (!c.empty() && m_xmbItem < static_cast<int>(c.size())) {
+        m_focus.setFocus(c[m_xmbItem]);
+        if (m_onFocusChanged)
+            m_onFocusChanged(c[m_xmbItem]);
+    }
+}
+
 void IconGrid::syncXmbFocusFromCurrent() {
     if (m_layoutMode != AppLayoutMode::Xmb || m_xmbCols.empty()) return;
     nxui::Widget* cur = m_focus.current();
@@ -2415,6 +2447,8 @@ void IconGrid::syncXmbFocusFromCurrent() {
                 m_xmbItem = static_cast<int>(i);
                 if (m_xmbCol == 4)
                     m_xmbGamesRow = m_xmbItem;
+                m_xmbColScroll = static_cast<float>(m_xmbCol);
+                m_xmbItemScroll = static_cast<float>(m_xmbItem);
                 syncXmbChildRects();
                 if (m_onFocusChanged)
                     m_onFocusChanged(cur);
@@ -2454,6 +2488,29 @@ void IconGrid::stepXmb(int dCol, int dItem) {
                 : 0;
             moved = true;
             break;
+        }
+
+        if (!moved) {
+            if (dCol < 0 && !m_xmbContext.leftTargets.empty()) {
+                const int targetIdx = std::clamp(
+                    m_xmbItem, 0, static_cast<int>(m_xmbContext.leftTargets.size()) - 1);
+                nxui::Widget* target = m_xmbContext.leftTargets[targetIdx];
+                if (target && target->isVisible() && target->isFocusable()) {
+                    if (m_onFocusChanged)
+                        m_onFocusChanged(target);
+                    return;
+                }
+            } else if (dCol > 0 && !m_xmbContext.rightTargets.empty()) {
+                const int targetIdx = std::clamp(
+                    m_xmbItem, 0, static_cast<int>(m_xmbContext.rightTargets.size()) - 1);
+                nxui::Widget* target = m_xmbContext.rightTargets[targetIdx];
+                if (target && target->isVisible() && target->isFocusable()) {
+                    if (m_onFocusChanged)
+                        m_onFocusChanged(target);
+                    return;
+                }
+            }
+            return;
         }
     }
 

@@ -128,6 +128,7 @@ public:
 
     void setXmbContext(const XmbContext& ctx);
     void stepXmb(int dCol, int dItem);
+    void setXmbPosition(int col, int item = -1);
     int xmbCol() const { return m_xmbCol; }
     int xmbItem() const { return m_xmbItem; }
     int xmbColumnCount() const { return static_cast<int>(m_xmbCols.size()); }
