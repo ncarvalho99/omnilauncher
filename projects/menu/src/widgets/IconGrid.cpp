@@ -1687,6 +1687,14 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             }
         }
 
+        // Selection glowing border
+        if (isSel) {
+            nxui::Vec3 glowFront[4];
+            flowFace(fx, fz, fang, -(halfW + 0.022f), -0.003f, (halfW + 0.022f), -0.003f, halfH + 0.022f, glowFront);
+            const nxui::Color glowCol{0.10f, 0.65f, 0.98f, 0.88f * alpha};
+            ren.drawQuad3D(nullptr, glowFront, glowCol, 0.88f * alpha, 0.88f * alpha);
+        }
+
         // Reflection. Mirrored about the case's OWN bottom edge rather than a
         // fixed floor, so it stays edge to edge at any scale, and every face is
         // mirrored so the reflection keeps the same silhouette. The corner

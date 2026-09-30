@@ -2843,8 +2843,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     applyPlaytimeBadges();
     wireFocusCallback();
 
-    if (m_leftSidebar)  m_leftSidebar->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
-    if (m_rightSidebar) m_rightSidebar->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
+    if (m_leftSidebar)  m_leftSidebar->setVisible(true);
+    if (m_rightSidebar) m_rightSidebar->setVisible(true);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
     if (m_titlePill && m_appLayoutMode == AppLayoutMode::Xmb) m_titlePill->setVisible(false);
     m_grid->onEdgePage([this](int dir) { flipPageFromEdge(dir); });
@@ -4499,8 +4499,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
-    if (m_leftSidebar)  m_leftSidebar->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
-    if (m_rightSidebar) m_rightSidebar->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
+    if (m_leftSidebar)  m_leftSidebar->setVisible(true);
+    if (m_rightSidebar) m_rightSidebar->setVisible(true);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
     if (m_titlePill && m_appLayoutMode == AppLayoutMode::Xmb) m_titlePill->setVisible(false);
 
