@@ -2840,34 +2840,13 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
         if (it != m_summaryCache.end()) {
             return it->second;
         }
-    }
-
-    // 2. SD card cache: sdmc:/config/SwitchU/metadata/<hexTitleId>.txt
-    char hexBuf[17];
-    std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
-    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
-
-    std::ifstream file(path);
-    if (file.is_open()) {
-        std::string summary((std::istreambuf_iterator<char>(file)),
-                             std::istreambuf_iterator<char>());
-        if (!summary.empty()) {
-            std::lock_guard<std::mutex> lock(m_summaryMutex);
-            m_summaryCache[titleId] = summary;
-            return summary;
-        }
-    }
-
-    // 3. If not cached, trigger async background fetch via thread pool
-    {
-        std::lock_guard<std::mutex> lock(m_summaryMutex);
         if (m_summaryPending.find(titleId) != m_summaryPending.end()) {
-            return {}; // Already loading
+            return {}; // Already loading/pending
         }
         m_summaryPending.insert(titleId);
     }
 
-    // Get title name
+    // 2. Get title name
     std::string titleName;
     for (const auto& app : m_allApps) {
         if (app.titleId == titleId) {
@@ -2875,12 +2854,45 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
             break;
         }
     }
+    if (titleName.empty()) {
+        for (int i = 0; i < m_model.count(); ++i) {
+            if (m_model.at(i).titleId == titleId && !m_model.at(i).title.empty()) {
+                titleName = m_model.at(i).title;
+                break;
+            }
+        }
+    }
+    if (titleName.empty()) {
+        switchu::control_cache::Meta meta{};
+        if (switchu::control_cache::readMeta(titleId, meta) && meta.name[0] != '\0') {
+            titleName = meta.name;
+        }
+    }
 
-    if (!titleName.empty()) {
-        m_threadPool.submit([this, titleId, titleName, path]() {
+    char hexBuf[17];
+    std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
+    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
+
+    // 3. Submit async worker for SD read and/or network fetch
+    m_threadPool.submit([this, titleId, titleName, path]() {
+        // First check SD cache
+        std::ifstream file(path);
+        if (file.is_open()) {
+            std::string diskSummary((std::istreambuf_iterator<char>(file)),
+                                     std::istreambuf_iterator<char>());
+            if (!diskSummary.empty()) {
+                std::lock_guard<std::mutex> lock(m_summaryMutex);
+                m_summaryCache[titleId] = diskSummary;
+                m_summaryPending.erase(titleId);
+                return;
+            }
+        }
+
+        if (!titleName.empty()) {
+            DebugLog::log("[metadata] Fetching summary for '%s' (0x%016llX)...", titleName.c_str(), (unsigned long long)titleId);
             try {
                 const std::string query = "?title=" + urlEncode(titleName)
-                    + "&platform=Switch"
+                    + "&platform=nintendo-switch"
                     + "&language=" + urlEncode(nxui::I18n::instance().activeLanguageTag());
                 const std::string url = std::string("https://switchu-api.nclabs.dev/v1/metadata") + query;
                 const std::string responseText = themeshop::http::getText(url);
@@ -2901,14 +2913,19 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
                     }
                     std::lock_guard<std::mutex> lock(m_summaryMutex);
                     m_summaryCache[titleId] = summary;
+                    DebugLog::log("[metadata] Saved summary for '%s' (%zu chars)", titleName.c_str(), summary.size());
+                } else {
+                    DebugLog::log("[metadata] No summary in response for '%s'", titleName.c_str());
                 }
+            } catch (const std::exception& e) {
+                DebugLog::log("[metadata] Summary fetch failed for '%s': %s", titleName.c_str(), e.what());
             } catch (...) {
-                // Offline or not found; ignore silently
+                DebugLog::log("[metadata] Summary fetch failed for '%s': unknown error", titleName.c_str());
             }
-            std::lock_guard<std::mutex> lock(m_summaryMutex);
-            m_summaryPending.erase(titleId);
-        });
-    }
+        }
+        std::lock_guard<std::mutex> lock(m_summaryMutex);
+        m_summaryPending.erase(titleId);
+    });
 
     return {};
 }

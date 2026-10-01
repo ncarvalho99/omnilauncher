@@ -216,6 +216,9 @@ std::vector<std::uint8_t> performRequestBytes(const std::string& url,
     if (official && switchu::auth::kClientKey && switchu::auth::kClientKey[0] != '\0') {
         const std::string authHeader = std::string("X-SwitchU-Key: ") + switchu::auth::kClientKey;
         requestHeaders = curl_slist_append(requestHeaders, authHeader.c_str());
+        DebugLog::log("[http] Official key attached for %s", url.c_str());
+    } else if (official) {
+        DebugLog::log("[http] WARNING: official host %s requested without client key!", url.c_str());
     }
     if (requestHeaders)
         curl_easy_setopt(request, CURLOPT_HTTPHEADER, requestHeaders);
@@ -365,6 +368,9 @@ std::uint64_t getToFile(const std::string& url,
                 const std::string authHeader = std::string("X-SwitchU-Key: ") + switchu::auth::kClientKey;
                 requestHeaders = curl_slist_append(requestHeaders, authHeader.c_str());
                 curl_easy_setopt(request, CURLOPT_HTTPHEADER, requestHeaders);
+                DebugLog::log("[http] Official key attached for download %s", url.c_str());
+            } else if (official) {
+                DebugLog::log("[http] WARNING: official download %s requested without client key!", url.c_str());
             }
 
             const CURLcode result = curl_easy_perform(request);
