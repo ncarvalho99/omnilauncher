@@ -13,4 +13,5 @@ enum class AppLayoutMode : std::uint8_t {
     Cover,
     Xmb,
     List,
+    Metro,
 };

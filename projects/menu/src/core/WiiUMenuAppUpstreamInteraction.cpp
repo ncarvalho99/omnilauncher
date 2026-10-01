@@ -1224,6 +1224,11 @@ void WiiUMenuApp::wireGlobalActions() {
             return;
         }
 
+        if (m_appLayoutMode == AppLayoutMode::Metro) {
+            cycleCurrentMetroTileSize();
+            return;
+        }
+
         auto* cur = focusManager().current();
         if (m_editMode)
             return;

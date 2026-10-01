@@ -306,6 +306,12 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
         m_listTargetScroll = m_listScrollOffset;
         layoutList();
         syncListChildRects();
+    } else if (m_layoutMode == AppLayoutMode::Metro) {
+        layoutMetro();
+        syncMetroChildRects();
+        if (cur >= 0) {
+            focusGlobalIndex(cur);
+        }
     } else if (isCarousel()) {
         m_lineScrollOffset.setImmediate(cur >= 0 ? static_cast<float>(cur) : 0.f);
         layoutLine();
@@ -330,6 +336,10 @@ void IconGrid::setDynamicLineUpTarget(nxui::Widget* target) {
     m_lineUpTarget = target;
     if (m_layoutMode == AppLayoutMode::List) {
         layoutList();
+        return;
+    }
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        layoutMetro();
         return;
     }
     if (!isCarousel())
@@ -372,6 +382,10 @@ void IconGrid::reconfigureLayout(int cols, int rows,
         layoutList();
         syncListChildRects();
     }
+    else if (m_layoutMode == AppLayoutMode::Metro) {
+        layoutMetro();
+        syncMetroChildRects();
+    }
     else if (isCarousel())
         layoutLine();
     else
@@ -379,7 +393,7 @@ void IconGrid::reconfigureLayout(int cols, int rows,
 }
 
 void IconGrid::setPage(int page) {
-    if (isCarousel() || m_layoutMode == AppLayoutMode::Xmb || m_layoutMode == AppLayoutMode::List) return;
+    if (isCarousel() || m_layoutMode == AppLayoutMode::Xmb || m_layoutMode == AppLayoutMode::List || m_layoutMode == AppLayoutMode::Metro) return;
     m_page = std::clamp(page, 0, m_totalPages - 1);
     layoutPage();
 }
@@ -512,6 +526,8 @@ void IconGrid::setGridSideTargets(std::vector<nxui::Widget*> left,
         layoutPage();
     else if (m_layoutMode == AppLayoutMode::List)
         layoutList();
+    else if (m_layoutMode == AppLayoutMode::Metro)
+        layoutMetro();
 }
 
 nxui::Rect IconGrid::gridSpanRect(int globalIndex, int columns, int rows) const {
@@ -524,6 +540,14 @@ nxui::Rect IconGrid::gridSpanRect(int globalIndex, int columns, int rows) const 
         return dynamicIconRect(globalIndex);
     if (m_layoutMode == AppLayoutMode::List)
         return listIconRect(globalIndex);
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        for (const auto& t : m_metroTiles) {
+            if (t.itemIndex == globalIndex) {
+                return {t.x, t.y - m_metroScrollY, t.w, t.h};
+            }
+        }
+        return {};
+    }
     const int local = globalIndex % std::max(1, iconsPerPage());
     const int column = local % std::max(1, m_cols);
     const int row = local / std::max(1, m_cols);
@@ -783,6 +807,16 @@ nxui::Rect IconGrid::focusedDisplayRect() const {
         if (focused >= 0)
             return listIconRect(focused);
     }
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        const int focused = focusedGlobalIndex();
+        if (focused >= 0) {
+            for (const auto& t : m_metroTiles) {
+                if (t.itemIndex == focused) {
+                    return {t.x, t.y - m_metroScrollY, t.w, t.h};
+                }
+            }
+        }
+    }
     if (isCarousel()) {
         const int focused = focusedGlobalIndex();
         if (focused >= 0) {
@@ -810,6 +844,20 @@ bool IconGrid::focusGlobalIndex(int idx) {
     if (m_layoutMode == AppLayoutMode::List) {
         m_focus.setFocus(m_allIcons[idx].get());
         m_listTargetScroll = static_cast<float>(idx);
+        return true;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        m_focus.setFocus(m_allIcons[idx].get());
+        for (const auto& t : m_metroTiles) {
+            if (t.itemIndex == idx) {
+                const float viewH = kMetroWallBot - kMetroWallTop;
+                float ideal = (t.y + t.h * 0.5f) - (kMetroWallTop + viewH * 0.5f);
+                if (ideal < 0.f) ideal = 0.f;
+                m_metroTargetScrollY = ideal;
+                break;
+            }
+        }
         return true;
     }
 
@@ -1190,6 +1238,16 @@ int IconGrid::hitTest(float screenX, float screenY) const {
         return -1;
     }
 
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        for (const auto& t : m_metroTiles) {
+            const float drawY = t.y - m_metroScrollY;
+            const nxui::Rect r{t.x, drawY, t.w, t.h};
+            if (r.contains(screenX, screenY))
+                return t.itemIndex;
+        }
+        return -1;
+    }
+
     if (m_layoutMode == AppLayoutMode::DynamicLine) {
         for (int i = 0; i < (int)m_allIcons.size(); ++i) {
             nxui::Rect r = dynamicIconRect(i);
@@ -1381,6 +1439,29 @@ void IconGrid::onUpdate(float dt) {
             m_listScrollOffset = m_listTargetScroll;
         if (std::abs(prevScroll - m_listScrollOffset) > 0.0001f) {
             syncListChildRects();
+        }
+        return;
+    }
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        const int cur = focusedGlobalIndex();
+        if (cur >= 0) {
+            for (const auto& t : m_metroTiles) {
+                if (t.itemIndex == cur) {
+                    const float viewH = kMetroWallBot - kMetroWallTop;
+                    float ideal = (t.y + t.h * 0.5f) - (kMetroWallTop + viewH * 0.5f);
+                    if (ideal < 0.f) ideal = 0.f;
+                    m_metroTargetScrollY = ideal;
+                    break;
+                }
+            }
+        }
+        const float prevScroll = m_metroScrollY;
+        m_metroScrollY += (m_metroTargetScrollY - m_metroScrollY) * 0.25f;
+        if (std::abs(m_metroTargetScrollY - m_metroScrollY) < 0.2f) {
+            m_metroScrollY = m_metroTargetScrollY;
+        }
+        if (std::abs(prevScroll - m_metroScrollY) > 0.01f) {
+            syncMetroChildRects();
         }
         return;
     }
@@ -3445,11 +3526,422 @@ void IconGrid::renderList(nxui::Renderer& ren) {
     ren.popClipRect();
 }
 
+static float metroTileUnit() {
+    const float aw = 1280.f - IconGrid::kMetroWallMargin * 2.f;
+    const float ah = IconGrid::kMetroWallBot - IconGrid::kMetroWallTop;
+    const float by_w = (aw - (IconGrid::kMetroCols - 1) * IconGrid::kMetroGridGap) / static_cast<float>(IconGrid::kMetroCols);
+    const float by_h = (ah - (IconGrid::kMetroRowsVis - 1) * IconGrid::kMetroGridGap) / static_cast<float>(IconGrid::kMetroRowsVis);
+    return std::max(24.f, std::min(by_w, by_h));
+}
+
+static float metroTilePitch() {
+    return metroTileUnit() + IconGrid::kMetroGridGap;
+}
+
+static float metroTileLeft() {
+    const float wall = IconGrid::kMetroCols * metroTileUnit() + (IconGrid::kMetroCols - 1) * IconGrid::kMetroGridGap;
+    return (1280.f - wall) * 0.5f;
+}
+
+static float metroTileTop() {
+    const float wall = IconGrid::kMetroRowsVis * metroTileUnit() + (IconGrid::kMetroRowsVis - 1) * IconGrid::kMetroGridGap;
+    return IconGrid::kMetroWallTop + ((IconGrid::kMetroWallBot - IconGrid::kMetroWallTop) - wall) * 0.5f;
+}
+
+void IconGrid::buildMetroTiles(std::vector<MetroTileRect>& out) const {
+    out.clear();
+    if (m_allIcons.empty()) return;
+
+    std::vector<int> validIndices;
+    validIndices.reserve(m_allIcons.size());
+    for (int i = 0; i < static_cast<int>(m_allIcons.size()); ++i) {
+        auto& icon = m_allIcons[i];
+        if (!icon) continue;
+        if (icon->entryKind() == GridEntryKind::WidgetContinuation ||
+            icon->entryKind() == GridEntryKind::Empty)
+            continue;
+        validIndices.push_back(i);
+    }
+    if (validIndices.empty()) return;
+
+    const float unit = metroTileUnit();
+    const float pitch = metroTilePitch();
+    const float left = metroTileLeft();
+    const float top = metroTileTop();
+    const int cols = kMetroCols;
+
+    std::vector<std::vector<int>> occ(1024, std::vector<int>(cols, 0));
+    int scan = 0;
+
+    for (int idx : validIndices) {
+        auto& icon = m_allIcons[idx];
+        int sw = 1;
+        int sh = 1;
+        auto it = m_metroTileSpans.find(icon->titleId());
+        if (it != m_metroTileSpans.end() && it->second.first > 0 && it->second.second > 0) {
+            sw = it->second.first;
+            sh = it->second.second;
+        }
+        sw = std::clamp(sw, 1, cols);
+        sh = std::clamp(sh, 1, kMetroRowsVis);
+
+        int placeRow = -1, placeCol = -1;
+        for (int r = scan; r < 1000; ++r) {
+            for (int c = 0; c <= cols - sw; ++c) {
+                bool fits = true;
+                for (int y = 0; y < sh && fits; ++y) {
+                    for (int x = 0; x < sw && fits; ++x) {
+                        if (occ[r + y][c + x] != 0) {
+                            fits = false;
+                        }
+                    }
+                }
+                if (fits) {
+                    placeRow = r;
+                    placeCol = c;
+                    break;
+                }
+            }
+            if (placeRow >= 0) break;
+        }
+
+        if (placeRow < 0) {
+            placeRow = scan;
+            placeCol = 0;
+        }
+
+        for (int y = 0; y < sh; ++y) {
+            for (int x = 0; x < sw; ++x) {
+                occ[placeRow + y][placeCol + x] = 1;
+            }
+        }
+        scan = placeRow;
+
+        MetroTileRect tr;
+        tr.itemIndex = idx;
+        tr.spanW = sw;
+        tr.spanH = sh;
+        tr.row = placeRow;
+        tr.col = placeCol;
+        tr.x = left + placeCol * pitch;
+        tr.y = top + placeRow * pitch;
+        tr.w = sw * unit + (sw - 1) * kMetroGridGap;
+        tr.h = sh * unit + (sh - 1) * kMetroGridGap;
+        out.push_back(tr);
+    }
+}
+
+int IconGrid::metroTileNeighbour(int currentGlobalIndex, int dir) const {
+    if (m_metroTiles.empty()) return currentGlobalIndex;
+
+    int cur = -1;
+    for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+        if (m_metroTiles[i].itemIndex == currentGlobalIndex) {
+            cur = i;
+            break;
+        }
+    }
+    if (cur < 0) return currentGlobalIndex;
+
+    const MetroTileRect& c = m_metroTiles[cur];
+    const int c_r0 = c.row;
+    const int c_r1 = c.row + c.spanH;
+    const int c_c0 = c.col;
+    const int c_c1 = c.col + c.spanW;
+
+    if (dir == 0 || dir == 1) { // 0 = Left, 1 = Right
+        const bool right = (dir == 1);
+        int best = -1;
+        float best_dx = 1e9f;
+        int best_dr = 1000;
+        for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+            if (i == cur) continue;
+            const auto& t = m_metroTiles[i];
+            const int t_r0 = t.row;
+            const int t_r1 = t.row + t.spanH;
+            if (t_r1 <= c_r0 || t_r0 >= c_r1) continue;
+            if (right ? (t.x <= c.x) : (t.x >= c.x)) continue;
+            const float dx = std::abs(t.x - c.x);
+            const int dr = std::abs(t_r0 - c_r0);
+            if (dx < best_dx || (std::abs(dx - best_dx) < 1.f && dr < best_dr)) {
+                best_dx = dx;
+                best_dr = dr;
+                best = i;
+            }
+        }
+        if (best >= 0) return m_metroTiles[best].itemIndex;
+
+        // Wrap to adjacent line
+        if (right) {
+            int nextLineBest = -1;
+            int minRow = 10000;
+            float minX = 1e9f;
+            for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+                const auto& t = m_metroTiles[i];
+                if (t.row >= c_r1) {
+                    if (t.row < minRow || (t.row == minRow && t.x < minX)) {
+                        minRow = t.row;
+                        minX = t.x;
+                        nextLineBest = i;
+                    }
+                }
+            }
+            if (nextLineBest >= 0) return m_metroTiles[nextLineBest].itemIndex;
+        } else {
+            int prevLineBest = -1;
+            int maxRow = -1;
+            float maxX = -1e9f;
+            for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+                const auto& t = m_metroTiles[i];
+                if (t.row + t.spanH <= c_r0) {
+                    if (t.row > maxRow || (t.row == maxRow && t.x > maxX)) {
+                        maxRow = t.row;
+                        maxX = t.x;
+                        prevLineBest = i;
+                    }
+                }
+            }
+            if (prevLineBest >= 0) return m_metroTiles[prevLineBest].itemIndex;
+        }
+        return currentGlobalIndex;
+    }
+
+    if (dir == 2 || dir == 3) { // 2 = Up, 3 = Down
+        const bool down = (dir == 3);
+        int best = -1;
+        float best_dy = 1e9f;
+        float best_overlap = -1.f;
+        for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+            if (i == cur) continue;
+            const auto& t = m_metroTiles[i];
+            if (down ? (t.y <= c.y) : (t.y >= c.y)) continue;
+            const int t_c0 = t.col;
+            const int t_c1 = t.col + t.spanW;
+            const int overlap = std::max(0, std::min(c_c1, t_c1) - std::max(c_c0, t_c0));
+            const float dy = std::abs(t.y - c.y);
+            if (overlap > 0) {
+                if (dy < best_dy || (std::abs(dy - best_dy) < 1.f && overlap > best_overlap)) {
+                    best_dy = dy;
+                    best_overlap = static_cast<float>(overlap);
+                    best = i;
+                }
+            }
+        }
+        if (best >= 0) return m_metroTiles[best].itemIndex;
+
+        for (int i = 0; i < static_cast<int>(m_metroTiles.size()); ++i) {
+            if (i == cur) continue;
+            const auto& t = m_metroTiles[i];
+            if (down ? (t.y <= c.y) : (t.y >= c.y)) continue;
+            const float dy = std::abs(t.y - c.y);
+            if (dy < best_dy) {
+                best_dy = dy;
+                best = i;
+            }
+        }
+        if (best >= 0) return m_metroTiles[best].itemIndex;
+        return currentGlobalIndex;
+    }
+
+    return currentGlobalIndex;
+}
+
+void IconGrid::layoutMetro() {
+    clearChildren();
+    buildMetroTiles(m_metroTiles);
+    if (m_metroTiles.empty()) return;
+
+    const auto nearestSideTarget = [](const GlossyIcon& source,
+                                      const std::vector<nxui::Widget*>& targets) -> nxui::Widget* {
+        nxui::Widget* best = nullptr;
+        float bestDistance = std::numeric_limits<float>::max();
+        const float sourceY = source.focusRect().y + source.focusRect().height * 0.5f;
+        for (auto* target : targets) {
+            if (!target || !target->isVisible() || !target->isFocusable()) continue;
+            const auto rect = target->focusRect();
+            const float distance = std::abs(rect.y + rect.height * 0.5f - sourceY);
+            if (distance < bestDistance) {
+                best = target;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    };
+
+    for (const auto& tile : m_metroTiles) {
+        if (tile.itemIndex < 0 || tile.itemIndex >= static_cast<int>(m_allIcons.size())) continue;
+        auto& icon = m_allIcons[tile.itemIndex];
+        if (!icon) continue;
+
+        icon->setFocusable(true);
+
+        const int upIdx = metroTileNeighbour(tile.itemIndex, 2);
+        const int downIdx = metroTileNeighbour(tile.itemIndex, 3);
+        const int leftIdx = metroTileNeighbour(tile.itemIndex, 0);
+        const int rightIdx = metroTileNeighbour(tile.itemIndex, 1);
+
+        nxui::Widget* up = (tile.row == 0) ? m_lineUpTarget
+            : ((upIdx != tile.itemIndex && m_allIcons[upIdx]) ? m_allIcons[upIdx].get() : m_lineUpTarget);
+
+        nxui::Widget* down = (downIdx != tile.itemIndex && m_allIcons[downIdx])
+            ? m_allIcons[downIdx].get() : nullptr;
+
+        nxui::Widget* left = (leftIdx != tile.itemIndex && m_allIcons[leftIdx])
+            ? m_allIcons[leftIdx].get() : nearestSideTarget(*icon, m_gridLeftTargets);
+
+        nxui::Widget* right = (rightIdx != tile.itemIndex && m_allIcons[rightIdx])
+            ? m_allIcons[rightIdx].get() : nearestSideTarget(*icon, m_gridRightTargets);
+
+        icon->setCustomNavigation(nxui::FocusDirection::UP, up);
+        icon->setCustomNavigation(nxui::FocusDirection::DOWN, down);
+        icon->setCustomNavigation(nxui::FocusDirection::LEFT, left);
+        icon->setCustomNavigation(nxui::FocusDirection::RIGHT, right);
+
+        addChild(icon);
+    }
+    syncMetroChildRects();
+}
+
+void IconGrid::syncMetroChildRects() {
+    if (m_layoutMode != AppLayoutMode::Metro) return;
+    for (const auto& t : m_metroTiles) {
+        if (t.itemIndex >= 0 && t.itemIndex < static_cast<int>(m_allIcons.size())) {
+            auto& icon = m_allIcons[t.itemIndex];
+            if (icon) {
+                icon->setRect({t.x, t.y - m_metroScrollY, t.w, t.h});
+                icon->setFocusable(icon->entryKind() != GridEntryKind::WidgetContinuation &&
+                                   icon->entryKind() != GridEntryKind::Empty);
+            }
+        }
+    }
+}
+
+void IconGrid::cycleMetroTileSize(int globalIndex) {
+    if (globalIndex < 0 || globalIndex >= static_cast<int>(m_allIcons.size())) return;
+    auto& icon = m_allIcons[globalIndex];
+    if (!icon) return;
+
+    int w = 1, h = 1;
+    auto it = m_metroTileSpans.find(icon->titleId());
+    if (it != m_metroTileSpans.end()) {
+        w = it->second.first;
+        h = it->second.second;
+    }
+
+    if (w == 1 && h == 1) {
+        w = 2; h = 1;
+    } else if (w == 2 && h == 1) {
+        w = 2; h = 2;
+    } else {
+        w = 1; h = 1;
+    }
+
+    m_metroTileSpans[icon->titleId()] = {w, h};
+    if (m_onMetroTileSpanChanged) {
+        m_onMetroTileSpanChanged(icon->titleId(), w, h);
+    }
+
+    layoutMetro();
+    syncMetroChildRects();
+    m_focus.setFocus(icon.get());
+}
+
+void IconGrid::renderMetro(nxui::Renderer& ren) {
+    if (m_allIcons.empty()) return;
+
+    nxui::Font* fontNormal = m_metroContext.fontNormal ? m_metroContext.fontNormal : m_listContext.fontNormal;
+    nxui::Font* fontSmall = m_metroContext.fontSmall ? m_metroContext.fontSmall : m_listContext.fontSmall;
+
+    const int focusedIndex = focusedGlobalIndex();
+
+    // 1. Top large game title
+    if (focusedIndex >= 0 && focusedIndex < static_cast<int>(m_allIcons.size())) {
+        auto* activeIcon = m_allIcons[focusedIndex].get();
+        if (activeIcon && fontNormal) {
+            std::string mainTitle = activeIcon->title();
+            if (mainTitle.empty()) {
+                mainTitle = (activeIcon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+            }
+            ren.drawText(mainTitle, {82.f, 52.f}, fontNormal, nxui::Color::white(), 1.25f);
+        }
+    }
+
+    // 2. Viewport clip for tiles
+    ren.pushClipRect({0.f, kMetroWallTop - 10.f, 1280.f, kMetroWallBot - kMetroWallTop + 20.f});
+
+    for (const auto& t : m_metroTiles) {
+        if (t.itemIndex < 0 || t.itemIndex >= static_cast<int>(m_allIcons.size())) continue;
+        auto& icon = m_allIcons[t.itemIndex];
+        if (!icon) continue;
+
+        const float drawY = t.y - m_metroScrollY;
+        if (drawY + t.h < kMetroWallTop - 40.f || drawY > kMetroWallBot + 40.f) continue;
+
+        float alpha = 1.0f;
+        if (drawY < kMetroWallTop) {
+            alpha = std::clamp((drawY + t.h - kMetroWallTop) / t.h, 0.f, 1.f);
+        } else if (drawY + t.h > kMetroWallBot) {
+            alpha = std::clamp((kMetroWallBot - drawY) / t.h, 0.f, 1.f);
+        }
+        if (alpha <= 0.02f) continue;
+
+        const nxui::Rect tileRect{t.x, drawY, t.w, t.h};
+        const bool isFocused = (t.itemIndex == focusedIndex);
+
+        // Windows 10 Mobile style accent or deep tile card
+        nxui::Color tileBg = (icon->entryKind() == GridEntryKind::Folder || icon->titleId() == 0)
+            ? nxui::Color(0.f, 0.47f, 0.84f, alpha) // Windows 10 Mobile accent blue #0078D7
+            : nxui::Color(0.08f, 0.11f, 0.16f, alpha * 0.95f);
+
+        // Card background
+        ren.drawRoundedRect(tileRect, tileBg, 4.f);
+
+        // Artwork texture
+        if (icon->texture() && icon->texture()->valid()) {
+            ren.drawTextureRounded(icon->texture(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+        }
+
+        // Bottom title scrim
+        const float scrimH = 30.f;
+        const nxui::Rect scrimRect{tileRect.x, tileRect.bottom() - scrimH, tileRect.width, scrimH};
+        ren.drawGradientRect(scrimRect, nxui::Color(0.f, 0.f, 0.f, 0.f),
+                             nxui::Color(0.f, 0.f, 0.f, 0.76f * alpha));
+
+        // Bottom label inside tile
+        if (fontSmall) {
+            std::string label = icon->title();
+            if (label.empty()) label = (icon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+            const float maxTextW = tileRect.width - 14.f;
+            while (label.length() > 3 && fontSmall->measure(label).x * 0.80f > maxTextW) {
+                label.pop_back();
+            }
+            if (label != icon->title() && label.length() > 3) {
+                label += "...";
+            }
+            ren.drawText(label, {tileRect.x + 8.f, tileRect.bottom() - 21.f},
+                         fontSmall, nxui::Color::white().withAlpha(alpha), 0.80f);
+        }
+
+        // Focused tile highlight frame (3px thick outline)
+        if (isFocused) {
+            ren.drawRoundedRectOutline(tileRect.expanded(2.f),
+                                       nxui::Color::white().withAlpha(alpha), 6.f, 3.f);
+        }
+    }
+
+    ren.popClipRect();
+}
+
 void IconGrid::render(nxui::Renderer& ren) {
     if (!m_visible || m_opacity <= 0.f) return;
 
     if (m_layoutMode == AppLayoutMode::List) {
         renderList(ren);
+        return;
+    }
+
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        renderMetro(ren);
         return;
     }
 

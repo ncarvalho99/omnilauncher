@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 struct AppConfig {
     bool  musicEnabled = true;
@@ -42,6 +43,7 @@ struct AppConfig {
     std::string steamGridDbApiKey;
     std::string ytdlBackendUrl;
     std::vector<uint64_t> steamGridDbKnownTitles;
+    std::unordered_map<std::uint64_t, std::pair<int, int>> metroTileSpans;
 
     // Softens the wallpaper and the shapes drifting over it.
     // This was zero on the argument that the blur costs half the wallpaper's

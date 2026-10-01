@@ -1650,6 +1650,8 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         updateGridXmbContext();
     } else if (m_appLayoutMode == AppLayoutMode::List) {
         updateGridListContext();
+    } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+        updateGridMetroContext();
     }
 }
 
@@ -2527,8 +2529,8 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
             model.addEntry({});
         }
     }
-    if (isCarouselLayout() || isXmbLayout() || isListLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover || m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List);
+    if (isCarouselLayout() || isXmbLayout() || isListLayout() || isMetroLayout())
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover || m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro);
     return model;
 }
 
@@ -2604,8 +2606,8 @@ GridModel WiiUMenuApp::buildOpenFolderModel(std::uint32_t folderId) const {
         else
             model.addEntry({});
     }
-    if (isCarouselLayout() || isXmbLayout() || isListLayout())
-        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover || m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List);
+    if (isCarouselLayout() || isXmbLayout() || isListLayout() || isMetroLayout())
+        return compactDynamicLineEntries(model, m_appLayoutMode == AppLayoutMode::Flow || m_appLayoutMode == AppLayoutMode::Shelf || m_appLayoutMode == AppLayoutMode::Deck || m_appLayoutMode == AppLayoutMode::Cover || m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro);
     return model;
 }
 
@@ -2625,7 +2627,7 @@ WiiUMenuApp::StreamPump WiiUMenuApp::gridStreamPump() const {
         pump.perPage = 1;
         return pump;
     }
-    if (isCarouselLayout() || isListLayout()) {
+    if (isCarouselLayout() || isListLayout() || isMetroLayout()) {
         pump.page = std::max(0, m_grid->focusedGlobalIndex());
         pump.perPage = 1;
         return pump;
@@ -2769,6 +2771,28 @@ void WiiUMenuApp::updateGridListContext() {
     m_grid->setGameDetailProvider([this](std::uint64_t titleId) {
         return getGameDetailInfo(titleId);
     });
+}
+
+void WiiUMenuApp::updateGridMetroContext() {
+    if (!m_grid) return;
+    IconGrid::MetroContext ctx;
+    ctx.fontNormal = &m_fontNormal;
+    ctx.fontSmall = &m_fontSmall;
+    m_grid->setMetroContext(ctx);
+    m_grid->setMetroTileSpans(m_config.metroTileSpans);
+    m_grid->onMetroTileSpanChanged([this](std::uint64_t titleId, int spanW, int spanH) {
+        m_config.metroTileSpans[titleId] = {spanW, spanH};
+        m_config.save();
+    });
+}
+
+void WiiUMenuApp::cycleCurrentMetroTileSize() {
+    if (!m_grid || m_appLayoutMode != AppLayoutMode::Metro) return;
+    const int focused = m_grid->focusedGlobalIndex();
+    if (focused >= 0) {
+        m_grid->cycleMetroTileSize(focused);
+        m_audio.playSfx(Sfx::Navigate);
+    }
 }
 
 IconGrid::GameDetailInfo WiiUMenuApp::getGameDetailInfo(std::uint64_t titleId) {
@@ -3062,6 +3086,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
         updateGridXmbContext();
     } else if (m_appLayoutMode == AppLayoutMode::List) {
         updateGridListContext();
+    } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+        updateGridMetroContext();
     }
     m_grid->setup(std::move(icons), columns, rows, metrics.cellW, metrics.cellH,
                   metrics.padX, metrics.padY);
@@ -3070,8 +3096,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
 
     if (m_leftSidebar)  m_leftSidebar->setVisible(true);
     if (m_rightSidebar) m_rightSidebar->setVisible(true);
-    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List)) m_titlePill->setVisible(false);
+    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
+    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro)) m_titlePill->setVisible(false);
     m_grid->onEdgePage([this](int dir) { flipPageFromEdge(dir); });
     m_grid->onEdgePageHold([this](int dir) -> bool {
         if (app().navHoldFrames() < 12)
@@ -4541,7 +4567,8 @@ void WiiUMenuApp::toggleAppLayoutMode() {
         case AppLayoutMode::Deck:        setAppLayoutMode(AppLayoutMode::Cover);       break;
         case AppLayoutMode::Cover:       setAppLayoutMode(AppLayoutMode::Xmb);         break;
         case AppLayoutMode::Xmb:         setAppLayoutMode(AppLayoutMode::List);        break;
-        case AppLayoutMode::List:        setAppLayoutMode(AppLayoutMode::Grid);        break;
+        case AppLayoutMode::List:        setAppLayoutMode(AppLayoutMode::Metro);       break;
+        case AppLayoutMode::Metro:       setAppLayoutMode(AppLayoutMode::Grid);        break;
     }
 }
 
@@ -4705,6 +4732,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             updateGridXmbContext();
         } else if (m_appLayoutMode == AppLayoutMode::List) {
             updateGridListContext();
+        } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+            updateGridMetroContext();
         }
         m_grid->setLayoutMode(m_appLayoutMode);
         // Both carousel views are one wrapping row, so the icon streamer holds
@@ -4726,14 +4755,15 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             m_appLayoutMode != AppLayoutMode::Deck &&
             m_appLayoutMode != AppLayoutMode::Cover &&
             m_appLayoutMode != AppLayoutMode::Xmb &&
-            m_appLayoutMode != AppLayoutMode::List);
+            m_appLayoutMode != AppLayoutMode::List &&
+            m_appLayoutMode != AppLayoutMode::Metro);
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
     if (m_leftSidebar)  m_leftSidebar->setVisible(true);
     if (m_rightSidebar) m_rightSidebar->setVisible(true);
-    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List)) m_titlePill->setVisible(false);
+    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
+    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro)) m_titlePill->setVisible(false);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
@@ -4762,6 +4792,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
             ? i18n.tr("accessibility.layout.xmb", "XMB mode")
         : (m_appLayoutMode == AppLayoutMode::List)
             ? i18n.tr("accessibility.layout.list", "List mode")
+        : (m_appLayoutMode == AppLayoutMode::Metro)
+            ? i18n.tr("accessibility.layout.metro", "Metro live tiles mode")
             : i18n.tr("accessibility.layout.grid", "Grid mode");
     m_accessibility.announce(announcement, true, true);
 
@@ -5577,7 +5609,8 @@ void WiiUMenuApp::buildGrid() {
             m_appLayoutMode != AppLayoutMode::Deck &&
             m_appLayoutMode != AppLayoutMode::Cover &&
             m_appLayoutMode != AppLayoutMode::Xmb &&
-            m_appLayoutMode != AppLayoutMode::List);
+            m_appLayoutMode != AppLayoutMode::List &&
+            m_appLayoutMode != AppLayoutMode::Metro);
     // buildGrid() creates the grid and calls setup() directly, without going
     // through applyDisplayModel(), which is the only other place that sets this.
     // The grid therefore stayed in its default page mode after a restart while
@@ -5593,6 +5626,8 @@ void WiiUMenuApp::buildGrid() {
         updateGridXmbContext();
     } else if (m_appLayoutMode == AppLayoutMode::List) {
         updateGridListContext();
+    } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+        updateGridMetroContext();
     }
     m_grid->setup(std::move(icons),
                   std::clamp(m_config.gridColumns, 3, 8),
@@ -6650,9 +6685,9 @@ void WiiUMenuApp::finalizeRefresh() {
         updateCursor();
     });
 
-    // Load textures for the restored page. XMB and List have no restored page --
+    // Load textures for the restored page. XMB, List, and Metro have no restored page --
     // their window follows the selection -- so they take the shared pump instead.
-    if (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List) {
+    if (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro) {
         pumpIconStreamer();
     } else {
         int page = m_refreshPrevPage > 0 ? m_refreshPrevPage : 0;
@@ -7435,6 +7470,8 @@ void WiiUMenuApp::onUpdate(float dt) {
                 updateGridXmbContext();
             } else if (m_appLayoutMode == AppLayoutMode::List) {
                 updateGridListContext();
+            } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+                updateGridMetroContext();
             }
             DebugLog::log("[init] deferred initial icon/sidebar uploads done");
         }

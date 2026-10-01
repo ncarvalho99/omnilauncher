@@ -106,7 +106,7 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
         SettingItem it;
         it.label = i18n.tr("settings.display.launcher_view", "Launcher View");
         it.description = i18n.tr("settings.display.launcher_view_desc",
-                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, 3D Shelf, 3D Deck, Fullscreen Cover, or XMB.");
+                                 "Choose between standard Grid, Dynamic Line carousel, 3D Flow, 3D Shelf, 3D Deck, Fullscreen Cover, XMB, List (Niagara), or Metro (Live Tiles).");
         it.type = ItemType::Selector;
         it.options = {
             i18n.tr("settings.layout.grid", "Grid"),
@@ -117,8 +117,10 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
             i18n.tr("settings.layout.cover", "Cover"),
             i18n.tr("settings.layout.xmb", "XMB"),
             i18n.tr("settings.layout.list", "List (Niagara)"),
+            i18n.tr("settings.layout.metro", "Metro (Live Tiles)"),
         };
-        it.intVal = screen.m_layoutMode == AppLayoutMode::List  ? 7
+        it.intVal = screen.m_layoutMode == AppLayoutMode::Metro ? 8
+                  : screen.m_layoutMode == AppLayoutMode::List  ? 7
                   : screen.m_layoutMode == AppLayoutMode::Xmb   ? 6
                   : screen.m_layoutMode == AppLayoutMode::Cover ? 5
                   : screen.m_layoutMode == AppLayoutMode::Deck  ? 4
@@ -126,7 +128,8 @@ ThemeShopScreen::Tab themeshop::tabs::OptionsTab::build(ThemeShopScreen& screen)
                   : screen.m_layoutMode == AppLayoutMode::Flow  ? 2
                   : screen.m_layoutMode == AppLayoutMode::DynamicLine ? 1 : 0;
         it.onChange = [&screen](SettingItem& self) {
-            AppLayoutMode mode = self.intVal == 7 ? AppLayoutMode::List
+            AppLayoutMode mode = self.intVal == 8 ? AppLayoutMode::Metro
+                               : self.intVal == 7 ? AppLayoutMode::List
                                : self.intVal == 6 ? AppLayoutMode::Xmb
                                : self.intVal == 5 ? AppLayoutMode::Cover
                                : self.intVal == 4 ? AppLayoutMode::Deck

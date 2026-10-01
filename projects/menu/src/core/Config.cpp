@@ -82,8 +82,20 @@ bool AppConfig::load() {
             appLayoutMode = AppLayoutMode::Xmb;
         else if (mode == "list")
             appLayoutMode = AppLayoutMode::List;
+        else if (mode == "metro" || mode == "tiles")
+            appLayoutMode = AppLayoutMode::Metro;
         else if (mode == "grid")
             appLayoutMode = AppLayoutMode::Grid;
+    }
+    if (j.contains("metroTileSpans") && j["metroTileSpans"].is_object()) {
+        for (auto it = j["metroTileSpans"].begin(); it != j["metroTileSpans"].end(); ++it) {
+            try {
+                std::uint64_t tid = std::stoull(it.key(), nullptr, 16);
+                if (it.value().is_array() && it.value().size() == 2) {
+                    metroTileSpans[tid] = {it.value()[0].get<int>(), it.value()[1].get<int>()};
+                }
+            } catch (...) {}
+        }
     }
     readJsonOpt(j, "actionHintStyle", actionHintStyle);
     readJsonOpt(j, "uiLanguageOverride", uiLanguageOverride);
@@ -224,7 +236,17 @@ bool AppConfig::save() const {
                        : appLayoutMode == AppLayoutMode::Cover       ? "cover"
                        : appLayoutMode == AppLayoutMode::Xmb         ? "xmb"
                        : appLayoutMode == AppLayoutMode::List        ? "list"
+                       : appLayoutMode == AppLayoutMode::Metro       ? "metro"
                                                                      : "grid";
+    if (!metroTileSpans.empty()) {
+        nlohmann::json spansObj = nlohmann::json::object();
+        for (const auto& kv : metroTileSpans) {
+            char tidHex[32];
+            std::snprintf(tidHex, sizeof(tidHex), "%016llx", static_cast<unsigned long long>(kv.first));
+            spansObj[tidHex] = {kv.second.first, kv.second.second};
+        }
+        j["metroTileSpans"] = spansObj;
+    }
     j["actionHintStyle"] = actionHintStyle == "panel" ? "panel" : "capsules";
     j["uiLanguageOverride"] = uiLanguageOverride;
     j["soundPreset"] = soundPreset;

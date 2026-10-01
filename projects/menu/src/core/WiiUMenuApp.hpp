@@ -180,6 +180,8 @@ private:
     void applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate);
     void updateGridXmbContext();
     void updateGridListContext();
+    void updateGridMetroContext();
+    void cycleCurrentMetroTileSize();
     IconGrid::GameDetailInfo getGameDetailInfo(std::uint64_t titleId);
     std::string getOrFetchSummary(std::uint64_t titleId);
     void triggerSummaryFetchIfNeeded(std::uint64_t titleId);
@@ -496,6 +498,9 @@ private:
     }
     bool isListLayout() const {
         return m_appLayoutMode == AppLayoutMode::List;
+    }
+    bool isMetroLayout() const {
+        return m_appLayoutMode == AppLayoutMode::Metro;
     }
     warawara::MiiAvatarManager& miiAvatarManager() { return m_miiAvatarManager; }
     const warawara::MiiAvatarManager& miiAvatarManager() const { return m_miiAvatarManager; }

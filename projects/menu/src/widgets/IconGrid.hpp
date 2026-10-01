@@ -41,6 +41,7 @@ public:
     bool isCover() const { return m_layoutMode == AppLayoutMode::Cover; }
     bool isXmb() const { return m_layoutMode == AppLayoutMode::Xmb; }
     bool isList() const { return m_layoutMode == AppLayoutMode::List; }
+    bool isMetro() const { return m_layoutMode == AppLayoutMode::Metro; }
     bool is3D() const {
         return m_layoutMode == AppLayoutMode::Flow
             || m_layoutMode == AppLayoutMode::Shelf
@@ -154,6 +155,46 @@ public:
     void layoutList();
     void syncListChildRects();
     void renderList(nxui::Renderer& ren);
+
+    struct MetroContext {
+        nxui::Font* fontNormal = nullptr;
+        nxui::Font* fontSmall = nullptr;
+    };
+    struct MetroTileRect {
+        int itemIndex = -1;
+        float x = 0.f;
+        float y = 0.f;
+        float w = 0.f;
+        float h = 0.f;
+        int spanW = 1;
+        int spanH = 1;
+        int row = 0;
+        int col = 0;
+    };
+    static constexpr float kMetroWallMargin = 32.f;
+    static constexpr float kMetroWallTop    = 108.f;
+    static constexpr float kMetroWallBot    = 660.f;
+    static constexpr float kMetroGridGap    = 12.f;
+    static constexpr int   kMetroCols       = 6;
+    static constexpr int   kMetroRowsVis    = 3;
+
+    void setMetroContext(const MetroContext& ctx) { m_metroContext = ctx; }
+    const MetroContext& metroContext() const { return m_metroContext; }
+    void setMetroTileSpans(const std::unordered_map<std::uint64_t, std::pair<int, int>>& spans) {
+        m_metroTileSpans = spans;
+    }
+    const std::unordered_map<std::uint64_t, std::pair<int, int>>& metroTileSpans() const {
+        return m_metroTileSpans;
+    }
+    void onMetroTileSpanChanged(std::function<void(std::uint64_t, int, int)> cb) {
+        m_onMetroTileSpanChanged = std::move(cb);
+    }
+    void cycleMetroTileSize(int globalIndex);
+    void buildMetroTiles(std::vector<MetroTileRect>& out) const;
+    int metroTileNeighbour(int currentGlobalIndex, int dir) const;
+    void layoutMetro();
+    void syncMetroChildRects();
+    void renderMetro(nxui::Renderer& ren);
 
     void setXmbContext(const XmbContext& ctx);
     void stepXmb(int dCol, int dItem);
@@ -346,6 +387,14 @@ private:
     GameDetailProvider m_gameDetailProvider;
     float m_listScrollOffset = 0.0f;
     float m_listTargetScroll = 0.0f;
+
+    // Metro (Live Tiles) state
+    MetroContext m_metroContext;
+    std::unordered_map<std::uint64_t, std::pair<int, int>> m_metroTileSpans;
+    std::vector<MetroTileRect> m_metroTiles;
+    float m_metroScrollY = 0.0f;
+    float m_metroTargetScrollY = 0.0f;
+    std::function<void(std::uint64_t, int, int)> m_onMetroTileSpanChanged;
 
     // XMB Cross-Media Bar state
     XmbContext m_xmbContext;
