@@ -1266,11 +1266,10 @@ void WiiUMenuApp::wireGlobalActions() {
         if (m_navigator.route() != switchu::navigation::Route::Home ||
             focusRoot() != &rootBox())
             return;
-        if (m_launcher.suspendedTitleId() == 0) return;
         auto* cur = focusManager().current();
         if (!cur || cur->tag() != "glossy_icon") return;
         auto* icon = static_cast<GlossyIcon*>(cur);
-        if (!m_launcher.isAppSuspended(icon->titleId())) return;
+        if (m_launcher.suspendedTitleId() != 0 && m_launcher.isAppSuspended(icon->titleId())) {
 
         m_audio.playSfx(Sfx::ModalShow);
         m_dialogReturnFocus = cur;
@@ -1292,6 +1291,9 @@ void WiiUMenuApp::wireGlobalActions() {
             {}
         );
         focusManager().setFocus(m_dialog.get());
+        return;
+    }
+    showIconOptions();
     });
 #endif
 }

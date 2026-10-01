@@ -39,6 +39,22 @@ extern "C" size_t g_switchuHeapSize;
 
 namespace {
 
+std::string urlEncode(const std::string& text) {
+    static constexpr char hex[] = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(text.size() * 3);
+    for (unsigned char ch : text) {
+        if (std::isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+            out.push_back((char)ch);
+        } else {
+            out += '%';
+            out += hex[ch >> 4];
+            out += hex[ch & 0x0F];
+        }
+    }
+    return out;
+}
+
 static constexpr const char* kLayoutPath = "sdmc:/config/SwitchU/layout.json";
 
 // A controller that cannot press A is worth being able to tell apart after the
@@ -2750,6 +2766,151 @@ void WiiUMenuApp::updateGridListContext() {
     ctx.fontNormal = &m_fontNormal;
     ctx.fontSmall = &m_fontSmall;
     m_grid->setListContext(ctx);
+    m_grid->setGameDetailProvider([this](std::uint64_t titleId) {
+        return getGameDetailInfo(titleId);
+    });
+}
+
+IconGrid::GameDetailInfo WiiUMenuApp::getGameDetailInfo(std::uint64_t titleId) {
+    IconGrid::GameDetailInfo info;
+    if (titleId == 0) return info;
+
+    // 1. Local control cache (Publisher, Version)
+    switchu::control_cache::Meta meta{};
+    if (switchu::control_cache::readMeta(titleId, meta)) {
+        if (meta.publisher[0] != '\0') info.publisher = meta.publisher;
+        if (meta.display_version[0] != '\0') info.version = meta.display_version;
+    }
+
+    // Storage: Check if game card or SD
+    auto* cur = focusManager().current();
+    if (cur && cur->tag() == "glossy_icon") {
+        auto* icon = static_cast<GlossyIcon*>(cur);
+        if (icon->titleId() == titleId && icon->isGameCard()) {
+            info.storage = "Game Card";
+        } else {
+            info.storage = "Installed";
+        }
+    }
+
+    // 2. Play stats from ActivityLogManager
+    const auto* stats = m_activityLogManager.findTitleStats(titleId);
+    if (stats) {
+        if (stats->totalPlaytimeSeconds > 0) {
+            std::uint64_t mins = stats->totalPlaytimeSeconds / 60;
+            if (mins < 60) {
+                info.playtime = std::to_string(mins) + " mins";
+            } else {
+                std::uint64_t hrs = mins / 60;
+                std::uint64_t remM = mins % 60;
+                info.playtime = remM == 0 ? (std::to_string(hrs) + " hrs")
+                                          : (std::to_string(hrs) + " hrs " + std::to_string(remM) + " mins");
+            }
+        }
+        if (stats->totalLaunches > 0) {
+            info.playCount = std::to_string(stats->totalLaunches) + (stats->totalLaunches == 1 ? " play" : " plays");
+        }
+        if (stats->lastPlayedTimestamp > 0) {
+            std::time_t t = static_cast<std::time_t>(stats->lastPlayedTimestamp);
+            std::tm tmVal{};
+            #if defined(_WIN32)
+            localtime_s(&tmVal, &t);
+            #else
+            localtime_r(&t, &tmVal);
+            #endif
+            char dateBuf[32];
+            std::strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d", &tmVal);
+            info.lastPlayed = dateBuf;
+        }
+    }
+
+    // 3. Synopsis / Summary
+    info.summary = getOrFetchSummary(titleId);
+
+    return info;
+}
+
+std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
+    if (titleId == 0) return {};
+
+    // 1. In-memory cache
+    {
+        std::lock_guard<std::mutex> lock(m_summaryMutex);
+        auto it = m_summaryCache.find(titleId);
+        if (it != m_summaryCache.end()) {
+            return it->second;
+        }
+    }
+
+    // 2. SD card cache: sdmc:/config/SwitchU/metadata/<hexTitleId>.txt
+    char hexBuf[17];
+    std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
+    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
+
+    std::ifstream file(path);
+    if (file.is_open()) {
+        std::string summary((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+        if (!summary.empty()) {
+            std::lock_guard<std::mutex> lock(m_summaryMutex);
+            m_summaryCache[titleId] = summary;
+            return summary;
+        }
+    }
+
+    // 3. If not cached, trigger async background fetch via thread pool
+    {
+        std::lock_guard<std::mutex> lock(m_summaryMutex);
+        if (m_summaryPending.find(titleId) != m_summaryPending.end()) {
+            return {}; // Already loading
+        }
+        m_summaryPending.insert(titleId);
+    }
+
+    // Get title name
+    std::string titleName;
+    for (const auto& app : m_allApps) {
+        if (app.titleId == titleId) {
+            titleName = app.title;
+            break;
+        }
+    }
+
+    if (!titleName.empty()) {
+        m_threadPool.submit([this, titleId, titleName, path]() {
+            try {
+                const std::string query = "?title=" + urlEncode(titleName)
+                    + "&platform=Switch"
+                    + "&language=" + urlEncode(nxui::I18n::instance().activeLanguageTag());
+                const std::string url = std::string("https://switchu-api.nclabs.dev/v1/metadata") + query;
+                const std::string responseText = themeshop::http::getText(url);
+                const nlohmann::json json = nlohmann::json::parse(responseText);
+
+                std::string summary;
+                if (json.contains("summary") && json["summary"].is_string()) {
+                    summary = json["summary"].get<std::string>();
+                } else if (json.contains("storyline") && json["storyline"].is_string()) {
+                    summary = json["storyline"].get<std::string>();
+                }
+
+                if (!summary.empty()) {
+                    std::filesystem::create_directories("sdmc:/config/SwitchU/metadata");
+                    std::ofstream out(path);
+                    if (out.is_open()) {
+                        out << summary;
+                    }
+                    std::lock_guard<std::mutex> lock(m_summaryMutex);
+                    m_summaryCache[titleId] = summary;
+                }
+            } catch (...) {
+                // Offline or not found; ignore silently
+            }
+            std::lock_guard<std::mutex> lock(m_summaryMutex);
+            m_summaryPending.erase(titleId);
+        });
+    }
+
+    return {};
 }
 
 void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate) {

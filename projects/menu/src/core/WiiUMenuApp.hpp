@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_set>
 #include <nxui/Activity.hpp>
 #include <nxui/Application.hpp>
 #include <nxui/core/Font.hpp>
@@ -179,6 +180,8 @@ private:
     void applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate);
     void updateGridXmbContext();
     void updateGridListContext();
+    IconGrid::GameDetailInfo getGameDetailInfo(std::uint64_t titleId);
+    std::string getOrFetchSummary(std::uint64_t titleId);
     // The streamer thinks in pages. Each view has to say which "page" it is on
     // and how many icons that page holds, and the three models answer
     // differently: the paged grid reports its real page, the carousel reports
@@ -867,6 +870,10 @@ private:
 
     float m_returnFadeTimer = 0.f;
     float m_tutorialStartupFadeTimer = 0.f;
+
+    std::mutex m_summaryMutex;
+    std::unordered_map<std::uint64_t, std::string> m_summaryCache;
+    std::unordered_set<std::uint64_t> m_summaryPending;
     std::uint64_t m_tutorialStartupFadeDeadlineTick = 0;
     bool  m_tutorialStartupFade = false;
     bool m_hintPanelInitialized = false;

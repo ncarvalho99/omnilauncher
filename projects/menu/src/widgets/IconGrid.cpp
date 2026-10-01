@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <cstdio>
 #include <string>
+#include <sstream>
+#include <vector>
 #include <mutex>
 #include <unordered_map>
 
@@ -3186,14 +3188,14 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             }
 
             // Big Artwork / Icon
-            constexpr float kArtSize = 224.f;
+            constexpr float kArtSize = 200.f;
             const float artX = heroPanelRect.x + (heroPanelRect.width - kArtSize) * 0.5f;
-            const float artY = heroPanelRect.y + 46.f;
+            const float artY = heroPanelRect.y + 38.f;
             const nxui::Rect artRect{artX, artY, kArtSize, kArtSize};
 
             // Subtle drop shadow / border
             ren.drawRoundedRect(artRect.expanded(3.f), nxui::Color(0.f, 0.f, 0.f, 0.45f), 16.f);
-            ren.drawRoundedRectOutline(artRect.expanded(1.f), nxui::Color(1.f, 1.f, 1.f, 0.20f), 15.f, 1.5f);
+            ren.drawRoundedRectOutline(artRect.expanded(1.f), nxui::Color(1.f, 1.f, 1.f, 0.22f), 15.f, 1.5f);
 
             if (activeIcon->texture() && activeIcon->texture()->valid()) {
                 ren.drawTextureRounded(activeIcon->texture(), artRect, 14.f);
@@ -3204,41 +3206,142 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             // Game Card badge on art
             if (activeIcon->isGameCard() && activeIcon->gameCardTexture() && activeIcon->gameCardTexture()->valid()) {
                 ren.drawTextureRounded(activeIcon->gameCardTexture(),
-                                       {artRect.x + 10.f, artRect.y + 10.f, 28.f, 28.f}, 4.f);
+                                       {artRect.x + 8.f, artRect.y + 8.f, 28.f, 28.f}, 4.f);
             }
 
             // Title
-            float titleY = artRect.bottom() + 18.f;
+            float currentY = artRect.bottom() + 14.f;
             if (fontNormal) {
                 std::string titleStr = activeIcon->title();
                 if (titleStr.empty()) titleStr = (activeIcon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
-                constexpr float maxTitleW = 420.f;
+                constexpr float maxTitleW = 428.f;
                 while (titleStr.length() > 3 && fontNormal->measure(titleStr).x * 1.0f > maxTitleW) {
                     titleStr.pop_back();
                 }
                 if (titleStr != activeIcon->title() && titleStr.length() > 3) {
                     titleStr += "...";
                 }
-                ren.drawText(titleStr, {heroPanelRect.x + 28.f, titleY},
+                ren.drawText(titleStr, {heroPanelRect.x + 28.f, currentY},
                              fontNormal, nxui::Color::white(), 1.0f);
+                currentY += 28.f;
             }
 
-            // Playtime or Folder stats
-            float statsY = titleY + 36.f;
+            // Query Rich Details from provider
+            GameDetailInfo details;
+            if (m_gameDetailProvider && activeIcon->titleId() != 0) {
+                details = m_gameDetailProvider(activeIcon->titleId());
+            }
+
             if (activeIcon->entryKind() == GridEntryKind::Folder) {
                 if (fontSmall) {
-                    ren.drawText("Game Folder", {heroPanelRect.x + 28.f, statsY},
+                    ren.drawText("Game Folder", {heroPanelRect.x + 28.f, currentY},
                                  fontSmall, nxui::Color(0.40f, 0.82f, 1.0f, 0.90f), 0.82f);
                 }
-            } else if (!activeIcon->playtimeBadge().empty()) {
-                if (fontSmall) {
-                    ren.drawText(activeIcon->playtimeBadge(), {heroPanelRect.x + 28.f, statsY},
-                                 fontSmall, nxui::Color(0.38f, 0.85f, 1.0f, 0.90f), 0.82f);
+            } else if (fontSmall) {
+                // Row 1: Frosted Meta Tag Badges (Publisher, Version, Storage)
+                float pillX = heroPanelRect.x + 28.f;
+                const float pillY = currentY + 2.f;
+                const float pillH = 20.f;
+
+                auto drawTagPill = [&](const std::string& text, const nxui::Color& bgCol, const nxui::Color& textCol) {
+                    if (text.empty()) return;
+                    const float textW = fontSmall->measure(text).x * 0.62f;
+                    const float pillW = textW + 16.f;
+                    const nxui::Rect pillR{pillX, pillY, pillW, pillH};
+                    ren.drawRoundedRect(pillR, bgCol, 5.f);
+                    ren.drawText(text, {pillX + 8.f, pillY + 3.f}, fontSmall, textCol, 0.62f);
+                    pillX += pillW + 8.f;
+                };
+
+                if (!details.publisher.empty()) {
+                    drawTagPill(details.publisher, nxui::Color(0.12f, 0.45f, 0.85f, 0.35f), nxui::Color(0.80f, 0.90f, 1.0f, 0.95f));
+                }
+                if (!details.version.empty()) {
+                    drawTagPill(details.version, nxui::Color(1.f, 1.f, 1.f, 0.12f), nxui::Color(0.85f, 0.88f, 0.95f, 0.85f));
+                }
+                if (!details.storage.empty()) {
+                    drawTagPill(details.storage, nxui::Color(1.f, 1.f, 1.f, 0.08f), nxui::Color(0.75f, 0.80f, 0.90f, 0.75f));
+                }
+
+                currentY += 28.f;
+
+                // Row 2: Playtime & Play count stats
+                std::string statsLine;
+                if (!details.playtime.empty()) {
+                    statsLine = "Playtime: " + details.playtime;
+                    if (!details.playCount.empty()) {
+                        statsLine += "  (" + details.playCount + ")";
+                    }
+                } else if (!activeIcon->playtimeBadge().empty()) {
+                    statsLine = activeIcon->playtimeBadge();
+                }
+
+                if (!statsLine.empty()) {
+                    ren.drawText(statsLine, {heroPanelRect.x + 28.f, currentY},
+                                 fontSmall, nxui::Color(0.35f, 0.82f, 1.0f, 0.92f), 0.74f);
+                    currentY += 20.f;
+                } else if (!details.lastPlayed.empty()) {
+                    ren.drawText("Last played: " + details.lastPlayed, {heroPanelRect.x + 28.f, currentY},
+                                 fontSmall, nxui::Color(0.70f, 0.76f, 0.88f, 0.80f), 0.70f);
+                    currentY += 20.f;
+                }
+
+                // Row 3: Synopsis / Summary Text (word-wrapped)
+                if (!details.summary.empty()) {
+                    currentY += 4.f;
+                    constexpr float maxSummaryW = 428.f;
+                    std::vector<std::string> words;
+                    std::string word;
+                    std::istringstream iss(details.summary);
+                    while (iss >> word) words.push_back(word);
+
+                    std::string line;
+                    int lineCount = 0;
+                    constexpr int maxLines = 3;
+
+                    for (size_t wi = 0; wi < words.size(); ++wi) {
+                        std::string test = line.empty() ? words[wi] : line + " " + words[wi];
+                        if (fontSmall->measure(test).x * 0.68f > maxSummaryW) {
+                            if (!line.empty()) {
+                                ren.drawText(line, {heroPanelRect.x + 28.f, currentY},
+                                             fontSmall, nxui::Color(0.82f, 0.86f, 0.94f, 0.82f), 0.68f);
+                                currentY += 19.f;
+                                ++lineCount;
+                                if (lineCount >= maxLines - 1) {
+                                    line = words[wi];
+                                    while (wi + 1 < words.size()) {
+                                        std::string nextTest = line + " " + words[wi + 1];
+                                        if (fontSmall->measure(nextTest + "...").x * 0.68f > maxSummaryW) break;
+                                        line = nextTest;
+                                        ++wi;
+                                    }
+                                    if (wi + 1 < words.size()) line += "...";
+                                    ren.drawText(line, {heroPanelRect.x + 28.f, currentY},
+                                                 fontSmall, nxui::Color(0.82f, 0.86f, 0.94f, 0.82f), 0.68f);
+                                    line.clear();
+                                    break;
+                                }
+                                line = words[wi];
+                            } else {
+                                ren.drawText(test, {heroPanelRect.x + 28.f, currentY},
+                                             fontSmall, nxui::Color(0.82f, 0.86f, 0.94f, 0.82f), 0.68f);
+                                currentY += 19.f;
+                                ++lineCount;
+                                line.clear();
+                            }
+                        } else {
+                            line = test;
+                        }
+                    }
+                    if (!line.empty() && lineCount < maxLines) {
+                        ren.drawText(line, {heroPanelRect.x + 28.f, currentY},
+                                     fontSmall, nxui::Color(0.82f, 0.86f, 0.94f, 0.82f), 0.68f);
+                    }
                 }
             }
 
             // Divider line
-            const float divY = heroPanelRect.bottom() - 48.f;
+            const float divY = heroPanelRect.bottom() - 44.f;
             ren.drawLine({heroPanelRect.x + 24.f, divY},
                          {heroPanelRect.right() - 24.f, divY},
                          nxui::Color(1.f, 1.f, 1.f, 0.15f), 1.f);
@@ -3246,9 +3349,9 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             // Action hints at the bottom of the card
             if (fontSmall) {
                 const std::string actionHint = activeIcon->entryKind() == GridEntryKind::Folder
-                    ? "A  Open Folder    X  Options"
-                    : "A  Start Game    X  Options";
-                ren.drawText(actionHint, {heroPanelRect.x + 28.f, divY + 14.f},
+                    ? "A  Open Folder    +  Options"
+                    : "A  Launch    +  Options";
+                ren.drawText(actionHint, {heroPanelRect.x + 28.f, divY + 12.f},
                              fontSmall, nxui::Color(0.72f, 0.78f, 0.88f, 0.80f), 0.72f);
             }
         }

@@ -127,6 +127,17 @@ public:
     static constexpr float kXmbZoomActive  = 1.0f;
     static constexpr float kXmbZoomPassive = 0.55f;
 
+    struct GameDetailInfo {
+        std::string publisher;
+        std::string version;
+        std::string playtime;
+        std::string playCount;
+        std::string lastPlayed;
+        std::string storage;
+        std::string summary;
+    };
+    using GameDetailProvider = std::function<GameDetailInfo(std::uint64_t titleId)>;
+
     struct ListContext {
         nxui::Font* fontNormal = nullptr;
         nxui::Font* fontSmall = nullptr;
@@ -138,6 +149,7 @@ public:
 
     void setListContext(const ListContext& ctx) { m_listContext = ctx; }
     const ListContext& listContext() const { return m_listContext; }
+    void setGameDetailProvider(GameDetailProvider provider) { m_gameDetailProvider = std::move(provider); }
     nxui::Rect listIconRect(int idx) const;
     void layoutList();
     void syncListChildRects();
@@ -331,6 +343,7 @@ private:
 
     // List (Niagara) state
     ListContext m_listContext;
+    GameDetailProvider m_gameDetailProvider;
     float m_listScrollOffset = 0.0f;
     float m_listTargetScroll = 0.0f;
 
