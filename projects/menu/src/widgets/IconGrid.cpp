@@ -9,6 +9,10 @@
 #include <nxui/core/ThreadPool.hpp>
 #include <algorithm>
 #include <cmath>
+#include <ctime>
+#ifdef __SWITCH__
+#include <switch.h>
+#endif
 #include <limits>
 #include <sys/stat.h>
 #include <cstdio>
@@ -693,6 +697,14 @@ int IconGrid::focusedGlobalIndex() const {
     auto* cur = m_focus.current();
     if (!cur)
         return -1;
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        const int total = metroTotalCount();
+        for (int i = 0; i < total; ++i) {
+            if (metroIconAt(i) == cur)
+                return i;
+        }
+        return -1;
+    }
     for (int i = 0; i < (int)m_allIcons.size(); ++i) {
         if (m_allIcons[i].get() == cur)
             return i;
@@ -831,6 +843,23 @@ nxui::Rect IconGrid::focusedDisplayRect() const {
 }
 
 bool IconGrid::focusGlobalIndex(int idx) {
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        if (idx < 0 || idx >= metroTotalCount()) return false;
+        auto icon = metroSharedIconAt(idx);
+        if (!icon || !icon->isFocusable()) return false;
+        m_focus.setFocus(icon.get());
+        for (const auto& t : m_metroTiles) {
+            if (t.itemIndex == idx) {
+                const float viewH = kMetroWallBot - kMetroWallTop;
+                float ideal = (t.y + t.h * 0.5f) - (kMetroWallTop + viewH * 0.5f);
+                if (ideal < 0.f) ideal = 0.f;
+                m_metroTargetScrollY = ideal;
+                break;
+            }
+        }
+        return true;
+    }
+
     if (idx < 0 || idx >= (int)m_allIcons.size())
         return false;
     if (!m_allIcons[idx] || !m_allIcons[idx]->isFocusable())
@@ -844,20 +873,6 @@ bool IconGrid::focusGlobalIndex(int idx) {
     if (m_layoutMode == AppLayoutMode::List) {
         m_focus.setFocus(m_allIcons[idx].get());
         m_listTargetScroll = static_cast<float>(idx);
-        return true;
-    }
-
-    if (m_layoutMode == AppLayoutMode::Metro) {
-        m_focus.setFocus(m_allIcons[idx].get());
-        for (const auto& t : m_metroTiles) {
-            if (t.itemIndex == idx) {
-                const float viewH = kMetroWallBot - kMetroWallTop;
-                float ideal = (t.y + t.h * 0.5f) - (kMetroWallTop + viewH * 0.5f);
-                if (ideal < 0.f) ideal = 0.f;
-                m_metroTargetScrollY = ideal;
-                break;
-            }
-        }
         return true;
     }
 
@@ -1282,6 +1297,14 @@ nxui::Widget* IconGrid::findTopHit(float x, float y) {
         }
         return nullptr;
     }
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        int hit = hitTest(x, y);
+        if (hit >= 0) {
+            auto icon = metroSharedIconAt(hit);
+            if (icon && icon->isFocusable()) return icon.get();
+        }
+        return nullptr;
+    }
     int hit = hitTest(x, y);
     if (hit < 0) return nullptr;
     if (isCarousel()) {
@@ -1296,6 +1319,15 @@ nxui::Widget* IconGrid::findTopHit(float x, float y) {
 }
 
 void IconGrid::startAppearAnimation() {
+    if (m_layoutMode == AppLayoutMode::Metro) {
+        for (auto& icon : m_allIcons) {
+            if (icon) icon->forceVisible();
+        }
+        for (auto& sys : m_metroSystemIcons) {
+            if (sys) sys->forceVisible();
+        }
+        return;
+    }
     if (m_layoutMode == AppLayoutMode::Xmb) {
         // XMB draws one long column, not a page. Taking the paged branch below
         // only started the appear animation for the first cols*rows icons, so
@@ -3548,14 +3580,73 @@ static float metroTileTop() {
     return IconGrid::kMetroWallTop + ((IconGrid::kMetroWallBot - IconGrid::kMetroWallTop) - wall) * 0.5f;
 }
 
+void IconGrid::setupMetroSystemIcons() {
+    if (m_metroSystemIcons.empty()) {
+        m_metroSystemIcons.resize(6);
+        for (auto& sys : m_metroSystemIcons) {
+            sys = std::make_shared<GlossyIcon>();
+            sys->setTag("glossy_icon");
+            sys->setFocusable(true);
+            sys->setVisible(true);
+            sys->setCornerRadius(4.f);
+        }
+    }
+
+    auto bindSysTile = [](const std::shared_ptr<GlossyIcon>& icon,
+                          std::uint64_t fakeTitleId,
+                          const std::string& title,
+                          nxui::Texture* tex,
+                          std::function<void()> act) {
+        icon->setTitleId(fakeTitleId);
+        icon->setTitle(title);
+        icon->setTexture(tex);
+        icon->clearActions();
+        icon->setOnActivate(act);
+        if (act) {
+            icon->addAction(static_cast<uint64_t>(nxui::Button::A), act);
+        }
+    };
+
+    const auto& xmb = m_xmbContext;
+    bindSysTile(m_metroSystemIcons[0], 0xF000000000000001ULL, "Themes", xmb.texThemes, xmb.onOpenThemeShop);
+    bindSysTile(m_metroSystemIcons[1], 0xF000000000000002ULL, "Controllers", xmb.texControllers, xmb.onOpenControllers);
+    bindSysTile(m_metroSystemIcons[2], 0xF000000000000003ULL, "Album", xmb.texAlbum, xmb.onOpenAlbum);
+    bindSysTile(m_metroSystemIcons[3], 0xF000000000000004ULL, "Music", xmb.texMediaCenter, xmb.onOpenMediaCenter);
+    bindSysTile(m_metroSystemIcons[4], 0xF000000000000005ULL, "Settings", xmb.texSettings, xmb.onOpenSettings);
+    bindSysTile(m_metroSystemIcons[5], 0xF000000000000006ULL, "Homebrew", xmb.texHomebrew ? xmb.texHomebrew : xmb.texSettings, xmb.onOpenHbMenu);
+}
+
+std::shared_ptr<GlossyIcon> IconGrid::metroSharedIconAt(int globalIndex) const {
+    if (globalIndex >= 0 && globalIndex < 6) {
+        if (globalIndex < static_cast<int>(m_metroSystemIcons.size()))
+            return m_metroSystemIcons[globalIndex];
+        return nullptr;
+    }
+    const int gameIndex = globalIndex - 6;
+    if (gameIndex >= 0 && gameIndex < static_cast<int>(m_allIcons.size())) {
+        return m_allIcons[gameIndex];
+    }
+    return nullptr;
+}
+
+GlossyIcon* IconGrid::metroIconAt(int globalIndex) const {
+    auto sh = metroSharedIconAt(globalIndex);
+    return sh ? sh.get() : nullptr;
+}
+
+int IconGrid::metroTotalCount() const {
+    return 6 + static_cast<int>(m_allIcons.size());
+}
+
 void IconGrid::buildMetroTiles(std::vector<MetroTileRect>& out) const {
     out.clear();
-    if (m_allIcons.empty()) return;
+    const int total = metroTotalCount();
+    if (total <= 0) return;
 
     std::vector<int> validIndices;
-    validIndices.reserve(m_allIcons.size());
-    for (int i = 0; i < static_cast<int>(m_allIcons.size()); ++i) {
-        auto& icon = m_allIcons[i];
+    validIndices.reserve(total);
+    for (int i = 0; i < total; ++i) {
+        auto* icon = metroIconAt(i);
         if (!icon) continue;
         if (icon->entryKind() == GridEntryKind::WidgetContinuation ||
             icon->entryKind() == GridEntryKind::Empty)
@@ -3574,7 +3665,7 @@ void IconGrid::buildMetroTiles(std::vector<MetroTileRect>& out) const {
     int scan = 0;
 
     for (int idx : validIndices) {
-        auto& icon = m_allIcons[idx];
+        auto* icon = metroIconAt(idx);
         int sw = 1;
         int sh = 1;
         auto it = m_metroTileSpans.find(icon->titleId());
@@ -3748,29 +3839,12 @@ int IconGrid::metroTileNeighbour(int currentGlobalIndex, int dir) const {
 
 void IconGrid::layoutMetro() {
     clearChildren();
+    setupMetroSystemIcons();
     buildMetroTiles(m_metroTiles);
     if (m_metroTiles.empty()) return;
 
-    const auto nearestSideTarget = [](const GlossyIcon& source,
-                                      const std::vector<nxui::Widget*>& targets) -> nxui::Widget* {
-        nxui::Widget* best = nullptr;
-        float bestDistance = std::numeric_limits<float>::max();
-        const float sourceY = source.focusRect().y + source.focusRect().height * 0.5f;
-        for (auto* target : targets) {
-            if (!target || !target->isVisible() || !target->isFocusable()) continue;
-            const auto rect = target->focusRect();
-            const float distance = std::abs(rect.y + rect.height * 0.5f - sourceY);
-            if (distance < bestDistance) {
-                best = target;
-                bestDistance = distance;
-            }
-        }
-        return best;
-    };
-
     for (const auto& tile : m_metroTiles) {
-        if (tile.itemIndex < 0 || tile.itemIndex >= static_cast<int>(m_allIcons.size())) continue;
-        auto& icon = m_allIcons[tile.itemIndex];
+        auto icon = metroSharedIconAt(tile.itemIndex);
         if (!icon) continue;
 
         icon->setFocusable(true);
@@ -3780,17 +3854,17 @@ void IconGrid::layoutMetro() {
         const int leftIdx = metroTileNeighbour(tile.itemIndex, 0);
         const int rightIdx = metroTileNeighbour(tile.itemIndex, 1);
 
-        nxui::Widget* up = (tile.row == 0) ? m_lineUpTarget
-            : ((upIdx != tile.itemIndex && m_allIcons[upIdx]) ? m_allIcons[upIdx].get() : m_lineUpTarget);
+        nxui::Widget* up = (tile.row == 0) ? nullptr
+            : ((upIdx != tile.itemIndex) ? metroIconAt(upIdx) : nullptr);
 
-        nxui::Widget* down = (downIdx != tile.itemIndex && m_allIcons[downIdx])
-            ? m_allIcons[downIdx].get() : nullptr;
+        nxui::Widget* down = (downIdx != tile.itemIndex)
+            ? metroIconAt(downIdx) : nullptr;
 
-        nxui::Widget* left = (leftIdx != tile.itemIndex && m_allIcons[leftIdx])
-            ? m_allIcons[leftIdx].get() : nearestSideTarget(*icon, m_gridLeftTargets);
+        nxui::Widget* left = (leftIdx != tile.itemIndex)
+            ? metroIconAt(leftIdx) : nullptr;
 
-        nxui::Widget* right = (rightIdx != tile.itemIndex && m_allIcons[rightIdx])
-            ? m_allIcons[rightIdx].get() : nearestSideTarget(*icon, m_gridRightTargets);
+        nxui::Widget* right = (rightIdx != tile.itemIndex)
+            ? metroIconAt(rightIdx) : nullptr;
 
         icon->setCustomNavigation(nxui::FocusDirection::UP, up);
         icon->setCustomNavigation(nxui::FocusDirection::DOWN, down);
@@ -3805,20 +3879,17 @@ void IconGrid::layoutMetro() {
 void IconGrid::syncMetroChildRects() {
     if (m_layoutMode != AppLayoutMode::Metro) return;
     for (const auto& t : m_metroTiles) {
-        if (t.itemIndex >= 0 && t.itemIndex < static_cast<int>(m_allIcons.size())) {
-            auto& icon = m_allIcons[t.itemIndex];
-            if (icon) {
-                icon->setRect({t.x, t.y - m_metroScrollY, t.w, t.h});
-                icon->setFocusable(icon->entryKind() != GridEntryKind::WidgetContinuation &&
-                                   icon->entryKind() != GridEntryKind::Empty);
-            }
+        auto icon = metroSharedIconAt(t.itemIndex);
+        if (icon) {
+            icon->setRect({t.x, t.y - m_metroScrollY, t.w, t.h});
+            icon->setFocusable(icon->entryKind() != GridEntryKind::WidgetContinuation &&
+                               icon->entryKind() != GridEntryKind::Empty);
         }
     }
 }
 
 void IconGrid::cycleMetroTileSize(int globalIndex) {
-    if (globalIndex < 0 || globalIndex >= static_cast<int>(m_allIcons.size())) return;
-    auto& icon = m_allIcons[globalIndex];
+    auto icon = metroSharedIconAt(globalIndex);
     if (!icon) return;
 
     int w = 1, h = 1;
@@ -3847,31 +3918,58 @@ void IconGrid::cycleMetroTileSize(int globalIndex) {
 }
 
 void IconGrid::renderMetro(nxui::Renderer& ren) {
-    if (m_allIcons.empty()) return;
+    const int total = metroTotalCount();
+    if (total <= 0) return;
+
+    // 1. Full solid black background (pure Windows Phone / sLaunch style)
+    ren.drawRect({0.f, 0.f, 1280.f, 720.f}, nxui::Color(0.f, 0.f, 0.f, 1.f));
 
     nxui::Font* fontNormal = m_metroContext.fontNormal ? m_metroContext.fontNormal : m_listContext.fontNormal;
     nxui::Font* fontSmall = m_metroContext.fontSmall ? m_metroContext.fontSmall : m_listContext.fontSmall;
 
-    const int focusedIndex = focusedGlobalIndex();
+    // 2. Top status line: Left date/clock, Right user & battery
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    char clockBuf[64];
+    strftime(clockBuf, sizeof(clockBuf), "%H:%M   %a %b %d", &tm_now);
 
-    // 1. Top large game title
-    if (focusedIndex >= 0 && focusedIndex < static_cast<int>(m_allIcons.size())) {
-        auto* activeIcon = m_allIcons[focusedIndex].get();
-        if (activeIcon && fontNormal) {
-            std::string mainTitle = activeIcon->title();
-            if (mainTitle.empty()) {
-                mainTitle = (activeIcon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
-            }
-            ren.drawText(mainTitle, {82.f, 52.f}, fontNormal, nxui::Color::white(), 1.25f);
-        }
+    u32 charge = 100;
+    bool isCharging = false;
+#ifdef __SWITCH__
+    psmGetBatteryChargePercentage(&charge);
+    PsmChargerType charger = PsmChargerType_Unconnected;
+    if (R_SUCCEEDED(psmGetChargerType(&charger))) {
+        isCharging = (charger != PsmChargerType_Unconnected);
+    }
+#endif
+    char battBuf[32];
+    std::snprintf(battBuf, sizeof(battBuf), isCharging ? "+%u%%" : "%u%%", static_cast<unsigned int>(charge));
+
+    if (fontSmall) {
+        ren.drawText(clockBuf, {kMetroWallMargin, 18.f}, fontSmall, nxui::Color(0.70f, 0.75f, 0.85f, 0.85f), 0.82f);
+        std::string rightStr = m_metroContext.username.empty() ? battBuf : (m_metroContext.username + "   " + battBuf);
+        const float rightW = fontSmall->measure(rightStr).x * 0.82f;
+        ren.drawText(rightStr, {1280.f - kMetroWallMargin - rightW, 18.f}, fontSmall, nxui::Color(0.70f, 0.75f, 0.85f, 0.85f), 0.82f);
     }
 
-    // 2. Viewport clip for tiles
+    const int focusedIndex = focusedGlobalIndex();
+
+    // 3. Top large game title
+    auto* activeIcon = metroIconAt(focusedIndex);
+    if (activeIcon && fontNormal) {
+        std::string mainTitle = activeIcon->title();
+        if (mainTitle.empty()) {
+            mainTitle = (activeIcon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+        }
+        ren.drawText(mainTitle, {kMetroWallMargin, 56.f}, fontNormal, nxui::Color::white(), 1.30f);
+    }
+
+    // 4. Viewport clip for tiles
     ren.pushClipRect({0.f, kMetroWallTop - 10.f, 1280.f, kMetroWallBot - kMetroWallTop + 20.f});
 
     for (const auto& t : m_metroTiles) {
-        if (t.itemIndex < 0 || t.itemIndex >= static_cast<int>(m_allIcons.size())) continue;
-        auto& icon = m_allIcons[t.itemIndex];
+        auto* icon = metroIconAt(t.itemIndex);
         if (!icon) continue;
 
         const float drawY = t.y - m_metroScrollY;
@@ -3887,45 +3985,61 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
 
         const nxui::Rect tileRect{t.x, drawY, t.w, t.h};
         const bool isFocused = (t.itemIndex == focusedIndex);
+        const bool isSysTile = (t.itemIndex < 6);
 
-        // Windows 10 Mobile style accent or deep tile card
-        nxui::Color tileBg = (icon->entryKind() == GridEntryKind::Folder || icon->titleId() == 0)
-            ? nxui::Color(0.f, 0.47f, 0.84f, alpha) // Windows 10 Mobile accent blue #0078D7
+        // Windows 10 Mobile style accent (#0078D7) for system tiles, deep slate for games
+        nxui::Color tileBg = isSysTile
+            ? nxui::Color(0.f, 0.47f, 0.84f, alpha)
             : nxui::Color(0.08f, 0.11f, 0.16f, alpha * 0.95f);
 
         // Card background
         ren.drawRoundedRect(tileRect, tileBg, 4.f);
 
-        // Artwork texture
-        if (icon->texture() && icon->texture()->valid()) {
-            ren.drawTextureRounded(icon->texture(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+        if (isSysTile) {
+            // System glyph in center
+            if (icon->texture() && icon->texture()->valid()) {
+                const float glyphSize = std::min(56.f, std::min(tileRect.width, tileRect.height) * 0.45f);
+                const nxui::Rect glyphRect{tileRect.x + (tileRect.width - glyphSize) * 0.5f,
+                                           tileRect.y + (tileRect.height - glyphSize) * 0.42f,
+                                           glyphSize, glyphSize};
+                ren.drawTexture(icon->texture(), glyphRect, nxui::Color::white().withAlpha(alpha));
+            }
+            if (fontSmall) {
+                ren.drawText(icon->title(), {tileRect.x + 8.f, tileRect.bottom() - 20.f},
+                             fontSmall, nxui::Color::white().withAlpha(alpha), 0.78f);
+            }
+        } else {
+            // Artwork texture
+            if (icon->texture() && icon->texture()->valid()) {
+                ren.drawTextureRounded(icon->texture(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+            }
+
+            // Bottom title scrim
+            const float scrimH = 30.f;
+            const nxui::Rect scrimRect{tileRect.x, tileRect.bottom() - scrimH, tileRect.width, scrimH};
+            ren.drawGradientRect(scrimRect, nxui::Color(0.f, 0.f, 0.f, 0.f),
+                                 nxui::Color(0.f, 0.f, 0.f, 0.76f * alpha));
+
+            // Bottom label inside tile
+            if (fontSmall) {
+                std::string label = icon->title();
+                if (label.empty()) label = (icon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
+                const float maxTextW = tileRect.width - 14.f;
+                while (label.length() > 3 && fontSmall->measure(label).x * 0.80f > maxTextW) {
+                    label.pop_back();
+                }
+                if (label != icon->title() && label.length() > 3) {
+                    label += "...";
+                }
+                ren.drawText(label, {tileRect.x + 8.f, tileRect.bottom() - 20.f},
+                             fontSmall, nxui::Color::white().withAlpha(alpha), 0.80f);
+            }
         }
 
-        // Bottom title scrim
-        const float scrimH = 30.f;
-        const nxui::Rect scrimRect{tileRect.x, tileRect.bottom() - scrimH, tileRect.width, scrimH};
-        ren.drawGradientRect(scrimRect, nxui::Color(0.f, 0.f, 0.f, 0.f),
-                             nxui::Color(0.f, 0.f, 0.f, 0.76f * alpha));
-
-        // Bottom label inside tile
-        if (fontSmall) {
-            std::string label = icon->title();
-            if (label.empty()) label = (icon->entryKind() == GridEntryKind::Folder ? "Folder" : "Application");
-            const float maxTextW = tileRect.width - 14.f;
-            while (label.length() > 3 && fontSmall->measure(label).x * 0.80f > maxTextW) {
-                label.pop_back();
-            }
-            if (label != icon->title() && label.length() > 3) {
-                label += "...";
-            }
-            ren.drawText(label, {tileRect.x + 8.f, tileRect.bottom() - 21.f},
-                         fontSmall, nxui::Color::white().withAlpha(alpha), 0.80f);
-        }
-
-        // Focused tile highlight frame (3px thick outline)
+        // Focused tile highlight frame: 3px white outline with exact same 4px radius as the tile
         if (isFocused) {
             ren.drawRoundedRectOutline(tileRect.expanded(2.f),
-                                       nxui::Color::white().withAlpha(alpha), 6.f, 3.f);
+                                       nxui::Color::white().withAlpha(alpha), 4.f, 3.f);
         }
     }
 

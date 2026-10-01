@@ -159,6 +159,7 @@ public:
     struct MetroContext {
         nxui::Font* fontNormal = nullptr;
         nxui::Font* fontSmall = nullptr;
+        std::string username;
     };
     struct MetroTileRect {
         int itemIndex = -1;
@@ -195,6 +196,11 @@ public:
     void layoutMetro();
     void syncMetroChildRects();
     void renderMetro(nxui::Renderer& ren);
+    std::shared_ptr<GlossyIcon> metroSharedIconAt(int globalIndex) const;
+    GlossyIcon* metroIconAt(int globalIndex) const;
+    int metroTotalCount() const;
+    void setupMetroSystemIcons();
+    const XmbContext& xmbContext() const { return m_xmbContext; }
 
     void setXmbContext(const XmbContext& ctx);
     void stepXmb(int dCol, int dItem);
@@ -392,6 +398,7 @@ private:
     MetroContext m_metroContext;
     std::unordered_map<std::uint64_t, std::pair<int, int>> m_metroTileSpans;
     std::vector<MetroTileRect> m_metroTiles;
+    std::vector<std::shared_ptr<GlossyIcon>> m_metroSystemIcons;
     float m_metroScrollY = 0.0f;
     float m_metroTargetScrollY = 0.0f;
     std::function<void(std::uint64_t, int, int)> m_onMetroTileSpanChanged;

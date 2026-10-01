@@ -2775,9 +2775,13 @@ void WiiUMenuApp::updateGridListContext() {
 
 void WiiUMenuApp::updateGridMetroContext() {
     if (!m_grid) return;
+    updateGridXmbContext();
     IconGrid::MetroContext ctx;
     ctx.fontNormal = &m_fontNormal;
     ctx.fontSmall = &m_fontSmall;
+    if (!m_userAvatarButtons.empty() && m_userAvatarButtons[0]) {
+        ctx.username = m_userAvatarButtons[0]->nickname();
+    }
     m_grid->setMetroContext(ctx);
     m_grid->setMetroTileSpans(m_config.metroTileSpans);
     m_grid->onMetroTileSpanChanged([this](std::uint64_t titleId, int spanW, int spanH) {
@@ -3094,10 +3098,15 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     applyPlaytimeBadges();
     wireFocusCallback();
 
-    if (m_leftSidebar)  m_leftSidebar->setVisible(true);
-    if (m_rightSidebar) m_rightSidebar->setVisible(true);
-    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro)) m_titlePill->setVisible(false);
+    const bool isMetro = (m_appLayoutMode == AppLayoutMode::Metro);
+    if (m_background)    m_background->setVisible(!isMetro);
+    if (m_clock)         m_clock->setVisible(!isMetro);
+    if (m_userAvatarBar) m_userAvatarBar->setVisible(!isMetro);
+    if (m_battery)       m_battery->setVisible(!isMetro);
+    if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
+    if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
+    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
+    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
     m_grid->onEdgePage([this](int dir) { flipPageFromEdge(dir); });
     m_grid->onEdgePageHold([this](int dir) -> bool {
         if (app().navHoldFrames() < 12)
@@ -4760,10 +4769,15 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_themeShop)
         m_themeShop->setLayoutModeState(m_appLayoutMode);
 
-    if (m_leftSidebar)  m_leftSidebar->setVisible(true);
-    if (m_rightSidebar) m_rightSidebar->setVisible(true);
-    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro)) m_titlePill->setVisible(false);
+    const bool isMetro = (m_appLayoutMode == AppLayoutMode::Metro);
+    if (m_background)    m_background->setVisible(!isMetro);
+    if (m_clock)         m_clock->setVisible(!isMetro);
+    if (m_userAvatarBar) m_userAvatarBar->setVisible(!isMetro);
+    if (m_battery)       m_battery->setVisible(!isMetro);
+    if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
+    if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
+    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
+    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
@@ -6036,6 +6050,16 @@ void WiiUMenuApp::buildGrid() {
     m_contentLayer->addChild(m_titlePill);
     m_contentLayer->addChild(m_pageIndicator);
 
+    const bool isMetro = (m_appLayoutMode == AppLayoutMode::Metro);
+    if (m_background)    m_background->setVisible(!isMetro);
+    if (m_clock)         m_clock->setVisible(!isMetro);
+    if (m_userAvatarBar) m_userAvatarBar->setVisible(!isMetro);
+    if (m_battery)       m_battery->setVisible(!isMetro);
+    if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
+    if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
+    if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
+    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+
     m_overlayLayer = std::make_shared<nxui::Box>();
     m_overlayLayer->setRect({0, 0, 1280, 720});
     m_overlayLayer->setTag("overlayLayer");
@@ -6707,7 +6731,7 @@ void WiiUMenuApp::finalizeRefresh() {
         focusManager().setFocus(currentIcon);
         if (currentIcon->tag() == "glossy_icon") {
             auto* icon = static_cast<GlossyIcon*>(currentIcon);
-            if (icon->titleId() != 0) {
+            if (icon->titleId() != 0 && m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro) {
                 m_titlePill->setText(icon->title());
                 m_titlePill->setVisible(true);
             } else {
@@ -8252,6 +8276,24 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
     if (m_openFolderId != 0)
         add(buttonGlyph(nxui::Button::B), i18n.tr("hint.back", "Back"));
 
+    if (m_appLayoutMode == AppLayoutMode::Metro && focusRoot() == &rootBox()) {
+        nxui::Widget* cur = focusManager().current();
+        if (cur && cur->tag() == "glossy_icon") {
+            auto* icon = static_cast<GlossyIcon*>(cur);
+            if (icon->titleId() >= 0xF000000000000000ULL || icon->entryKind() == GridEntryKind::Folder) {
+                add(buttonGlyph(nxui::Button::A), i18n.tr("hint.open", "Open"));
+            } else if (m_launcher.isAppSuspended(icon->titleId())) {
+                add(buttonGlyph(nxui::Button::A), i18n.tr("hint.resume", "Resume"));
+            } else {
+                add(buttonGlyph(nxui::Button::A), i18n.tr("hint.launch", "Launch"));
+            }
+            add(buttonGlyph(nxui::Button::Y), i18n.tr("hint.tile_size", "Tile Size"));
+            add(buttonGlyph(nxui::Button::Plus), i18n.tr("hint.options", "Options"));
+            add(buttonGlyph(nxui::Button::Minus), i18n.tr("hint.switch_view", "Switch view"));
+            return hints;
+        }
+    }
+
     nxui::Widget* cur = focusManager().current();
     if (cur && cur->tag() == "glossy_icon") {
         auto* icon = static_cast<GlossyIcon*>(cur);
@@ -8422,8 +8464,8 @@ void WiiUMenuApp::renderActionHintBar(nxui::Renderer& ren) {
     // it the space the pill leaves free turns the overlap into a second row,
     // which grows upward and away from the pill. Overlays do not show the pill,
     // so they keep the full width available to stay on a single row.
-    float rowMaxW = (focusRoot() != &rootBox()) ? 1200.f : kHintRowMaxW;
-    if (focusRoot() == &rootBox() && m_titlePill && m_titlePill->isVisible()) {
+    float rowMaxW = (focusRoot() != &rootBox() || m_appLayoutMode == AppLayoutMode::Metro) ? 1200.f : kHintRowMaxW;
+    if (focusRoot() == &rootBox() && m_appLayoutMode != AppLayoutMode::Metro && m_titlePill && m_titlePill->isVisible()) {
         const nxui::Rect pill = m_titlePill->rect();
         if (pill.width > 1.f) {
             const float free = 1280.f - kHintEdgeX - pill.right() - kHintPillGap;

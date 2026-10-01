@@ -945,7 +945,7 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            if (m_grid && (m_grid->isXmb() || isListLayout())) {
+            if (m_grid && (m_grid->isXmb() || isListLayout() || isMetroLayout())) {
                 m_titlePill->setVisible(false);
             } else {
                 m_titlePill->setVisible(true);
@@ -1791,7 +1791,7 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        if (m_grid && m_grid->is3D() && cur->tag() == "glossy_icon") {
+        if (m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro) && cur->tag() == "glossy_icon") {
             m_cursor->setVisible(false);
             return;
         }

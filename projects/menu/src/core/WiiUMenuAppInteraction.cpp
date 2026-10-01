@@ -546,7 +546,7 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            m_titlePill->setVisible(m_appLayoutMode != AppLayoutMode::Xmb);
+            m_titlePill->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
         } else if (cur) {
             refreshGameArtworkBackdrop(0);
             if (m_editMode)
@@ -1406,6 +1406,11 @@ void WiiUMenuApp::wireGlobalActions() {
             (m_folderOptions && m_folderOptions->isActive()) ||
             (m_controllerTest && m_controllerTest->isActive()) ||
             (m_userSelect && m_userSelect->isActive())) {
+            return;
+        }
+
+        if (m_appLayoutMode == AppLayoutMode::Metro) {
+            cycleCurrentMetroTileSize();
             return;
         }
 
