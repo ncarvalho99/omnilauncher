@@ -160,6 +160,12 @@ public:
         nxui::Font* fontNormal = nullptr;
         nxui::Font* fontSmall = nullptr;
         std::string username;
+        nxui::Texture* texThemes = nullptr;
+        nxui::Texture* texControllers = nullptr;
+        nxui::Texture* texAlbum = nullptr;
+        nxui::Texture* texMusic = nullptr;
+        nxui::Texture* texSettings = nullptr;
+        nxui::Texture* texHomebrew = nullptr;
     };
     struct MetroTileRect {
         int itemIndex = -1;

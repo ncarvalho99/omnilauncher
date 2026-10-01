@@ -34,6 +34,26 @@ void MediaCenterButton::onRender(nxui::Renderer& ren) {
     const float alpha = m_opacity * m_panelOpacity;
     if (alpha <= 0.01f) return;
 
+    if (m_metroStyle) {
+        if (!m_metroMusicLoaded) {
+            m_metroMusicLoaded = true;
+            m_metroMusicTex.loadFromFile(ren.gpu(), ren, "romfs:/icons/metro/music.png", 128);
+        }
+        nxui::Color bgCol = nxui::Color(0.f, 0.47f, 0.84f, 0.90f * alpha);
+        ren.drawRoundedRect(m_rect, bgCol, 4.f);
+        if (isFocused()) {
+            ren.drawRoundedRectOutline(m_rect.expanded(2.f), nxui::Color::white().withAlpha(alpha), 4.f, 2.5f);
+        }
+        const float cx = m_rect.x + m_rect.width * 0.5f;
+        const float cy = m_rect.y + m_rect.height * 0.5f;
+        if (m_metroMusicTex.valid()) {
+            constexpr float iconSize = 28.0f;
+            const nxui::Rect iconRect{cx - iconSize * 0.5f, cy - iconSize * 0.5f, iconSize, iconSize};
+            ren.drawTexture(&m_metroMusicTex, iconRect, nxui::Color::white().withAlpha(alpha));
+        }
+        return;
+    }
+
     const float r = cornerRadius();
     const float pulse = 0.5f + 0.5f * std::sin(m_animTime * 3.0f);
 

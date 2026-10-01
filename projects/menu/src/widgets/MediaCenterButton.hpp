@@ -19,6 +19,9 @@ public:
     void setPlaying(bool playing);
     bool isPlaying() const { return m_playing; }
 
+    void setMetroStyle(bool metro) { m_metroStyle = metro; }
+    bool isMetroStyle() const { return m_metroStyle; }
+
     void onActivate(std::function<void()> cb) {
         m_onActivateCb = cb;
         setOnActivate(cb);
@@ -48,6 +51,9 @@ private:
     std::function<void()> m_onActivateCb;
     nxui::Texture m_iconTex;
     bool m_iconLoaded = false;
+    bool m_metroStyle = false;
+    nxui::Texture m_metroMusicTex;
+    bool m_metroMusicLoaded = false;
 };
 
 } // namespace widgets

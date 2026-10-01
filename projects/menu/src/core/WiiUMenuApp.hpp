@@ -610,6 +610,12 @@ private:
     nxui::Texture m_xmbNetworkTex;
     nxui::Texture m_xmbBrowserTex;
     nxui::Texture m_xmbHomebrewTex;
+    nxui::Texture m_metroThemesTex;
+    nxui::Texture m_metroControllersTex;
+    nxui::Texture m_metroAlbumTex;
+    nxui::Texture m_metroMusicTex;
+    nxui::Texture m_metroSettingsTex;
+    nxui::Texture m_metroHomebrewTex;
     nxui::AnimatedFloat m_arrowCenterY;
     bool m_arrowCenterInit = false;
 

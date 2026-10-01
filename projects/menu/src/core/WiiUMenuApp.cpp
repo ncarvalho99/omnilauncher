@@ -1472,6 +1472,14 @@ void WiiUMenuApp::loadStaticTextures() {
                   m_xmbNetworkTex.valid() ? 1 : 0,
                   m_xmbHomebrewTex.valid() ? 1 : 0);
 
+    const std::string metroIconsBase = "romfs:/icons/metro/";
+    m_metroThemesTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "theming.png");
+    m_metroControllersTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "controllers.png");
+    m_metroAlbumTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "album.png");
+    m_metroMusicTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "music.png");
+    m_metroSettingsTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "settings.png");
+    m_metroHomebrewTex.loadFromFile(app().gpu(), app().renderer(), metroIconsBase + "homebrewmenu.png");
+
     m_miiAvatarManager.initialize(app().gpu(), app().renderer(), SD_ASSETS);
     m_plazaDialogueEngine.initialize(SD_ASSETS);
     m_animalesePlayer.initialize(std::string(SD_ASSETS) + "/sounds/animalese");
@@ -2782,18 +2790,38 @@ void WiiUMenuApp::updateGridMetroContext() {
     if (!m_userAvatarButtons.empty() && m_userAvatarButtons[0]) {
         ctx.username = m_userAvatarButtons[0]->nickname();
     }
+    ctx.texThemes = &m_metroThemesTex;
+    ctx.texControllers = &m_metroControllersTex;
+    ctx.texAlbum = &m_metroAlbumTex;
+    ctx.texMusic = &m_metroMusicTex;
+    ctx.texSettings = &m_metroSettingsTex;
+    ctx.texHomebrew = &m_metroHomebrewTex;
     m_grid->setMetroContext(ctx);
     m_grid->setMetroTileSpans(m_config.metroTileSpans);
     m_grid->onMetroTileSpanChanged([this](std::uint64_t titleId, int spanW, int spanH) {
         m_config.metroTileSpans[titleId] = {spanW, spanH};
         m_config.save();
     });
+    for (const auto& kv : m_config.metroTileSpans) {
+        if (kv.second.first == 2 && kv.second.second == 1) {
+            ensureGameArtwork(kv.first);
+            syncGameArtworkTextures(kv.first);
+        }
+    }
 }
 
 void WiiUMenuApp::cycleCurrentMetroTileSize() {
     if (!m_grid || m_appLayoutMode != AppLayoutMode::Metro) return;
     const int focused = m_grid->focusedGlobalIndex();
     if (focused >= 0) {
+        auto icon = m_grid->metroSharedIconAt(focused);
+        if (icon && icon->titleId() != 0 && icon->titleId() < 0xF000000000000000ULL) {
+            ensureGameArtwork(icon->titleId());
+            const auto artwork = m_gameArtwork.find(icon->titleId());
+            if (artwork != m_gameArtwork.end()) {
+                icon->setWideGameTextures(artwork->second.hero.get(), artwork->second.logo.get());
+            }
+        }
         m_grid->cycleMetroTileSize(focused);
         m_audio.playSfx(Sfx::Navigate);
     }
@@ -3107,6 +3135,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
+    if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
     m_grid->onEdgePage([this](int dir) { flipPageFromEdge(dir); });
     m_grid->onEdgePageHold([this](int dir) -> bool {
         if (app().navHoldFrames() < 12)
@@ -3608,9 +3638,16 @@ void WiiUMenuApp::syncGameArtworkTextures(std::uint64_t titleId) {
     const auto artwork = m_gameArtwork.find(titleId);
     if (artwork == m_gameArtwork.end()) return;
     for (const auto& icon : m_grid->allIcons()) {
-        if (icon && icon->entryKind() == GridEntryKind::Application &&
-            icon->titleId() == titleId && icon->gridSpanColumns() > 1 &&
-            icon->gridSpanRows() == 1) {
+        if (!icon || icon->entryKind() != GridEntryKind::Application || icon->titleId() != titleId)
+            continue;
+        bool isWide = (icon->gridSpanColumns() > 1 && icon->gridSpanRows() == 1);
+        if (m_appLayoutMode == AppLayoutMode::Metro) {
+            auto it = m_config.metroTileSpans.find(titleId);
+            if (it != m_config.metroTileSpans.end() && it->second.first == 2 && it->second.second == 1) {
+                isWide = true;
+            }
+        }
+        if (isWide) {
             icon->setWideGameTextures(artwork->second.hero.get(),
                                       artwork->second.logo.get());
         }
@@ -4778,6 +4815,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
+    if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
@@ -6059,6 +6098,8 @@ void WiiUMenuApp::buildGrid() {
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
+    if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
 
     m_overlayLayer = std::make_shared<nxui::Box>();
     m_overlayLayer->setRect({0, 0, 1280, 720});
@@ -9009,7 +9050,7 @@ void WiiUMenuApp::renderPageArrows(nxui::Renderer& ren) {
     if (m_plazaScreen && m_plazaScreen->isActive()) return;
     if (m_navigator.route() != switchu::navigation::Route::Home) return;
     if (focusRoot() != &rootBox()) return;
-    if (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List) return;
+    if (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Metro) return;
 
     constexpr float kGlyphScale = 0.70f;
     auto drawArrow = [&](bool left, const nxui::Texture& texture,

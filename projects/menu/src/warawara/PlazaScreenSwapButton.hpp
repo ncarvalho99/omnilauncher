@@ -19,6 +19,9 @@ public:
     void setPlazaActive(bool active);
     bool isPlazaActive() const { return m_plazaActive; }
 
+    void setMetroStyle(bool metro) { m_metroStyle = metro; }
+    bool isMetroStyle() const { return m_metroStyle; }
+
     void onActivate(std::function<void()> cb) {
         m_onActivateCb = cb;
         setOnActivate(cb);
@@ -49,6 +52,9 @@ private:
     std::function<void()> m_onActivateCb;
     nxui::Texture m_uIconTex;
     bool m_uIconLoaded = false;
+    bool m_metroStyle = false;
+    nxui::Texture m_metroUIconTex;
+    bool m_metroUIconLoaded = false;
 };
 
 } // namespace warawara

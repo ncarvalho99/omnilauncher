@@ -108,6 +108,8 @@ public:
         m_wideGameHero = hero;
         m_wideGameLogo = logo;
     }
+    nxui::Texture* wideGameHero() const { return m_wideGameHero; }
+    nxui::Texture* wideGameLogo() const { return m_wideGameLogo; }
     void setFavorite(bool fav) { m_isFavorite = fav; }
     bool isFavorite() const { return m_isFavorite; }
     int gridSpanColumns() const { return m_widgetColumns; }

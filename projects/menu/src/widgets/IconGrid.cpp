@@ -3608,12 +3608,13 @@ void IconGrid::setupMetroSystemIcons() {
     };
 
     const auto& xmb = m_xmbContext;
-    bindSysTile(m_metroSystemIcons[0], 0xF000000000000001ULL, "Themes", xmb.texThemes, xmb.onOpenThemeShop);
-    bindSysTile(m_metroSystemIcons[1], 0xF000000000000002ULL, "Controllers", xmb.texControllers, xmb.onOpenControllers);
-    bindSysTile(m_metroSystemIcons[2], 0xF000000000000003ULL, "Album", xmb.texAlbum, xmb.onOpenAlbum);
-    bindSysTile(m_metroSystemIcons[3], 0xF000000000000004ULL, "Music", xmb.texMediaCenter, xmb.onOpenMediaCenter);
-    bindSysTile(m_metroSystemIcons[4], 0xF000000000000005ULL, "Settings", xmb.texSettings, xmb.onOpenSettings);
-    bindSysTile(m_metroSystemIcons[5], 0xF000000000000006ULL, "Homebrew", xmb.texHomebrew ? xmb.texHomebrew : xmb.texSettings, xmb.onOpenHbMenu);
+    const auto& metro = m_metroContext;
+    bindSysTile(m_metroSystemIcons[0], 0xF000000000000001ULL, "Themes", metro.texThemes ? metro.texThemes : xmb.texThemes, xmb.onOpenThemeShop);
+    bindSysTile(m_metroSystemIcons[1], 0xF000000000000002ULL, "Controllers", metro.texControllers ? metro.texControllers : xmb.texControllers, xmb.onOpenControllers);
+    bindSysTile(m_metroSystemIcons[2], 0xF000000000000003ULL, "Album", metro.texAlbum ? metro.texAlbum : xmb.texAlbum, xmb.onOpenAlbum);
+    bindSysTile(m_metroSystemIcons[3], 0xF000000000000004ULL, "Music", metro.texMusic ? metro.texMusic : xmb.texMediaCenter, xmb.onOpenMediaCenter);
+    bindSysTile(m_metroSystemIcons[4], 0xF000000000000005ULL, "Settings", metro.texSettings ? metro.texSettings : xmb.texSettings, xmb.onOpenSettings);
+    bindSysTile(m_metroSystemIcons[5], 0xF000000000000006ULL, "Homebrew", metro.texHomebrew ? metro.texHomebrew : (xmb.texHomebrew ? xmb.texHomebrew : xmb.texSettings), xmb.onOpenHbMenu);
 }
 
 std::shared_ptr<GlossyIcon> IconGrid::metroSharedIconAt(int globalIndex) const {
@@ -4009,9 +4010,27 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
                              fontSmall, nxui::Color::white().withAlpha(alpha), 0.78f);
             }
         } else {
-            // Artwork texture
-            if (icon->texture() && icon->texture()->valid()) {
-                ren.drawTextureRounded(icon->texture(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+            // Artwork texture: wide banner if available, or unstretched square icon
+            const bool isWide = (t.spanW == 2 && t.spanH == 1);
+            if (isWide && icon->wideGameHero() && icon->wideGameHero()->valid()) {
+                ren.drawTextureRounded(icon->wideGameHero(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+                if (icon->wideGameLogo() && icon->wideGameLogo()->valid()) {
+                    const float logoW = std::min(240.f, tileRect.width * 0.70f);
+                    const float logoH = std::min(70.f, tileRect.height * 0.45f);
+                    const nxui::Rect logoRect{tileRect.x + (tileRect.width - logoW) * 0.5f,
+                                              tileRect.y + (tileRect.height - logoH) * 0.40f,
+                                              logoW, logoH};
+                    ren.drawTexture(icon->wideGameLogo(), logoRect, nxui::Color::white().withAlpha(alpha));
+                }
+            } else if (icon->texture() && icon->texture()->valid()) {
+                if (isWide) {
+                    const float sqSize = tileRect.height - 12.f;
+                    const nxui::Rect sqRect{tileRect.x + (tileRect.width - sqSize) * 0.5f,
+                                            tileRect.y + 6.f, sqSize, sqSize};
+                    ren.drawTextureRounded(icon->texture(), sqRect, 4.f, nxui::Color::white().withAlpha(alpha));
+                } else {
+                    ren.drawTextureRounded(icon->texture(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+                }
             }
 
             // Bottom title scrim
