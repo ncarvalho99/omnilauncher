@@ -859,6 +859,8 @@ void WiiUMenuApp::syncSteamGridDb() {
         if (state.lastCompletedTitleId != 0
             && state.lastCompletedTitleId != m_steamGridDbLastCompletedTitleId) {
             m_steamGridDbLastCompletedTitleId = state.lastCompletedTitleId;
+            ensureGameArtwork(state.lastCompletedTitleId);
+            syncGameArtworkTextures(state.lastCompletedTitleId);
             if (m_grid && m_grid->focusManager().current()) {
                 auto* focused = m_grid->focusManager().current();
                 if (focused->tag() == "glossy_icon"

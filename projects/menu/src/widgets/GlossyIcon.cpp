@@ -1112,7 +1112,30 @@ void GlossyIcon::onContentRender(nxui::Renderer& ren) {
     if (m_entryKind == GridEntryKind::Application && m_widgetRows > 1) {
         const nxui::Rect card = r.shrunk(std::max(8.f, 10.f * s));
         const float contentRadius = std::max(8.f, rad - 5.f);
-        if (m_tex && m_tex->valid()) {
+        if (m_wideGameHero && m_wideGameHero->valid()) {
+            ren.drawTextureSubRounded(
+                m_wideGameHero, centeredCoverSource(*m_wideGameHero, card), card,
+                contentRadius, nxui::Color::white().withAlpha(m_opacity));
+            if (m_wideGameLogo && m_wideGameLogo->valid()) {
+                const float maxLogoW = card.width * 0.75f;
+                const float maxLogoH = card.height * 0.45f;
+                const float logoAspect = static_cast<float>(m_wideGameLogo->width()) /
+                                         static_cast<float>(std::max(1, m_wideGameLogo->height()));
+                float logoW = maxLogoW;
+                float logoH = maxLogoW / std::max(0.01f, logoAspect);
+                if (logoH > maxLogoH) {
+                    logoH = maxLogoH;
+                    logoW = maxLogoH * logoAspect;
+                }
+                const nxui::Rect logoRect{
+                    card.x + (card.width - logoW) * 0.5f,
+                    card.y + (card.height - logoH) * 0.42f,
+                    logoW,
+                    logoH
+                };
+                ren.drawTexture(m_wideGameLogo, logoRect, nxui::Color::white().withAlpha(m_opacity));
+            }
+        } else if (m_tex && m_tex->valid()) {
             ren.drawTextureRounded(m_tex, card, contentRadius,
                                    nxui::Color::white().withAlpha(m_opacity));
         } else {

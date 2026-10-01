@@ -3918,6 +3918,26 @@ void IconGrid::cycleMetroTileSize(int globalIndex) {
     m_focus.setFocus(icon.get());
 }
 
+static nxui::Rect centeredCoverSource(const nxui::Texture& texture,
+                                      const nxui::Rect& destination) {
+    const float sourceWidth = static_cast<float>(texture.width());
+    const float sourceHeight = static_cast<float>(texture.height());
+    if (sourceWidth <= 0.f || sourceHeight <= 0.f ||
+        destination.width <= 0.f || destination.height <= 0.f)
+        return {0.f, 0.f, sourceWidth, sourceHeight};
+
+    const float sourceAspect = sourceWidth / sourceHeight;
+    const float targetAspect = destination.width / destination.height;
+    if (sourceAspect > targetAspect) {
+        const float croppedWidth = sourceHeight * targetAspect;
+        return {(sourceWidth - croppedWidth) * 0.5f, 0.f,
+                croppedWidth, sourceHeight};
+    }
+    const float croppedHeight = sourceWidth / targetAspect;
+    return {0.f, (sourceHeight - croppedHeight) * 0.5f,
+            sourceWidth, croppedHeight};
+}
+
 void IconGrid::renderMetro(nxui::Renderer& ren) {
     const int total = metroTotalCount();
     if (total <= 0) return;
@@ -4010,15 +4030,27 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
                              fontSmall, nxui::Color::white().withAlpha(alpha), 0.78f);
             }
         } else {
-            // Artwork texture: wide banner if available, or unstretched square icon
+            // Artwork texture: wide banner (2x1) or large square (2x2) if available, or unstretched square icon
             const bool isWide = (t.spanW == 2 && t.spanH == 1);
-            if (isWide && icon->wideGameHero() && icon->wideGameHero()->valid()) {
-                ren.drawTextureRounded(icon->wideGameHero(), tileRect, 4.f, nxui::Color::white().withAlpha(alpha));
+            const bool isLarge = (t.spanW == 2 && t.spanH == 2);
+            if ((isWide || isLarge) && icon->wideGameHero() && icon->wideGameHero()->valid()) {
+                ren.drawTextureSubRounded(
+                    icon->wideGameHero(), centeredCoverSource(*icon->wideGameHero(), tileRect), tileRect,
+                    4.f, nxui::Color::white().withAlpha(alpha));
                 if (icon->wideGameLogo() && icon->wideGameLogo()->valid()) {
-                    const float logoW = std::min(240.f, tileRect.width * 0.70f);
-                    const float logoH = std::min(70.f, tileRect.height * 0.45f);
+                    const float maxLogoW = isLarge ? std::min(260.f, tileRect.width * 0.75f) : std::min(240.f, tileRect.width * 0.70f);
+                    const float maxLogoH = isLarge ? std::min(130.f, tileRect.height * 0.45f) : std::min(70.f, tileRect.height * 0.45f);
+                    const float logoAspect = static_cast<float>(icon->wideGameLogo()->width()) /
+                                             static_cast<float>(std::max(1, icon->wideGameLogo()->height()));
+                    float logoW = maxLogoW;
+                    float logoH = maxLogoW / std::max(0.01f, logoAspect);
+                    if (logoH > maxLogoH) {
+                        logoH = maxLogoH;
+                        logoW = maxLogoH * logoAspect;
+                    }
+                    const float logoCenterY = isLarge ? (tileRect.y + tileRect.height * 0.42f) : (tileRect.y + (tileRect.height - logoH) * 0.40f);
                     const nxui::Rect logoRect{tileRect.x + (tileRect.width - logoW) * 0.5f,
-                                              tileRect.y + (tileRect.height - logoH) * 0.40f,
+                                              isLarge ? (logoCenterY - logoH * 0.5f) : logoCenterY,
                                               logoW, logoH};
                     ren.drawTexture(icon->wideGameLogo(), logoRect, nxui::Color::white().withAlpha(alpha));
                 }

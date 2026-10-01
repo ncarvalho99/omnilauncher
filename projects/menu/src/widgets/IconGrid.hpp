@@ -185,7 +185,10 @@ public:
     static constexpr int   kMetroCols       = 6;
     static constexpr int   kMetroRowsVis    = 3;
 
-    void setMetroContext(const MetroContext& ctx) { m_metroContext = ctx; }
+    void setMetroContext(const MetroContext& ctx) {
+        m_metroContext = ctx;
+        setupMetroSystemIcons();
+    }
     const MetroContext& metroContext() const { return m_metroContext; }
     void setMetroTileSpans(const std::unordered_map<std::uint64_t, std::pair<int, int>>& spans) {
         m_metroTileSpans = spans;

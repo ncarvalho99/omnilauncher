@@ -37,7 +37,7 @@ void MediaCenterButton::onRender(nxui::Renderer& ren) {
     if (m_metroStyle) {
         if (!m_metroMusicLoaded) {
             m_metroMusicLoaded = true;
-            m_metroMusicTex.loadFromFile(ren.gpu(), ren, "romfs:/icons/metro/music.png", 128);
+            m_metroMusicTex.loadFromFile(ren.gpu(), ren, "sdmc:/switch/SwitchU/icons/metro/music.png", 128);
         }
         nxui::Color bgCol = nxui::Color(0.f, 0.47f, 0.84f, 0.90f * alpha);
         ren.drawRoundedRect(m_rect, bgCol, 4.f);
