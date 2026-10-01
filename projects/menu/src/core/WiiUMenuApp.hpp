@@ -182,6 +182,7 @@ private:
     void updateGridListContext();
     IconGrid::GameDetailInfo getGameDetailInfo(std::uint64_t titleId);
     std::string getOrFetchSummary(std::uint64_t titleId);
+    void triggerSummaryFetchIfNeeded(std::uint64_t titleId);
     // The streamer thinks in pages. Each view has to say which "page" it is on
     // and how many icons that page holds, and the three models answer
     // differently: the paged grid reports its real page, the carousel reports
@@ -874,6 +875,10 @@ private:
     std::mutex m_summaryMutex;
     std::unordered_map<std::uint64_t, std::string> m_summaryCache;
     std::unordered_set<std::uint64_t> m_summaryPending;
+    std::unordered_map<std::uint64_t, float> m_summaryFailedCooldown;
+    std::uint64_t m_settledTitleId = 0;
+    float m_settleTimer = 0.f;
+    static constexpr float kMetadataSettleDelay = 0.35f;
     std::uint64_t m_tutorialStartupFadeDeadlineTick = 0;
     bool  m_tutorialStartupFade = false;
     bool m_hintPanelInitialized = false;

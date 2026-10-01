@@ -2840,13 +2840,44 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
         if (it != m_summaryCache.end()) {
             return it->second;
         }
-        if (m_summaryPending.find(titleId) != m_summaryPending.end()) {
-            return {}; // Already loading/pending
+    }
+
+    // 2. SD card cache: sdmc:/config/SwitchU/metadata/<hexTitleId>.txt
+    char hexBuf[17];
+    std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
+    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
+
+    std::ifstream file(path);
+    if (file.is_open()) {
+        std::string summary((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+        if (!summary.empty()) {
+            std::lock_guard<std::mutex> lock(m_summaryMutex);
+            m_summaryCache[titleId] = summary;
+            return summary;
         }
+    }
+
+    return {};
+}
+
+void WiiUMenuApp::triggerSummaryFetchIfNeeded(std::uint64_t titleId) {
+    if (titleId == 0) return;
+
+    // Check memory cache, pending state, and cooldown
+    {
+        std::lock_guard<std::mutex> lock(m_summaryMutex);
+        if (m_summaryCache.find(titleId) != m_summaryCache.end())
+            return;
+        if (m_summaryPending.find(titleId) != m_summaryPending.end())
+            return;
+        auto coolIt = m_summaryFailedCooldown.find(titleId);
+        if (coolIt != m_summaryFailedCooldown.end() && coolIt->second > 0.f)
+            return;
         m_summaryPending.insert(titleId);
     }
 
-    // 2. Get title name
+    // Get title name
     std::string titleName;
     for (const auto& app : m_allApps) {
         if (app.titleId == titleId) {
@@ -2873,9 +2904,8 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
     std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
     std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
 
-    // 3. Submit async worker for SD read and/or network fetch
     m_threadPool.submit([this, titleId, titleName, path]() {
-        // First check SD cache
+        // Check SD cache first
         std::ifstream file(path);
         if (file.is_open()) {
             std::string diskSummary((std::istreambuf_iterator<char>(file)),
@@ -2916,18 +2946,22 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
                     DebugLog::log("[metadata] Saved summary for '%s' (%zu chars)", titleName.c_str(), summary.size());
                 } else {
                     DebugLog::log("[metadata] No summary in response for '%s'", titleName.c_str());
+                    std::lock_guard<std::mutex> lock(m_summaryMutex);
+                    m_summaryFailedCooldown[titleId] = 60.f;
                 }
             } catch (const std::exception& e) {
                 DebugLog::log("[metadata] Summary fetch failed for '%s': %s", titleName.c_str(), e.what());
+                std::lock_guard<std::mutex> lock(m_summaryMutex);
+                m_summaryFailedCooldown[titleId] = 60.f;
             } catch (...) {
                 DebugLog::log("[metadata] Summary fetch failed for '%s': unknown error", titleName.c_str());
+                std::lock_guard<std::mutex> lock(m_summaryMutex);
+                m_summaryFailedCooldown[titleId] = 60.f;
             }
         }
         std::lock_guard<std::mutex> lock(m_summaryMutex);
         m_summaryPending.erase(titleId);
     });
-
-    return {};
 }
 
 void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool animate) {
@@ -6920,6 +6954,42 @@ void WiiUMenuApp::onUpdate(float dt) {
     syncWidgetIconContent();
     syncFolderPreviews();
     pollGameArtworkAssets();
+
+    // Update metadata failed cooldown timers
+    {
+        std::lock_guard<std::mutex> lock(m_summaryMutex);
+        for (auto it = m_summaryFailedCooldown.begin(); it != m_summaryFailedCooldown.end(); ) {
+            it->second -= dt;
+            if (it->second <= 0.f) {
+                it = m_summaryFailedCooldown.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // Debounce metadata fetch for settled game in List mode
+    if (isListLayout() && !m_lockScreen.isLocked() && m_navigator.route() == switchu::navigation::Route::Home) {
+        auto* cur = focusManager().current();
+        if (cur && cur->tag() == "glossy_icon") {
+            auto* icon = static_cast<GlossyIcon*>(cur);
+            const std::uint64_t tid = icon->titleId();
+            if (tid != 0 && icon->entryKind() != GridEntryKind::Folder) {
+                if (tid != m_settledTitleId) {
+                    m_settledTitleId = tid;
+                    m_settleTimer = 0.f;
+                } else {
+                    m_settleTimer += dt;
+                    if (m_settleTimer >= kMetadataSettleDelay) {
+                        triggerSummaryFetchIfNeeded(tid);
+                    }
+                }
+            }
+        } else {
+            m_settledTitleId = 0;
+            m_settleTimer = 0.f;
+        }
+    }
 
 #ifdef NXUI_BACKEND_DEKO3D
     // Keep a reserve for labels that only appear after opening an overlay.

@@ -56,8 +56,8 @@ NEGATIVE_CACHE_SECONDS = 24 * 60 * 60
 # not be stored for the normal 30 days, or the game stays English long after the
 # quota resets. See _gemini_model_chain for how the daily budget is stretched.
 UNTRANSLATED_CACHE_SECONDS = 30 * 60
-UPSTREAM_MIN_INTERVAL_SECONDS = 2.0
-RATE_LIMIT_REQUESTS = 20
+UPSTREAM_MIN_INTERVAL_SECONDS = 0.5
+RATE_LIMIT_REQUESTS = 120
 RATE_LIMIT_AVAILABILITY_REQUESTS = 120
 RATE_LIMIT_WINDOW_SECONDS = 60
 SUPPORTED_PLATFORMS = {
