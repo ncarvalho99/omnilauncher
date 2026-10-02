@@ -644,10 +644,17 @@ void WiiUMenuApp::createSettings() {
             cfg.save();
         });
         DebugLog::log("[config] save queued");
-        if (isCurrentFocusableWidget(m_sidebar.settingsButton())) {
+        if (isCurrentFocusableWidget(m_settingsReturnFocus)) {
+            m_suppressNextNavigateSfx = true;
+            focusManager().setFocus(m_settingsReturnFocus);
+        } else if (m_grid && m_grid->focusManager().current()) {
+            m_suppressNextNavigateSfx = true;
+            focusManager().setFocus(m_grid->focusManager().current());
+        } else if (isCurrentFocusableWidget(m_sidebar.settingsButton())) {
             m_suppressNextNavigateSfx = true;
             focusManager().setFocus(m_sidebar.settingsButton());
         }
+        m_settingsReturnFocus = nullptr;
     });
 
     // This screen is created on first use, after the shared overlays already
@@ -1584,10 +1591,17 @@ void WiiUMenuApp::createThemeShop() {
         });
         DebugLog::log("[config] save queued");
         clearCompletedThemeTransferState();
-        if (isCurrentFocusableWidget(m_sidebar.themeShopButton())) {
+        if (isCurrentFocusableWidget(m_themeShopReturnFocus)) {
+            m_suppressNextNavigateSfx = true;
+            focusManager().setFocus(m_themeShopReturnFocus);
+        } else if (m_grid && m_grid->focusManager().current()) {
+            m_suppressNextNavigateSfx = true;
+            focusManager().setFocus(m_grid->focusManager().current());
+        } else if (isCurrentFocusableWidget(m_sidebar.themeShopButton())) {
             m_suppressNextNavigateSfx = true;
             focusManager().setFocus(m_sidebar.themeShopButton());
         }
+        m_themeShopReturnFocus = nullptr;
     });
 
     raiseOverlay(m_dialog);

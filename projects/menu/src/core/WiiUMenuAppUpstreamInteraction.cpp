@@ -1791,7 +1791,7 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        if (m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro) && cur->tag() == "glossy_icon") {
+        if (m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro)) {
             m_cursor->setVisible(false);
             return;
         }

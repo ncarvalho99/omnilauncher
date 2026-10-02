@@ -2710,6 +2710,7 @@ void WiiUMenuApp::updateGridXmbContext() {
         m_audio.playSfx(Sfx::ModalShow);
         createSettings();
         if (m_settings) {
+            m_settingsReturnFocus = focusManager().current();
             m_navigator.navigate(switchu::navigation::Route::Settings);
             if (m_themeShop && m_themeShop->isActive()) m_themeShop->hide();
             m_settings->show();
@@ -2720,6 +2721,7 @@ void WiiUMenuApp::updateGridXmbContext() {
         m_audio.playSfx(Sfx::ModalShow);
         createThemeShop();
         if (m_themeShop) {
+            m_themeShopReturnFocus = focusManager().current();
             m_navigator.navigate(switchu::navigation::Route::ThemeShop);
             if (m_settings && m_settings->isActive()) m_settings->hide();
             m_themeShop->show();
@@ -5904,6 +5906,7 @@ void WiiUMenuApp::buildGrid() {
         m_audio.playSfx(Sfx::ModalShow);
         createSettings();
         if (m_settings) {
+            m_settingsReturnFocus = m_sidebar.settingsButton();
             m_navigator.navigate(switchu::navigation::Route::Settings);
             if (m_themeShop && m_themeShop->isActive())
                 m_themeShop->hide();
@@ -5958,6 +5961,7 @@ void WiiUMenuApp::buildGrid() {
         m_audio.playSfx(Sfx::ModalShow);
         createThemeShop();
         if (!m_themeShop) return;
+        m_themeShopReturnFocus = m_sidebar.themeShopButton();
         m_navigator.navigate(switchu::navigation::Route::ThemeShop);
         if (m_settings && m_settings->isActive())
             m_settings->hide();
@@ -8741,7 +8745,7 @@ bool WiiUMenuApp::pagingAvailable() {
     if (m_navigator.route() != switchu::navigation::Route::Home
         || focusRoot() != &rootBox() || !m_grid)
         return false;
-    if (isXmbLayout() || isListLayout())
+    if (isXmbLayout() || isListLayout() || isMetroLayout())
         return false;
     // Neither carousel view has pages; ZL/ZR step them one icon at a time, so
     // the arrows are offered whenever there is a neighbour to step to.
@@ -8851,7 +8855,7 @@ void WiiUMenuApp::kickPageArrow(int dir) {
 }
 
 bool WiiUMenuApp::addPageAvailable() {
-    if (isCarouselLayout() || isXmbLayout() || isListLayout())
+    if (isCarouselLayout() || isXmbLayout() || isListLayout() || isMetroLayout())
         return false;
     if (!m_grid || m_editMode)
         return false;
@@ -8943,7 +8947,7 @@ void WiiUMenuApp::createHomePage() {
 }
 
 bool WiiUMenuApp::deletePageAvailable() {
-    if (isCarouselLayout() || isXmbLayout() || isListLayout())
+    if (isCarouselLayout() || isXmbLayout() || isListLayout() || isMetroLayout())
         return false;
     if (!m_grid || m_editMode)
         return false;

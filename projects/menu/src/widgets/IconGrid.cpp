@@ -4019,9 +4019,9 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
         if (isSysTile) {
             // System glyph in center
             if (icon->texture() && icon->texture()->valid()) {
-                const float glyphSize = std::min(56.f, std::min(tileRect.width, tileRect.height) * 0.45f);
+                const float glyphSize = std::round(std::min(tileRect.width, tileRect.height) * 0.48f);
                 const nxui::Rect glyphRect{tileRect.x + (tileRect.width - glyphSize) * 0.5f,
-                                           tileRect.y + (tileRect.height - glyphSize) * 0.42f,
+                                           tileRect.y + (tileRect.height - 22.f - glyphSize) * 0.5f,
                                            glyphSize, glyphSize};
                 ren.drawTexture(icon->texture(), glyphRect, nxui::Color::white().withAlpha(alpha));
             }

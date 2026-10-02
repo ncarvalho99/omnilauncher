@@ -832,6 +832,8 @@ private:
     // must outlive that dialog's own return-focus handoff.
     nxui::Widget* m_gameGalleryReturnFocus = nullptr;
     nxui::Widget* m_gameDetailsReturnFocus = nullptr;
+    nxui::Widget* m_settingsReturnFocus = nullptr;
+    nxui::Widget* m_themeShopReturnFocus = nullptr;
     bool m_dialogWasActive            = false;
 #ifdef SWITCHU_PREFLIGHT_EDGE_TEST
     // Diagnostic-only state. Production lock behavior still clears every
