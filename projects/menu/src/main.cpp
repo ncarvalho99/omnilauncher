@@ -8,11 +8,11 @@
 #include "usb/Mtp.hpp"
 #include <nxui/Application.hpp>
 #include <fmt/format.h>
+#include <switchu/file_log.hpp>
 #ifdef SWITCHU_MENU
 #include <nxui/core/GpuDevice.hpp>
 #include <nxui/core/Renderer.hpp>
 #include <switchu/smi_protocol.hpp>
-#include <switchu/file_log.hpp>
 #endif
 #include <switch.h>
 #include <SDL2/SDL.h>
