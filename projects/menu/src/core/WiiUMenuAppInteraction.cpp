@@ -534,7 +534,7 @@ void WiiUMenuApp::wireFocusCallback() {
                 m_titlePill->setVisible(true);
                 return;
             }
-            if (icon->titleId() == 0) {
+            if (icon->title().empty() || icon->entryKind() == GridEntryKind::Empty) {
                 refreshGameArtworkBackdrop(0);
                 m_titlePill->hideAnimated();
                 return;
@@ -549,6 +549,8 @@ void WiiUMenuApp::wireFocusCallback() {
             const bool showTitle = (m_openFolderId != 0) || (m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
             m_titlePill->setVisible(showTitle);
         } else if (cur) {
+            if (m_grid)
+                m_grid->focusManager().setFocus(nullptr);
             refreshGameArtworkBackdrop(0);
             if (m_editMode)
                 exitEditMode();

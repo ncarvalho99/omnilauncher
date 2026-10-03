@@ -3620,7 +3620,7 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             edgeFade = std::clamp((630.f - rowCenterY) / 70.f, 0.f, 1.f);
         }
 
-        const bool isSelected = (i == focusedIndex);
+        const bool isSelected = (focusedIndex >= 0 && i == focusedIndex);
         const float prox = std::max(0.0f, 1.0f - absD * 0.45f);
         const float zoom = 0.90f + 0.18f * prox;
         const float alpha = std::clamp((0.35f + 0.65f * prox) * edgeFade, 0.f, 1.f);
@@ -4117,7 +4117,7 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
     const int focusedIndex = focusedGlobalIndex();
 
     // 3. Top large game title
-    auto* activeIcon = metroIconAt(focusedIndex);
+    auto* activeIcon = (focusedIndex >= 0) ? metroIconAt(focusedIndex) : nullptr;
     if (activeIcon && fontNormal) {
         std::string mainTitle = activeIcon->title();
         if (mainTitle.empty()) {
@@ -4145,7 +4145,7 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
         if (alpha <= 0.02f) continue;
 
         const nxui::Rect tileRect{t.x, drawY, t.w, t.h};
-        const bool isFocused = (t.itemIndex == focusedIndex);
+        const bool isFocused = (focusedIndex >= 0 && t.itemIndex == focusedIndex);
         const bool isSysTile = (t.itemIndex < 6);
 
         // Windows 10 Mobile style accent (#0078D7) for system tiles, deep slate for games

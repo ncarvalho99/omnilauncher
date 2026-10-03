@@ -935,7 +935,7 @@ void WiiUMenuApp::wireFocusCallback() {
                 m_titlePill->setVisible(true);
                 return;
             }
-            if (icon->titleId() == 0) {
+            if (icon->title().empty() || icon->entryKind() == GridEntryKind::Empty) {
                 m_titlePill->hideAnimated();
                 return;
             }
@@ -945,12 +945,16 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            if (m_grid && (m_grid->isXmb() || isListLayout() || isMetroLayout())) {
+            const bool hidePill = (m_openFolderId == 0) &&
+                (m_grid && (m_grid->isXmb() || isListLayout() || isMetroLayout()));
+            if (hidePill) {
                 m_titlePill->setVisible(false);
             } else {
                 m_titlePill->setVisible(true);
             }
         } else if (cur) {
+            if (m_grid)
+                m_grid->focusManager().setFocus(nullptr);
             if (m_editMode)
                 exitEditMode();
             for (auto& btn : m_sidebar.leftButtons()) {
@@ -1794,7 +1798,9 @@ void WiiUMenuApp::updateCursor() {
     auto* cur = focusManager().current();
     if (cur) {
         const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
-        if (isGameInCustomView && m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro)) {
+        if (isGameInCustomView && m_grid &&
+            (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro ||
+             m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Xmb)) {
             m_cursor->setVisible(false);
             return;
         }
