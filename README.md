@@ -1,5 +1,5 @@
 <div align="center">
-    <h1>OmniLaunch</h1>
+    <img src="./omnilaunch.png" alt="OmniLaunch" width="380" />
     <p>The definitive multi-layout, highly customizable custom HOME menu replacement for Nintendo Switch.</p>
     <p><i>Unifying the runtime architecture and rich services of SwitchU with the signature 3D carousel and presentation engines of sLaunch.</i></p>
 </div>
@@ -122,72 +122,73 @@ Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the 
 
 <div align="center">
   <img src="./screenshots/2026100222051600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  <img src="./screenshots/2026100222052600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222110700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
 </div>
 <div align="center">
-  <img src="./screenshots/2026100222053000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  <img src="./screenshots/2026100222053400-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222112300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222112800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
 </div>
 <div align="center">
-  <img src="./screenshots/2026100222053800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  <img src="./screenshots/2026100222054000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222113700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222114300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+</div>
+<div align="center">
+  <img src="./screenshots/2026100222115100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222115600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+</div>
+<div align="center">
+  <img src="./screenshots/2026100222123900-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
 </div>
 
 <details>
-  <summary><b>View More Screenshots (Metro, Niagara List, Flow, Settings, Media)</b></summary>
+  <summary><b>View More Screenshots</b></summary>
   <br>
   <div align="center">
+    <img src="./screenshots/2026100222052600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222053000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222053400-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222053800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222054000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
     <img src="./screenshots/2026100222054300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222054800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222061300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222061800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222064000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222064300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222065200-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222065800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222070100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222072800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222073200-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222074100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222074400-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222074700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222083300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
     <img src="./screenshots/2026100222084100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
     <img src="./screenshots/2026100222104600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-    <img src="./screenshots/2026100222110700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
-    <img src="./screenshots/2026100222112300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-    <img src="./screenshots/2026100222112800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
-    <img src="./screenshots/2026100222113700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-    <img src="./screenshots/2026100222114300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
-    <img src="./screenshots/2026100222115100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-    <img src="./screenshots/2026100222115600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
-  </div>
-  <div align="center">
-    <img src="./screenshots/2026100222123900-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
   </div>
 </details>
+
 
 ---
 

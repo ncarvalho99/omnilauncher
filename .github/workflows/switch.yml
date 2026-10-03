@@ -106,13 +106,17 @@ jobs:
         env:
           SWITCHU_CLIENT_KEY: ${{ secrets.SWITCHU_CLIENT_KEY }}
         run: |
+          KEY_FLAG=""
+          if [ -z "$SWITCHU_CLIENT_KEY" ]; then
+            KEY_FLAG="--allow_no_client_key=y"
+          fi
           if [ "${{ matrix.variant }}" = "homebrew" ]; then
-            xmake f --yes -p cross -m "${{ matrix.mode }}" -a aarch64 --toolchain=devkita64 --homebrew=y -vD --root
+            xmake f --yes -p cross -m "${{ matrix.mode }}" -a aarch64 --toolchain=devkita64 --homebrew=y $KEY_FLAG -vD --root
           else
-            xmake f --yes -p cross -m "${{ matrix.mode }}" -a aarch64 --toolchain=devkita64 -vD --root
+            xmake f --yes -p cross -m "${{ matrix.mode }}" -a aarch64 --toolchain=devkita64 $KEY_FLAG -vD --root
           fi
 
-      - name: Build SwitchU
+      - name: Build OmniLaunch
         env:
           SWITCHU_CLIENT_KEY: ${{ secrets.SWITCHU_CLIENT_KEY }}
         run: xmake -vD --root
@@ -126,7 +130,7 @@ jobs:
         run: |
           repo_root="$PWD"
           package_root="dist/sysmodule/${{ matrix.mode }}"
-          archive_path="$repo_root/artifacts/SwitchU-sysmodule-${{ matrix.mode }}.zip"
+          archive_path="$repo_root/artifacts/OmniLaunch-sysmodule-${{ matrix.mode }}.zip"
 
           test -d "$package_root/atmosphere"
           test -d "$package_root/switch"
@@ -139,7 +143,7 @@ jobs:
         if: matrix.variant == 'homebrew'
         uses: actions/upload-artifact@v5
         with:
-          name: SwitchU-homebrew-${{ matrix.mode }}
+          name: OmniLaunch-homebrew-${{ matrix.mode }}
           if-no-files-found: error
           path: |
             build/cross/aarch64/${{ matrix.mode }}/SwitchU.nro
@@ -149,9 +153,9 @@ jobs:
         if: matrix.variant == 'sysmodule'
         uses: actions/upload-artifact@v5
         with:
-          name: SwitchU-sysmodule-${{ matrix.mode }}
+          name: OmniLaunch-sysmodule-${{ matrix.mode }}
           if-no-files-found: error
-          path: artifacts/SwitchU-sysmodule-${{ matrix.mode }}.zip
+          path: artifacts/OmniLaunch-sysmodule-${{ matrix.mode }}.zip
 
       # Linked ELFs, kept out of the install payload above. ns_debug.sh needs
       # one of these to resolve addresses in an atmosphere/crash_reports log:
