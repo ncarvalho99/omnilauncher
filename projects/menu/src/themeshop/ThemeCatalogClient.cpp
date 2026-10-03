@@ -228,6 +228,9 @@ PreviewData derivePreviewDataFromManifest(const std::string& catalogUrl,
 
 ThemeCatalogClient::ThemeCatalogClient(std::string catalogUrl) {
     m_catalogUrls.push_back(std::move(catalogUrl));
+    if (m_catalogUrls.front() == kDefaultCatalogUrl) {
+        m_catalogUrls.emplace_back(kFallbackCatalogUrl);
+    }
     m_catalogUrls.emplace_back(kUpstreamCatalogUrl);
 }
 
@@ -374,6 +377,15 @@ ThemeCatalogClient::Snapshot ThemeCatalogClient::loadCatalog(const std::string& 
             entry.packageBytes = it->get<std::uint64_t>();
         if (auto it = item.find("installedBytes"); it != item.end() && it->is_number_unsigned())
             entry.installedBytes = it->get<std::uint64_t>();
+
+        // For OmniLaunch, prefer hardware-accelerated MP4 video theme packages when available:
+        if (auto it = item.find("packageVideo"); it != item.end() && it->is_string()) {
+            entry.package = it->get<std::string>();
+            if (auto pb = item.find("packageVideoBytes"); pb != item.end() && pb->is_number_unsigned())
+                entry.packageBytes = pb->get<std::uint64_t>();
+            if (auto ib = item.find("installedVideoBytes"); ib != item.end() && ib->is_number_unsigned())
+                entry.installedBytes = ib->get<std::uint64_t>();
+        }
         readStringOpt(item, "thumbSheet", entry.thumbSheet);
         readStringOpt(item, "thumbSheetHd", entry.thumbSheetHd);
         {

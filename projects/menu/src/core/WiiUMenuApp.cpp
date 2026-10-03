@@ -1587,7 +1587,17 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
             return;
         if (m_grid->isXmb())
             m_grid->syncXmbFocusFromCurrent();
-        if (auto* target = m_grid->focusManager().current())
+        nxui::Widget* target = m_grid->focusManager().current();
+        if (!target) {
+            if (isMetroLayout()) {
+                auto icon = m_grid->metroSharedIconAt(0);
+                if (icon) target = icon.get();
+            } else {
+                auto icons = m_grid->allIcons();
+                if (!icons.empty()) target = icons.front().get();
+            }
+        }
+        if (target)
             focusManager().setFocus(target);
     };
     for (std::size_t i = 0; i < m_userAvatarButtons.size(); ++i) {

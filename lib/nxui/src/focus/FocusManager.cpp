@@ -89,7 +89,13 @@ void FocusManager::changeFocus(int newIdx) {
 }
 
 void FocusManager::changeFocusTo(Widget* target) {
-    if (!target) return;
+    if (!target) {
+        auto* old = current();
+        if (old) old->onFocusLost();
+        m_index = -1;
+        if (m_cb) m_cb(old, nullptr);
+        return;
+    }
     // Find target in m_items
     for (int i = 0; i < (int)m_items.size(); ++i) {
         if (m_items[i] == target) {

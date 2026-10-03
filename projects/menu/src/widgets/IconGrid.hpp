@@ -207,6 +207,8 @@ public:
     void layoutMetro();
     void syncMetroChildRects();
     void renderMetro(nxui::Renderer& ren);
+    void setMetroFocused(bool focused) { m_metroFocused = focused; }
+    bool metroFocused() const { return m_metroFocused; }
     std::shared_ptr<GlossyIcon> metroSharedIconAt(int globalIndex) const;
     GlossyIcon* metroIconAt(int globalIndex) const;
     int metroTotalCount() const;
@@ -425,6 +427,7 @@ private:
     std::vector<std::shared_ptr<GlossyIcon>> m_metroSystemIcons;
     float m_metroScrollY = 0.0f;
     float m_metroTargetScrollY = 0.0f;
+    bool m_metroFocused = true;
     std::function<void(std::uint64_t, int, int)> m_onMetroTileSpanChanged;
 
     // XMB Cross-Media Bar state

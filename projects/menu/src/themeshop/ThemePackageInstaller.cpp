@@ -683,9 +683,20 @@ bool hasAllDeclaredFrames(const std::string& root, std::string& detail) {
     try {
         nlohmann::json manifest;
         input >> manifest;
-        const auto image = manifest.value("theme", nlohmann::json::object())
-                               .value("background", nlohmann::json::object())
-                               .value("image", nlohmann::json::object());
+
+        // Video themes specify a video background rather than frame images
+        const auto bg = manifest.value("theme", nlohmann::json::object())
+                                .value("background", nlohmann::json::object());
+        if (bg.contains("video") && bg["video"].is_string()) {
+            const std::string videoRel = trimSlashes(bg["video"].get<std::string>());
+            if (videoRel.empty() || !isSafeRelativePath(videoRel) || !pathExists(joinPath(root, videoRel))) {
+                detail = "background video missing: " + videoRel;
+                return false;
+            }
+            return true;
+        }
+
+        const auto image = bg.value("image", nlohmann::json::object());
         const auto frames = image.value("frames", nlohmann::json::array());
         if (!frames.is_array() || frames.empty())
             return true;
@@ -837,39 +848,73 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
             }
         }
 
-        if (onProgress)
-            onProgress(i18n.tr("themeshop.transfer.extracting", "Extracting theme"), 0.55f);
+        const bool isDirectVideo = (archivePath.size() > 4 &&
+            (entry.package.rfind(".mp4") == entry.package.size() - 4 ||
+             entry.package.rfind(".mkv") == entry.package.size() - 4 ||
+             entry.package.rfind(".webm") == entry.package.size() - 5));
 
-        auto extracted = themeshop::extractZipFile(
-            archivePath, stagingPath,
-            [&](int done, int total) {
-                if (onProgress && total > 0 && (done % 32 == 0 || done == total)) {
-                    onProgress(i18n.tr("themeshop.transfer.extracting", "Extracting theme"),
-                               0.55f + 0.4f * (float)done / (float)total);
-                }
-            });
+        if (isDirectVideo) {
+            if (onProgress)
+                onProgress(i18n.tr("themeshop.transfer.finishing", "Finishing"), 0.85f);
 
-        std::remove(archivePath.c_str());   // o pacote nao fica no cartao
+            ensureDirectoryRecursive(stagingPath + "/media");
+            std::rename(archivePath.c_str(), (stagingPath + "/media/video.mp4").c_str());
 
-        if (!extracted.success) {
-            // The temporary directory is disposable; keep the known-good theme.
-            removeDirectoryRecursive(stagingPath);
-            // O espaco livre vai junto: se a extracao morreu por disco, este
-            // numero responde na hora em vez de mandar procurar no pacote.
-            DebugLog::log("[themeshop] extracao falhou (%s), %llu MB livres no cartao",
-                          extracted.error.c_str(),
-                          (unsigned long long)(sdFreeBytes() / 1048576));
-            throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
-                                             "Theme package could not be unpacked."));
-        }
+            nlohmann::json manifest;
+            manifest["id"] = entry.id;
+            manifest["name"] = entry.name.empty() ? entry.id : entry.name;
+            manifest["author"] = entry.author.empty() ? "OmniLaunch" : entry.author;
+            manifest["version"] = entry.version.empty() ? "1.0.0" : entry.version;
+            manifest["theme"]["mode"] = "dark";
+            manifest["theme"]["background"]["video"] = "media/video.mp4";
+            manifest["theme"]["background"]["count"] = 1;
+            manifest["theme"]["background"]["opacity"] = 0.0;
+            manifest["theme"]["audio"]["preset"] = "wiiu";
 
-        std::string packageValidationError;
-        if (!hasAllDeclaredFrames(stagingPath, packageValidationError)) {
-            removeDirectoryRecursive(stagingPath);
-            DebugLog::log("[themeshop] package rejected before replacement: %s",
-                          packageValidationError.c_str());
-            throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
-                                             "Theme package could not be unpacked."));
+            std::ofstream mOut(stagingPath + "/theme.json");
+            mOut << manifest.dump(2);
+            mOut.close();
+
+            if (!entry.cover.empty()) {
+                ensureDirectoryRecursive(stagingPath + "/media/screenshots");
+                try {
+                    themeshop::http::getToFile(joinUrl(catalogUrl, entry.cover),
+                                               stagingPath + "/media/screenshots/00.jpg");
+                } catch (...) {}
+            }
+        } else {
+            if (onProgress)
+                onProgress(i18n.tr("themeshop.transfer.extracting", "Extracting theme"), 0.55f);
+
+            auto extracted = themeshop::extractZipFile(
+                archivePath, stagingPath,
+                [&](int done, int total) {
+                    if (onProgress && total > 0 && (done % 32 == 0 || done == total)) {
+                        onProgress(i18n.tr("themeshop.transfer.extracting", "Extracting theme"),
+                                   0.55f + 0.4f * (float)done / (float)total);
+                    }
+                });
+
+            std::remove(archivePath.c_str());   // o pacote nao fica no cartao
+
+            if (!extracted.success) {
+                // The temporary directory is disposable; keep the known-good theme.
+                removeDirectoryRecursive(stagingPath);
+                DebugLog::log("[themeshop] extracao falhou (%s), %llu MB livres no cartao",
+                              extracted.error.c_str(),
+                              (unsigned long long)(sdFreeBytes() / 1048576));
+                throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
+                                                 "Theme package could not be unpacked."));
+            }
+
+            std::string packageValidationError;
+            if (!hasAllDeclaredFrames(stagingPath, packageValidationError)) {
+                removeDirectoryRecursive(stagingPath);
+                DebugLog::log("[themeshop] package rejected before replacement: %s",
+                              packageValidationError.c_str());
+                throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
+                                                 "Theme package could not be unpacked."));
+            }
         }
 
         std::string replaceError;

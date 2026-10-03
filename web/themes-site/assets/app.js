@@ -72,9 +72,10 @@
   function renderTotals() {
     const totals = themes.reduce((value, theme) => ({
       frames: value.frames + integer(theme.frameCount),
-      bytes: value.bytes + integer(theme.bytes),
+      bytes: value.bytes + integer(theme.packageBytes || theme.bytes),
+      videoBytes: value.videoBytes + integer(theme.packageVideoBytes || theme.packageBytes || theme.bytes),
       animated: value.animated + (theme.animated ? 1 : 0),
-    }), { frames: 0, bytes: 0, animated: 0 });
+    }), { frames: 0, bytes: 0, videoBytes: 0, animated: 0 });
 
     const entry = (label, value) => {
       const box = element('div');
@@ -84,10 +85,10 @@
     totalsList.replaceChildren(
       entry('Temas', decimals(themes.length)),
       entry('Animados', decimals(totals.animated)),
-      entry('Quadros', decimals(totals.frames)),
-      entry('Catálogo', megabytes(totals.bytes)),
+      entry('Total OmniLaunch', megabytes(totals.videoBytes)),
+      entry('Total SwitchU', megabytes(totals.bytes)),
     );
-    footSource.textContent = `Catálogo lido de ${location.host}/index.json — o mesmo arquivo que o console baixa.`;
+    footSource.textContent = `Catálogo servido para SwitchU (index.json) e OmniLaunch (omnilaunch.json).`;
   }
 
   function renderMotionToggle() {
@@ -296,7 +297,10 @@
         : 'imagem estática'),
       row('duração do laço', seconds ? `${seconds.toFixed(2)} s` : '-'),
       row('trilha', integer(theme.music) ? `${integer(theme.music)} faixa(s)` : 'nenhuma'),
-      row('download', megabytes(theme.bytes)),
+      row('download (OmniLaunch MP4)', theme.packageVideoBytes ? megabytes(theme.packageVideoBytes) : (theme.packageBytes ? megabytes(theme.packageBytes) : megabytes(theme.bytes))),
+      row('espaço console (OmniLaunch)', theme.installedVideoBytes ? megabytes(theme.installedVideoBytes) : (theme.installedBytes ? megabytes(theme.installedBytes) : '-')),
+      row('download (SwitchU DDS)', theme.packageBytes ? megabytes(theme.packageBytes) : megabytes(theme.bytes)),
+      row('espaço console (SwitchU)', theme.installedBytes ? megabytes(theme.installedBytes) : '-'),
       row('licença', theme.license || 'não declarada'),
     );
     info.append(spec);

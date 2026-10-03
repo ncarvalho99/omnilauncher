@@ -93,6 +93,10 @@ bool UpdateClient::isNewer(const std::string& candidate, const std::string& curr
     if (a.major == 1 && b.major == 2 && b.minor >= 6) {
         return true;
     }
+    // If running OmniLaunch (1.x), legacy SwitchU (2.x) must never be treated as newer
+    if (b.major == 1 && a.major >= 2) {
+        return false;
+    }
     if (a.major != b.major) return a.major > b.major;
     if (a.minor != b.minor) return a.minor > b.minor;
     if (a.patch != b.patch) return a.patch > b.patch;

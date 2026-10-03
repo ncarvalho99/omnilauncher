@@ -752,7 +752,8 @@ std::string ThemeShopScreen::communityCatalogueTotals() const {
     std::uint64_t download = 0;
     std::uint64_t onCard = 0;
     for (const auto& entry : m_allCommunityEntries) {
-        const bool fromOurs = entry.catalogUrl == ThemeCatalogClient::kDefaultCatalogUrl;
+        const bool fromOurs = (entry.catalogUrl == ThemeCatalogClient::kDefaultCatalogUrl ||
+                               entry.catalogUrl == ThemeCatalogClient::kFallbackCatalogUrl);
         if (fromOurs != wantAnimated)
             continue;
         ++themes;

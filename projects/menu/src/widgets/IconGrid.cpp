@@ -331,7 +331,7 @@ void IconGrid::setLayoutMode(AppLayoutMode mode) {
         setPage(cur >= 0 ? cur / std::max(1, iconsPerPage()) : m_page);
         layoutPage();
     }
-    if (cur >= 0 && cur < (int)m_allIcons.size() && m_allIcons[cur]->isFocusable()) {
+    if (m_layoutMode != AppLayoutMode::Metro && cur >= 0 && cur < (int)m_allIcons.size() && m_allIcons[cur]->isFocusable()) {
         m_focus.setFocus(m_allIcons[cur].get());
     }
 }
@@ -4114,7 +4114,7 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
         ren.drawText(rightStr, {1280.f - kMetroWallMargin - rightW, 18.f}, fontSmall, nxui::Color(0.70f, 0.75f, 0.85f, 0.85f), 0.82f);
     }
 
-    const int focusedIndex = focusedGlobalIndex();
+    const int focusedIndex = m_metroFocused ? focusedGlobalIndex() : -1;
 
     // 3. Top large game title
     auto* activeIcon = (focusedIndex >= 0) ? metroIconAt(focusedIndex) : nullptr;
@@ -4231,9 +4231,9 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
             }
         }
 
-        // Focused tile highlight frame: 3px white outline with exact same 4px radius as the tile
+        // Focused tile highlight frame: 3px white outline directly on the tile boundary with 4px radius
         if (isFocused) {
-            ren.drawRoundedRectOutline(tileRect.expanded(2.f),
+            ren.drawRoundedRectOutline(tileRect,
                                        nxui::Color::white().withAlpha(alpha), 4.f, 3.f);
         }
     }

@@ -1604,7 +1604,8 @@ void WiiUMenuApp::handleTouch() {
         focusManager().setFocus(cur);
         if (m_cursor) {
             m_cursor->moveTo(cur->focusRect().expanded(4.f), 0.f);
-            m_cursor->setVisible(true);
+            m_cursor->setVisible(!m_grid->is3D() && !m_grid->isMetro() && !isListLayout() &&
+                                 !m_grid->isXmb() && m_appLayoutMode != AppLayoutMode::Metro);
         } else {
             updateCursor();
         }

@@ -44,6 +44,7 @@ bool allowedExtension(const std::string& name) {
         ".json", ".jpg", ".jpeg", ".png", ".dds", ".webp",
         ".txt", ".md", ".ttf", ".otf",
         ".mp3", ".ogg", ".wav", ".flac",
+        ".mp4", ".mkv", ".mov", ".webm",
     };
     const std::size_t dot = name.find_last_of('.');
     if (dot == std::string::npos)

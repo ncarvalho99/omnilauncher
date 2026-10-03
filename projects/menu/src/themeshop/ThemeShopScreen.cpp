@@ -351,7 +351,8 @@ void ThemeShopScreen::applySearchFilter() {
     m_communityEntries.reserve(m_allCommunityEntries.size());
     for (const auto& entry : m_allCommunityEntries) {
         const bool fromOurs =
-            entry.catalogUrl == ThemeCatalogClient::kDefaultCatalogUrl;
+            (entry.catalogUrl == ThemeCatalogClient::kDefaultCatalogUrl ||
+             entry.catalogUrl == ThemeCatalogClient::kFallbackCatalogUrl);
         if (fromOurs != wantAnimated)
             continue;
         if (matchesSearch(entry, needleLower))

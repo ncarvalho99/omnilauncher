@@ -79,6 +79,10 @@ bool isNewerVersion(const std::string& candidate, const std::string& current) {
     if (!a.empty() && a[0] == 1 && !b.empty() && b[0] == 2 && b.size() >= 2 && b[1] >= 6) {
         return true;
     }
+    // If running OmniLaunch (1.x), legacy SwitchU (2.x) must never be treated as newer
+    if (!b.empty() && b[0] == 1 && !a.empty() && a[0] >= 2) {
+        return false;
+    }
     const std::size_t count = std::max(a.size(), b.size());
     a.resize(count, 0);
     b.resize(count, 0);

@@ -205,7 +205,9 @@ extern "C" void __appInit(void) {
         }
         migEc.clear();
         if (std::filesystem::exists("sdmc:/switch/SwitchU-Manager", migEc)) {
-            std::filesystem::remove_all("sdmc:/switch/SwitchU-Manager", migEc);
+            if (std::filesystem::exists("sdmc:/switch/OmniLaunch-Manager/OmniLaunch-Manager.nro", migEc)) {
+                std::filesystem::remove_all("sdmc:/switch/SwitchU-Manager", migEc);
+            }
         }
     }
 

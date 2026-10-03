@@ -904,7 +904,10 @@ void WiiUMenuApp::wireFocusCallback() {
             m_audio.playSfx(Sfx::Navigate);
 
         if (cur && cur->tag() == "glossy_icon") {
-            m_grid->focusManager().setFocus(cur);
+            if (m_grid) {
+                m_grid->setMetroFocused(true);
+                m_grid->focusManager().setFocus(cur);
+            }
             auto* icon = static_cast<GlossyIcon*>(cur);
             // Carousel views and XMB stream around the focused index rather
             // than by page, so they must drive the streamer the same way or the
@@ -953,8 +956,10 @@ void WiiUMenuApp::wireFocusCallback() {
                 m_titlePill->setVisible(true);
             }
         } else if (cur) {
-            if (m_grid)
+            if (m_grid) {
+                m_grid->setMetroFocused(false);
                 m_grid->focusManager().setFocus(nullptr);
+            }
             if (m_editMode)
                 exitEditMode();
             for (auto& btn : m_sidebar.leftButtons()) {
@@ -972,6 +977,10 @@ void WiiUMenuApp::wireFocusCallback() {
             }
             m_titlePill->hideAnimated();
         } else {
+            if (m_grid) {
+                m_grid->setMetroFocused(false);
+                m_grid->focusManager().setFocus(nullptr);
+            }
             m_titlePill->hideAnimated();
         }
     });
@@ -1539,7 +1548,8 @@ void WiiUMenuApp::handleTouch() {
                     global, m_editGhostIcon->gridSpanColumns(),
                     m_editGhostIcon->gridSpanRows());
             m_cursor->moveTo(cursorRect.expanded(4.f), 0.f);
-            m_cursor->setVisible(!m_grid->is3D());
+            m_cursor->setVisible(!m_grid->is3D() && !m_grid->isMetro() && !isListLayout() &&
+                                 !m_grid->isXmb() && m_appLayoutMode != AppLayoutMode::Metro);
         } else {
             updateCursor();
         }
@@ -1797,12 +1807,17 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
-        if (isGameInCustomView && m_grid &&
-            (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro ||
+        if (m_openFolderId == 0 && m_grid &&
+            (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro || m_grid->isMetro() ||
              m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Xmb)) {
-            m_cursor->setVisible(false);
-            return;
+            const bool isTopHud = (cur->tag() == "power_button" ||
+                                   cur->tag() == "plaza_screen_swap" ||
+                                   cur->tag() == "media_center_button" ||
+                                   cur->tag() == "userAvatarBar");
+            if (!isTopHud) {
+                m_cursor->setVisible(false);
+                return;
+            }
         }
         const bool movingLineFocus = m_grid && m_grid->isDynamicLine()
                                   && cur->tag() == "glossy_icon";

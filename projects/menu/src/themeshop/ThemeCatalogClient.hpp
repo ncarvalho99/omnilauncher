@@ -66,7 +66,8 @@ public:
     //
     // Every path in the catalog resolves against the directory this URL sits
     // in, so the tree works the same served from a domain root or a subfolder.
-    static constexpr const char* kDefaultCatalogUrl = "https://themes.nclabs.dev/index.json";
+    static constexpr const char* kDefaultCatalogUrl = "https://themes.nclabs.dev/omnilaunch.json";
+    static constexpr const char* kFallbackCatalogUrl = "https://themes.nclabs.dev/index.json";
 
     // PoloNX's catalogue is read alongside ours rather than replaced by it: his
     // themes work here, and there is no reason to offer fewer of them. Ours is
