@@ -291,6 +291,18 @@ private:
     static void coverCorners(float x, float y, float z,
                              float halfW, float halfH, nxui::Vec3 out[4]);
 
+    // 3D Folder preview rendering for Flow, Shelf, Deck, and Cover
+    static void drawFolderQuad3D(nxui::Renderer& ren,
+                                const nxui::Vec3 corners[4],
+                                const std::vector<nxui::Texture*>& previewTextures,
+                                int previewCount,
+                                int colorIndex,
+                                const nxui::Color& tint,
+                                float topAlpha = 1.0f,
+                                float bottomAlpha = 1.0f,
+                                bool isReflection = false,
+                                int strips = 8);
+
     // XMB: PSP/PS3 cross-media bar with horizontal categories and vertical items.
     void layoutXmb();
     void renderXmb(nxui::Renderer& ren);

@@ -277,7 +277,7 @@ target("SwitchU")
     add_packages("nlohmann_json", "fmt", "libsdl", "libsdl_mixer", "libsdl_ttf", "zlib", "libwebp", "libcurl", "curlpp")
     add_linkgroups("SDL2_ttf", "harfbuzz-subset", "harfbuzz", "freetype", "png16", "bz2", "z", {group = true})
     add_linkgroups("SDL2_mixer", "FLAC++", "FLAC", "vorbisidec", "ogg", "modplug", "opusurl", "opusfile", "opus", {group = true})
-    add_linkgroups("avformat", "avcodec", "swscale", "swresample", "avutil", "dav1d", {group = true})
+    add_linkgroups("avformat", "avcodec", "swscale", "swresample", "avutil", "dav1d", "z", {group = true})
     add_defines("SWITCHU_HAS_VIDEO=1", "SWITCHU_HAS_NVTEGRA=1")
 
     if is_mode("debug") and get_config("backend") ~= "sdl2" then

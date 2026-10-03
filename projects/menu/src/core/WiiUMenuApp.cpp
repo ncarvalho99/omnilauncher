@@ -2118,10 +2118,6 @@ void WiiUMenuApp::composeRootPending(std::vector<PendingApp>& apps) {
         byId.emplace(item.titleId, std::move(item));
     }
     for (const auto& widget : m_widgetStore.all()) {
-        const auto supported = switchu::widgets::supportedSizes(
-            widget.type, m_appLayoutMode);
-        if (supported.empty())
-            continue;
         PendingApp item;
         item.id = "widget:" + std::to_string(widget.id);
         item.title = widgetTypeLabel(widget.type);
@@ -2130,7 +2126,7 @@ void WiiUMenuApp::composeRootPending(std::vector<PendingApp>& apps) {
         item.widgetId = widget.id;
         item.widgetType = widget.type;
         const auto effectiveSize = switchu::widgets::validatedSize(
-            widget.type, widget.size, m_appLayoutMode);
+            widget.type, widget.size, AppLayoutMode::Grid);
         item.widgetColumns = effectiveSize.columns;
         item.widgetRows = effectiveSize.rows;
         item.widgetAssetRef = widget.assetRef;
@@ -2146,17 +2142,9 @@ void WiiUMenuApp::composeRootPending(std::vector<PendingApp>& apps) {
     std::unordered_set<uint64_t> placed;
     placed.reserve(byId.size());
     std::unordered_set<std::uint64_t> hiddenWidgetIds;
-    for (const auto& widget : m_widgetStore.all()) {
-        if (switchu::widgets::supportedSizes(widget.type, m_appLayoutMode).empty())
-            hiddenWidgetIds.insert(switchu::widgets::widgetTitleId(widget.id));
-    }
     for (auto& slotTid : slots) {
         if (slotTid == 0)
             continue;
-        if (hiddenWidgetIds.count(slotTid)) {
-            placed.insert(slotTid);
-            continue;
-        }
         auto it = byId.find(slotTid);
         if (it == byId.end() || placed.count(slotTid)) {
             slotTid = 0;
@@ -2323,8 +2311,6 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         entries.emplace(entry.titleId, std::move(entry));
     }
     for (const auto& widget : m_widgetStore.all()) {
-        if (switchu::widgets::supportedSizes(widget.type, m_appLayoutMode).empty())
-            continue;
         AppEntry entry;
         entry.id = "widget:" + std::to_string(widget.id);
         entry.title = widgetTypeLabel(widget.type);
@@ -2354,6 +2340,10 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
     }
     for (auto& slot : m_layoutSlots) {
         if (slot != 0 && entries.find(slot) == entries.end()) {
+            if (switchu::widgets::isWidgetTitleId(slot) &&
+                m_widgetStore.find(switchu::widgets::widgetIdFromTitleId(slot)) != nullptr) {
+                continue;
+            }
             slot = 0;
             m_layoutDirty = true;
         }
@@ -3186,6 +3176,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     m_grid->setLayoutMode(inFolder ? AppLayoutMode::Grid : m_appLayoutMode);
     // The line is a ring, so the streamer's window has to wrap with it.
     m_iconStreamer.setRingMode(isCarouselLayout());
+    m_grid->setup(std::move(icons), columns, rows, metrics.cellW, metrics.cellH,
+                  metrics.padX, metrics.padY);
     if (m_appLayoutMode == AppLayoutMode::Xmb) {
         updateGridXmbContext();
     } else if (m_appLayoutMode == AppLayoutMode::List) {
@@ -3193,8 +3185,6 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     } else if (m_appLayoutMode == AppLayoutMode::Metro) {
         updateGridMetroContext();
     }
-    m_grid->setup(std::move(icons), columns, rows, metrics.cellW, metrics.cellH,
-                  metrics.padX, metrics.padY);
     applyPlaytimeBadges();
     wireFocusCallback();
 
@@ -5391,8 +5381,16 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     icon->setFavorite(entry.isFavorite);
     icon->setPlaytimeBadge(playtimeBadgeFor(entry));
     icon->setGridSpan(entry.widgetColumns, entry.widgetRows);
-    if (entry.widgetColumns > 1 && entry.widgetRows == 1 &&
-        m_appLayoutMode == AppLayoutMode::Grid) {
+    bool isWideOrLarge = false;
+    if (m_appLayoutMode == AppLayoutMode::Grid && entry.widgetColumns > 1 && entry.widgetRows == 1) {
+        isWideOrLarge = true;
+    } else if (m_appLayoutMode == AppLayoutMode::Metro) {
+        auto it = m_config.metroTileSpans.find(entry.titleId);
+        if (it != m_config.metroTileSpans.end() && (it->second.first > 1 || it->second.second > 1)) {
+            isWideOrLarge = true;
+        }
+    }
+    if (isWideOrLarge) {
         ensureGameArtwork(entry.titleId);
         const auto artwork = m_gameArtwork.find(entry.titleId);
         if (artwork != m_gameArtwork.end())

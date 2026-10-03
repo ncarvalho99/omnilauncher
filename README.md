@@ -194,7 +194,7 @@ Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the 
 
 ## Installation
 
-1. Download the latest `OmniLaunch-sysmodule-release.zip` from the [Releases](https://github.com/ncarvalho99/omnilauncher/releases) page.
+1. Download the latest `OmniLaunch-<version>.zip` (where `<version>` is the release version, e.g. `OmniLaunch-1.0.0.zip`) from the [Releases](https://github.com/ncarvalho99/omnilauncher/releases) page.
 2. Extract the archive directly to the root of your Nintendo Switch microSD card:
    - `atmosphere/contents/0100000000001000/exefs.nsp`
    - `switch/OmniLaunch/`
