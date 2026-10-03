@@ -1779,6 +1779,12 @@ void WiiUMenuApp::showIconOptions() {
     if (!cur || cur->tag() != "glossy_icon") return;
     auto* icon = static_cast<GlossyIcon*>(cur);
 
+    if (icon->entryKind() == GridEntryKind::Folder) {
+        const std::uint32_t folderId = static_cast<std::uint32_t>(icon->titleId() - kFolderTitleIdPrefix);
+        showFolderContextMenu(folderId);
+        return;
+    }
+
     const int index = findTitleIndex(icon->titleId());
     if (index < 0) return;
     const auto& entry = m_model.at(index);

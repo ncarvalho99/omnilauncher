@@ -34,7 +34,7 @@ SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */
     info("settings.about.version", "Version", "OmniLaunch " SWITCHU_VERSION);
     info("settings.about.based_on", "Based on", "SwitchU + sLaunch");
     info("settings.about.credits", "Original authors", "PoloNX & etonedemid");
-    info("settings.about.author", "Maintained by", "ncarvalho99");
+    info("settings.about.author", "OmniLaunch Maintainer", "ncarvalho99");
     info("settings.about.license", "License", "GPL-3.0");
     info("settings.about.source_code", "Source code", "github.com/ncarvalho99/omnilauncher");
 
@@ -50,7 +50,7 @@ SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */
         SettingItem it;
         it.label = i18n.tr("settings.about.acknowledgements_desc",
                            "Special thanks to PoloNX (SwitchU), etonedemid (sLaunch), "
-                           "and xortroll (uLaunch) for their groundbreaking work.");
+                           "and xortroll (uLaunch).");
         it.type  = ItemType::Info;
         it.infoText = "";
         it.wrapLabel = true;

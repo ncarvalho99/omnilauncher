@@ -3145,7 +3145,11 @@ void IconGrid::renderXmb(nxui::Renderer& ren) {
 
             GlossyIcon* item = col[i];
             nxui::Texture* tex = item ? item->texture() : nullptr;
-            if (tex && tex->valid()) {
+            if (item && item->entryKind() == GridEntryKind::Folder) {
+                GlossyIcon::drawFolderContent(ren, itemRect, item->folderPreview(),
+                                              item->folderPreviewCount(), item->folderColorIndex(),
+                                              a, nullptr, "");
+            } else if (tex && tex->valid()) {
                 ren.drawTextureRounded(tex, itemRect, 14.f * zoom, nxui::Color::white().withAlpha(a));
             } else {
                 ren.drawRoundedRect(itemRect, nxui::Color(0.25f, 0.30f, 0.40f, a * 0.7f), 14.f * zoom);
@@ -3310,7 +3314,11 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             ren.drawRoundedRect(artRect.expanded(3.f), nxui::Color(0.f, 0.f, 0.f, 0.45f), 16.f);
             ren.drawRoundedRectOutline(artRect.expanded(1.f), nxui::Color(1.f, 1.f, 1.f, 0.22f), 15.f, 1.5f);
 
-            if (activeIcon->texture() && activeIcon->texture()->valid()) {
+            if (activeIcon->entryKind() == GridEntryKind::Folder) {
+                GlossyIcon::drawFolderContent(ren, artRect, activeIcon->folderPreview(),
+                                              activeIcon->folderPreviewCount(), activeIcon->folderColorIndex(),
+                                              1.0f, nullptr, "");
+            } else if (activeIcon->texture() && activeIcon->texture()->valid()) {
                 ren.drawTextureRounded(activeIcon->texture(), artRect, 14.f);
             } else {
                 ren.drawRoundedRect(artRect, nxui::Color(0.20f, 0.24f, 0.32f, 0.85f), 14.f);
@@ -3520,7 +3528,11 @@ void IconGrid::renderList(nxui::Renderer& ren) {
         const float iconSz = 38.f * zoom;
         const nxui::Rect iconRect{rowRect.x + 12.f, rowCenterY - iconSz * 0.5f, iconSz, iconSz};
 
-        if (icon->texture() && icon->texture()->valid()) {
+        if (icon->entryKind() == GridEntryKind::Folder) {
+            GlossyIcon::drawFolderContent(ren, iconRect, icon->folderPreview(),
+                                          icon->folderPreviewCount(), icon->folderColorIndex(),
+                                          alpha, nullptr, "");
+        } else if (icon->texture() && icon->texture()->valid()) {
             ren.drawTextureRounded(icon->texture(), iconRect, 8.f, nxui::Color::white().withAlpha(alpha));
         } else {
             ren.drawRoundedRect(iconRect, nxui::Color(0.25f, 0.30f, 0.40f, 0.6f * alpha), 8.f);
@@ -4064,6 +4076,10 @@ void IconGrid::renderMetro(nxui::Renderer& ren) {
                                               logoW, logoH};
                     ren.drawTexture(icon->wideGameLogo(), logoRect, nxui::Color::white().withAlpha(alpha));
                 }
+            } else if (icon->entryKind() == GridEntryKind::Folder) {
+                GlossyIcon::drawFolderContent(ren, tileRect, icon->folderPreview(),
+                                              icon->folderPreviewCount(), icon->folderColorIndex(),
+                                              alpha, nullptr, "");
             } else if (icon->texture() && icon->texture()->valid()) {
                 if (isWide) {
                     const float sqSize = tileRect.height - 12.f;

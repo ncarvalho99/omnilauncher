@@ -53,8 +53,15 @@ public:
     void setFolderPreview(std::vector<nxui::Texture*> textures) {
         m_folderPreview = std::move(textures);
     }
-    void setFolderVisualSeed(std::uint32_t seed) { m_folderVisualSeed = seed; }
+    const std::vector<nxui::Texture*>& folderPreview() const { return m_folderPreview; }
+    int folderPreviewCount() const { return m_folderPreviewCount; }
+    int folderColorIndex() const { return m_folderColorIndex; }
     void setFolderColorIndex(int index) { m_folderColorIndex = index; }
+    void setFolderVisualSeed(std::uint32_t seed) { m_folderVisualSeed = seed; }
+    static void drawFolderContent(nxui::Renderer& ren, const nxui::Rect& bounds,
+                                  const std::vector<nxui::Texture*>& previewTextures,
+                                  int previewCount, int colorIndex, float opacity,
+                                  nxui::Font* font, const std::string& title);
     void setFont(nxui::Font* font) { m_font = font; }  // folder tiles carry their name
     void setWidgetData(switchu::widgets::WidgetType type, int columns, int rows,
                        std::string primary, std::string secondary,

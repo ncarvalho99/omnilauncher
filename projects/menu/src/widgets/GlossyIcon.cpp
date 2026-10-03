@@ -608,6 +608,84 @@ void GlossyIcon::onContentUpdate(float dt) {
 #endif
 }
 
+void GlossyIcon::drawFolderContent(nxui::Renderer& ren, const nxui::Rect& bounds,
+                                    const std::vector<nxui::Texture*>& previewTextures,
+                                    int previewCount, int colorIndex, float opacity,
+                                    nxui::Font* font, const std::string& title) {
+    if (opacity <= 0.01f || bounds.width <= 4.f || bounds.height <= 4.f) return;
+    const nxui::Color accent = switchu::folders::colorForIndex(colorIndex);
+
+    const float s = std::min(bounds.width / 150.f, bounds.height / 150.f);
+    const float inset = 8.f * s;
+    const nxui::Rect shell = bounds.shrunk(inset);
+
+    const int available = previewTextures.empty()
+        ? std::max(0, previewCount)
+        : static_cast<int>(previewTextures.size());
+    const int shown = std::clamp(available, 0, 9);
+    int gridColumns = 3;
+    int gridRows = 3;
+    if (shown <= 1)      { gridColumns = 1; gridRows = 1; }
+    else if (shown == 2) { gridColumns = 2; gridRows = 1; }
+    else if (shown == 3) { gridColumns = 3; gridRows = 1; }
+    else if (shown == 4) { gridColumns = 2; gridRows = 2; }
+    else if (shown <= 6) { gridColumns = 3; gridRows = 2; }
+
+    const int largest = std::max(gridColumns, gridRows);
+    const float span = std::min(shell.width, shell.height * 0.82f) * 0.78f;
+    const float gapRatio = 0.14f;
+    const float cell = span / (static_cast<float>(largest)
+                               + gapRatio * static_cast<float>(largest - 1));
+    const float gap = cell * gapRatio;
+    const float gridW = cell * gridColumns + gap * (gridColumns - 1);
+    const float gridH = cell * gridRows + gap * (gridRows - 1);
+    const float gridX = shell.x + (shell.width - gridW) * 0.5f;
+    const float gridY = shell.y + (shell.height - gridH) * 0.5f;
+
+    for (int i = 0; i < shown; ++i) {
+        const int col = i % gridColumns;
+        const int row = i / gridColumns;
+        if (row >= gridRows)
+            break;
+        const nxui::Rect cellRect{gridX + col * (cell + gap),
+                                  gridY + row * (cell + gap), cell, cell};
+        ren.drawRoundedRect({cellRect.x, cellRect.y + 1.8f * s,
+                             cellRect.width, cellRect.height},
+                            nxui::Color(0.05f, 0.08f, 0.10f, 0.20f * opacity),
+                            cell * 0.22f);
+        nxui::Texture* icon = i < static_cast<int>(previewTextures.size())
+            ? previewTextures[static_cast<std::size_t>(i)] : nullptr;
+        if (icon && icon->valid()) {
+            ren.drawTextureRounded(icon, cellRect, cell * 0.22f,
+                                   nxui::Color::white().withAlpha(opacity));
+        } else {
+            ren.drawRoundedRect(cellRect,
+                                accent.withAlpha(0.26f * opacity),
+                                cell * 0.22f);
+        }
+    }
+
+    if (font && !title.empty()) {
+        const float baseScale = 0.44f * s;
+        float textScale = baseScale;
+        const float room = std::max(20.f, shell.width - 8.f * s);
+        const nxui::Vec2 measured = font->measure(title);
+        if (measured.x > 0.f)
+            textScale = std::min(textScale, room / measured.x);
+        textScale = std::max(0.30f * s, textScale);
+
+        const float textW = measured.x * textScale;
+        const float textH = measured.y * textScale;
+        const nxui::Vec2 textPos{shell.x + (shell.width - textW) * 0.5f,
+                                 shell.bottom() - textH - 4.f * s};
+
+        ren.drawText(title, textPos, font,
+                     nxui::Color::white().withAlpha(0.98f * opacity),
+                     textScale);
+    }
+}
+
+// Render the folder content
 void GlossyIcon::onRender(nxui::Renderer& ren) {
     float externalScale = scale();
     float focusS = m_focusScale.value();

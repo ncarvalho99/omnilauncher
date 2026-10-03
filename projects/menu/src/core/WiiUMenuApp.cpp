@@ -2332,8 +2332,10 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         entry.kind = GridEntryKind::Widget;
         entry.widgetId = widget.id;
         entry.widgetType = widget.type;
+        // In Grid mode, widgets use their full persisted size from widgetStore.
+        // In other modes, widgets are validated against that mode's constraints.
         const auto size = switchu::widgets::validatedSize(
-            widget.type, widget.size, m_appLayoutMode);
+            widget.type, widget.size, AppLayoutMode::Grid);
         entry.widgetColumns = size.columns;
         entry.widgetRows = size.rows;
         entry.widgetAssetRef = widget.assetRef;
@@ -3180,7 +3182,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     const bool inFolder = (m_openFolderId != 0);
     m_grid->setEdgePaging(inFolder);
     m_grid->setSlideTransition(inFolder);
-    m_grid->setLayoutMode(m_appLayoutMode);
+    // When inside an open folder, force Grid presentation so games inside are cleanly navigable
+    m_grid->setLayoutMode(inFolder ? AppLayoutMode::Grid : m_appLayoutMode);
     // The line is a ring, so the streamer's window has to wrap with it.
     m_iconStreamer.setRingMode(isCarouselLayout());
     if (m_appLayoutMode == AppLayoutMode::Xmb) {
@@ -4151,7 +4154,7 @@ void WiiUMenuApp::syncFolderPreviews() {
     std::uint32_t wanted = 0;
     std::string wantedSignature;
     for (const auto& icon : m_grid->allIcons()) {
-        if (!icon || icon->entryKind() != GridEntryKind::Folder || !icon->isVisible())
+        if (!icon || icon->entryKind() != GridEntryKind::Folder)
             continue;
         const std::uint32_t folderId =
             static_cast<std::uint32_t>(icon->titleId() - kFolderTitleIdPrefix);
