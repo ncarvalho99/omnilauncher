@@ -41,9 +41,6 @@ void PlazaScreenSwapButton::onRender(nxui::Renderer& ren) {
         }
         nxui::Color bgCol = nxui::Color(0.f, 0.47f, 0.84f, 0.90f * alpha);
         ren.drawRoundedRect(m_rect, bgCol, 4.f);
-        if (isFocused()) {
-            ren.drawRoundedRectOutline(m_rect.expanded(2.f), nxui::Color::white().withAlpha(alpha), 4.f, 2.5f);
-        }
         const float cx = m_rect.x + m_rect.width * 0.5f;
         const float cy = m_rect.y + m_rect.height * 0.5f;
         if (m_metroUIconTex.valid()) {
@@ -73,13 +70,13 @@ void PlazaScreenSwapButton::onRender(nxui::Renderer& ren) {
 
     // Outline
     const float pulse = 0.5f + 0.5f * std::sin(m_pulseAnim * 3.0f);
-    nxui::Color borderCol = isFocused()
-        ? nxui::Color(1.0f, 0.85f, 0.25f, (0.80f + 0.20f * pulse) * alpha)
-        : (m_plazaActive
-            ? nxui::Color(0.35f, 0.75f, 1.0f, 0.70f * alpha)
-            : nxui::Color(1.0f, 1.0f, 1.0f, 0.32f * alpha));
+    // Focus is drawn by the shared SelectionCursor; no second (gold) ring here.
+    (void)pulse;
+    nxui::Color borderCol = m_plazaActive
+        ? nxui::Color(0.35f, 0.75f, 1.0f, 0.70f * alpha)
+        : nxui::Color(1.0f, 1.0f, 1.0f, 0.32f * alpha);
 
-    ren.drawRoundedRectOutline(m_rect, borderCol, r, isFocused() ? 2.0f : 1.2f);
+    ren.drawRoundedRectOutline(m_rect, borderCol, r, 1.2f);
 
     const float cx = m_rect.x + m_rect.width * 0.5f;
     const float cy = m_rect.y + m_rect.height * 0.5f;

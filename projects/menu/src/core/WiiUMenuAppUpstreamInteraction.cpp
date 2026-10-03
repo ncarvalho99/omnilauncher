@@ -958,7 +958,6 @@ void WiiUMenuApp::wireFocusCallback() {
         } else if (cur) {
             if (m_grid) {
                 m_grid->setMetroFocused(false);
-                m_grid->focusManager().setFocus(nullptr);
             }
             if (m_editMode)
                 exitEditMode();
@@ -979,7 +978,6 @@ void WiiUMenuApp::wireFocusCallback() {
         } else {
             if (m_grid) {
                 m_grid->setMetroFocused(false);
-                m_grid->focusManager().setFocus(nullptr);
             }
             m_titlePill->hideAnimated();
         }
@@ -1807,17 +1805,12 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        if (m_openFolderId == 0 && m_grid &&
+        const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
+        if (isGameInCustomView && m_grid &&
             (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro || m_grid->isMetro() ||
              m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Xmb)) {
-            const bool isTopHud = (cur->tag() == "power_button" ||
-                                   cur->tag() == "plaza_screen_swap" ||
-                                   cur->tag() == "media_center_button" ||
-                                   cur->tag() == "userAvatarBar");
-            if (!isTopHud) {
-                m_cursor->setVisible(false);
-                return;
-            }
+            m_cursor->setVisible(false);
+            return;
         }
         const bool movingLineFocus = m_grid && m_grid->isDynamicLine()
                                   && cur->tag() == "glossy_icon";

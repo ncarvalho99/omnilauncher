@@ -32,8 +32,6 @@ void PowerButton::onRender(nxui::Renderer& ren) {
 
     // Same Metro tile chrome as the neighbouring Media Center / Plaza buttons.
     ren.drawRoundedRect(m_rect, nxui::Color(0.f, 0.47f, 0.84f, 0.90f * alpha), 4.f);
-    if (isFocused())
-        ren.drawRoundedRectOutline(m_rect.expanded(2.f), nxui::Color::white().withAlpha(alpha), 4.f, 2.5f);
 
     if (m_iconTex.valid()) {
         constexpr float iconSize = 28.0f;
