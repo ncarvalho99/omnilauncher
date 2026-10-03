@@ -555,7 +555,7 @@ SteamGridDbManager::ApplyResult SteamGridDbManager::applyCandidate(
                                                : iconPath(result.titleId);
         std::error_code ec;
         if (result.kind == ArtworkKind::Cover)
-            std::filesystem::create_directories("sdmc:/config/SwitchU/covers", ec);
+            std::filesystem::create_directories("sdmc:/config/OmniLaunch/covers", ec);
         else
             std::filesystem::create_directories(titleDirectory(result.titleId), ec);
         if (result.kind == ArtworkKind::Hero)
@@ -634,7 +634,7 @@ std::string SteamGridDbManager::iconPath(std::uint64_t titleId) {
 std::string SteamGridDbManager::coverPath(std::uint64_t titleId) {
     char hex[17];
     std::snprintf(hex, sizeof(hex), "%016llX", static_cast<unsigned long long>(titleId));
-    return std::string("sdmc:/config/SwitchU/covers/") + hex + ".jpg";
+    return std::string("sdmc:/config/OmniLaunch/covers/") + hex + ".jpg";
 }
 
 bool SteamGridDbManager::hasArtwork(std::uint64_t titleId) {
@@ -808,7 +808,7 @@ void SteamGridDbManager::scrape(std::string apiKey, std::vector<AppEntry> apps) 
 
     std::error_code ec;
     std::filesystem::create_directories(kCacheRoot, ec);
-    std::filesystem::create_directories("sdmc:/config/SwitchU/covers", ec);
+    std::filesystem::create_directories("sdmc:/config/OmniLaunch/covers", ec);
     std::string fatalError;
 
     for (const auto& app : apps) {

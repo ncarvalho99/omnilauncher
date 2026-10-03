@@ -190,6 +190,8 @@ public:
         setupMetroSystemIcons();
     }
     const MetroContext& metroContext() const { return m_metroContext; }
+    // Widget the top row of Metro tiles navigates UP to (the top-bar buttons).
+    void setMetroUpTarget(nxui::Widget* target);
     void setMetroTileSpans(const std::unordered_map<std::uint64_t, std::pair<int, int>>& spans) {
         m_metroTileSpans = spans;
     }
@@ -405,6 +407,7 @@ private:
 
     // Metro (Live Tiles) state
     MetroContext m_metroContext;
+    nxui::Widget* m_metroUpTarget = nullptr;
     std::unordered_map<std::uint64_t, std::pair<int, int>> m_metroTileSpans;
     std::vector<MetroTileRect> m_metroTiles;
     std::vector<std::shared_ptr<GlossyIcon>> m_metroSystemIcons;

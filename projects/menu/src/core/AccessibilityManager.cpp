@@ -85,7 +85,7 @@ bool AccessibilityManager::ensureEngine() {
     std::vector<std::string> dataRoots;
     if (!m_dataRoot.empty())
         dataRoots.push_back(m_dataRoot);
-    dataRoots.push_back("sdmc:/switch/SwitchU");
+    dataRoots.push_back("sdmc:/switch/OmniLaunch");
     dataRoots.push_back("romfs:");
 
     int sampleRate = -1;

@@ -303,10 +303,10 @@ class YtdlRequestHandler(BaseHTTPRequestHandler):
     server_version = "SwitchU-YTDL/1.1"
 
     def _check_auth(self):
-        """Enforce X-SwitchU-Key authentication if AUTH_CLIENT_KEY is configured."""
+        """Enforce X-SwitchU-Key / X-OmniLaunch-Key authentication if AUTH_CLIENT_KEY is configured."""
         if not AUTH_CLIENT_KEY:
             return True
-        client_key = self.headers.get("X-SwitchU-Key", "").strip()
+        client_key = (self.headers.get("X-SwitchU-Key") or self.headers.get("X-OmniLaunch-Key") or "").strip()
         if not client_key:
             return False
         return hmac.compare_digest(client_key.encode("utf-8"), AUTH_CLIENT_KEY.encode("utf-8"))

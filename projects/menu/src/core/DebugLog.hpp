@@ -13,13 +13,13 @@
 class DebugLog {
 public:
     static constexpr int MAX_LINES = 30;
-    static constexpr const char* LOG_DIR  = "sdmc:/config/SwitchU";
+    static constexpr const char* LOG_DIR  = "sdmc:/config/OmniLaunch";
     static constexpr const char* LOG_BASE_NAME = "log";
     static constexpr const char* LOG_EXTENSION = ".txt";
 #ifdef SWITCHU_MENU
-    static constexpr const char* LOG_FILE = "sdmc:/config/SwitchU/menu.log";
+    static constexpr const char* LOG_FILE = "sdmc:/config/OmniLaunch/menu.log";
 #else
-    static constexpr const char* LOG_FILE = "sdmc:/config/SwitchU/log.txt";
+    static constexpr const char* LOG_FILE = "sdmc:/config/OmniLaunch/log.txt";
 #endif
     static constexpr size_t MAX_LOG_FILES = 5;
     static constexpr size_t MAX_ARCHIVED_LOGS = MAX_LOG_FILES - 1;

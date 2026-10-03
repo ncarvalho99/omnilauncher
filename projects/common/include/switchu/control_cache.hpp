@@ -13,7 +13,7 @@
 
 namespace switchu::control_cache {
 
-inline constexpr const char* kCacheDir = "sdmc:/config/SwitchU/control_cache";
+inline constexpr const char* kCacheDir = "sdmc:/config/OmniLaunch/control_cache";
 inline constexpr uint32_t kMetaMagic = 0x53554343;
 inline constexpr uint32_t kMetaVersion = 5;
 
@@ -154,7 +154,7 @@ inline void ensureDirectory() {
     std::error_code ec;
     std::filesystem::create_directory("sdmc:/config", ec);
     ec.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", ec);
     ec.clear();
     std::filesystem::create_directory(kCacheDir, ec);
 }

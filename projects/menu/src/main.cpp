@@ -5,6 +5,7 @@
 #include "core/NsService.hpp"
 #include "tutorial/TutorialActivity.hpp"
 #include "services/NtpClient.hpp"
+#include "usb/Mtp.hpp"
 #include <nxui/Application.hpp>
 #include <fmt/format.h>
 #ifdef SWITCHU_MENU
@@ -167,6 +168,37 @@ extern "C" void __appInit(void) {
         svcOutputDebugString("[SwitchU-menu] fsdevMountSdmc FAIL, retry", 42);
         svcSleepThread(100'000'000ULL);
         rc = fsdevMountSdmc();
+    }
+
+    // Seamless migration from legacy SwitchU to OmniLaunch directories
+    {
+        std::error_code migEc;
+        if (std::filesystem::exists("sdmc:/config/SwitchU", migEc)) {
+            if (!std::filesystem::exists("sdmc:/config/OmniLaunch", migEc)) {
+                std::filesystem::rename("sdmc:/config/SwitchU", "sdmc:/config/OmniLaunch", migEc);
+            } else {
+                // Both exist: move contents of legacy into OmniLaunch if missing, then remove legacy
+                for (const auto& entry : std::filesystem::directory_iterator("sdmc:/config/SwitchU", migEc)) {
+                    const auto target = std::filesystem::path("sdmc:/config/OmniLaunch") / entry.path().filename();
+                    if (!std::filesystem::exists(target, migEc)) {
+                        std::filesystem::rename(entry.path(), target, migEc);
+                    }
+                }
+                std::filesystem::remove_all("sdmc:/config/SwitchU", migEc);
+            }
+        }
+        migEc.clear();
+        if (std::filesystem::exists("sdmc:/switch/SwitchU", migEc)) {
+            if (!std::filesystem::exists("sdmc:/switch/OmniLaunch", migEc)) {
+                std::filesystem::rename("sdmc:/switch/SwitchU", "sdmc:/switch/OmniLaunch", migEc);
+            } else {
+                std::filesystem::remove_all("sdmc:/switch/SwitchU", migEc);
+            }
+        }
+        migEc.clear();
+        if (std::filesystem::exists("sdmc:/switch/SwitchU-Manager", migEc)) {
+            std::filesystem::remove_all("sdmc:/switch/SwitchU-Manager", migEc);
+        }
     }
 
     // Appended to across menu restarts, not rotated on each one: the menu
@@ -342,11 +374,15 @@ int main(int argc, char* argv[]) {
             switchu::FileLog::flush();
         });
         if (app.initialize()) {
+            DebugLog::log("[menu] starting USB MTP server...");
+            switchu::usb::mtpStart();
             DebugLog::log("[menu] app.run...");
             app.run();
         } else {
             DebugLog::log("[menu] app.initialize FAILED");
         }
+        DebugLog::log("[menu] stopping USB MTP server...");
+        switchu::usb::mtpStop();
         DebugLog::log("[menu] app.shutdown...");
         app.shutdown();
         switchu::services::NtpClient::cleanup();

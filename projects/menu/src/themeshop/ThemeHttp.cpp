@@ -48,6 +48,7 @@ bool isOfficialHost(const std::string& url) {
 
     return (host == "gallery.nclabs.dev" ||
             host == "switchu-api.nclabs.dev" ||
+            host == "omnilaunch-api.nclabs.dev" ||
             host == "themes.nclabs.dev" ||
             host == "ytdl.nclabs.dev");
 }
@@ -216,7 +217,9 @@ std::vector<std::uint8_t> performRequestBytes(const std::string& url,
     if (official && switchu::auth::kClientKey && switchu::auth::kClientKey[0] != '\0') {
         const std::string authHeader = std::string("X-SwitchU-Key: ") + switchu::auth::kClientKey;
         requestHeaders = curl_slist_append(requestHeaders, authHeader.c_str());
-        DebugLog::log("[http] Official key attached for %s", url.c_str());
+        const std::string authHeader2 = std::string("X-OmniLaunch-Key: ") + switchu::auth::kClientKey;
+        requestHeaders = curl_slist_append(requestHeaders, authHeader2.c_str());
+        DebugLog::log("[http] Official keys attached for %s", url.c_str());
     } else if (official) {
         DebugLog::log("[http] WARNING: official host %s requested without client key!", url.c_str());
     }

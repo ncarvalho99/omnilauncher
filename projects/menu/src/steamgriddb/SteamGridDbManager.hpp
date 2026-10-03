@@ -78,7 +78,7 @@ public:
                                       const Candidate& candidate,
                                       const ProgressCallback& onProgress = {});
 
-    static constexpr const char* kCacheRoot = "sdmc:/config/SwitchU/steamgriddb";
+    static constexpr const char* kCacheRoot = "sdmc:/config/OmniLaunch/steamgriddb";
     static std::string heroPath(std::uint64_t titleId);
     static std::string logoPath(std::uint64_t titleId);
     static std::string iconPath(std::uint64_t titleId);

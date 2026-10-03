@@ -13,13 +13,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$logRoot = Join-Path $ConsoleDrive 'config\SwitchU'
+$logRoot = Join-Path $ConsoleDrive 'config\OmniLaunch'
+if (-not (Test-Path -LiteralPath $logRoot)) {
+    $legacyLogRoot = Join-Path $ConsoleDrive 'config\SwitchU'
+    if (Test-Path -LiteralPath $legacyLogRoot) {
+        $logRoot = $legacyLogRoot
+    }
+}
 
 if (-not (Test-Path -LiteralPath $ConsoleDrive)) {
     throw "Cartao do console $ConsoleDrive nao esta conectado."
 }
 if (-not (Test-Path -LiteralPath $logRoot)) {
-    throw "Nao encontrei os logs do SwitchU em $logRoot."
+    throw "Nao encontrei os logs do OmniLaunch em $logRoot."
 }
 
 $files = @('daemon.log', 'menu.log') |

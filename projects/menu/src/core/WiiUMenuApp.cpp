@@ -55,7 +55,7 @@ std::string urlEncode(const std::string& text) {
     return out;
 }
 
-static constexpr const char* kLayoutPath = "sdmc:/config/SwitchU/layout.json";
+static constexpr const char* kLayoutPath = "sdmc:/config/OmniLaunch/layout.json";
 
 // A controller that cannot press A is worth being able to tell apart after the
 // fact: a lone Joy-Con registered on its own reports style JoyLeft or JoyRight
@@ -195,7 +195,7 @@ std::string installedThemePathFromPackagePreset(const std::string& preset) {
     if (slug.empty())
         return {};
 
-    const std::string installPath = std::string("sdmc:/config/SwitchU/themes/") + slug;
+    const std::string installPath = std::string("sdmc:/config/OmniLaunch/themes/") + slug;
     return directoryExists(installPath) ? installPath : std::string();
 }
 
@@ -1312,7 +1312,7 @@ void WiiUMenuApp::saveMenuLayout() {
     std::error_code ec;
     std::filesystem::create_directory("sdmc:/config", ec);
     ec.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", ec);
 
     nlohmann::json j;
     j["version"] = 1;
@@ -1571,7 +1571,7 @@ void WiiUMenuApp::appendAddUserButton() {
     const float countF = static_cast<float>(m_userAvatarButtons.size());
     m_userAvatarBar->setSize(countF * 56.f + (countF - 1.f) * 10.f, 56.f);
     wireUserAvatarNavigation();
-    if (m_topHud)
+    if (m_topHud && m_appLayoutMode != AppLayoutMode::Metro)
         m_topHud->layout();
     DebugLog::log("[profiles] add-user tile appended count=%d",
                   static_cast<int>(m_pendingProfileUids.size()));
@@ -1642,6 +1642,8 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         nxui::Widget* right = ((carousel || xmb || list) && !m_sidebar.rightButtons().empty())
             ? m_sidebar.rightButtons().front().get()
             : nullptr;
+        if (isMetroLayout() && m_powerButton)
+            right = m_powerButton.get();
         m_mediaCenterButton->setCustomNavigation(nxui::FocusDirection::LEFT, left);
         m_mediaCenterButton->setCustomNavigation(nxui::FocusDirection::RIGHT, right);
         m_mediaCenterButton->setCustomNavigation(nxui::FocusDirection::DOWN, nullptr);
@@ -1649,6 +1651,16 @@ void WiiUMenuApp::wireUserAvatarNavigation() {
         m_mediaCenterButton->removeAction(static_cast<uint64_t>(nxui::Button::LStickD));
         m_mediaCenterButton->removeAction(static_cast<uint64_t>(nxui::Button::RStickD));
         m_mediaCenterButton->addDirectionAction(nxui::FocusDirection::DOWN, returnToGrid);
+    }
+    if (m_powerButton) {
+        m_powerButton->setCustomNavigation(nxui::FocusDirection::LEFT,
+            m_mediaCenterButton ? static_cast<nxui::Widget*>(m_mediaCenterButton.get()) : nullptr);
+        m_powerButton->setCustomNavigation(nxui::FocusDirection::RIGHT, nullptr);
+        m_powerButton->setCustomNavigation(nxui::FocusDirection::DOWN, nullptr);
+        m_powerButton->removeAction(static_cast<uint64_t>(nxui::Button::DDown));
+        m_powerButton->removeAction(static_cast<uint64_t>(nxui::Button::LStickD));
+        m_powerButton->removeAction(static_cast<uint64_t>(nxui::Button::RStickD));
+        m_powerButton->addDirectionAction(nxui::FocusDirection::DOWN, returnToGrid);
     }
     if (dynamicLine && !m_userAvatarButtons.empty()) {
         if (m_grid)
@@ -1723,7 +1735,7 @@ void WiiUMenuApp::loadNextUserAvatar() {
         wireUserAvatarNavigation();
     }
 
-    if (m_topHud)
+    if (m_topHud && m_appLayoutMode != AppLayoutMode::Metro)
         m_topHud->layout();
 
     if (m_pendingProfileIndex >= m_pendingProfileUids.size())
@@ -1989,7 +2001,7 @@ void WiiUMenuApp::saveMenuLayout() {
     std::error_code ec;
     std::filesystem::create_directory("sdmc:/config", ec);
     ec.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", ec);
 
     nlohmann::json j;
     j["version"] = 1;
@@ -2790,6 +2802,26 @@ void WiiUMenuApp::updateGridListContext() {
     });
 }
 
+// The Metro view hides the whole top HUD except the centre cluster, so the
+// shutdown tile only exists there. In Metro mode, the buttons sit on the top right
+// (x=778) alongside the media center button. Do not let m_topHud collapse them to x=0.
+void WiiUMenuApp::applyMetroPowerButton(bool isMetro) {
+    if (!m_powerButton) return;
+    m_powerButton->setVisible(isMetro);
+    m_powerButton->setFocusable(isMetro);
+    if (m_grid)
+        m_grid->setMetroUpTarget(isMetro ? static_cast<nxui::Widget*>(m_mediaCenterButton.get()) : nullptr);
+    if (m_topCenterCluster) {
+        if (isMetro) {
+            m_topCenterCluster->setRect({778.f, 18.f, 186.f, 48.f});
+            m_topCenterCluster->layout();
+        } else {
+            m_topCenterCluster->setSize(120.f, 48.f);
+            m_topCenterCluster->layout();
+            if (m_topHud) m_topHud->layout();
+        }
+    }
+}
 void WiiUMenuApp::updateGridMetroContext() {
     if (!m_grid) return;
     updateGridXmbContext();
@@ -2935,10 +2967,10 @@ std::string WiiUMenuApp::getOrFetchSummary(std::uint64_t titleId) {
         }
     }
 
-    // 2. SD card cache: sdmc:/config/SwitchU/metadata/<hexTitleId>.txt
+    // 2. SD card cache: sdmc:/config/OmniLaunch/metadata/<hexTitleId>.txt
     char hexBuf[17];
     std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
-    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
+    std::string path = std::string("sdmc:/config/OmniLaunch/metadata/") + hexBuf + ".txt";
 
     std::ifstream file(path);
     if (file.is_open()) {
@@ -2995,7 +3027,7 @@ void WiiUMenuApp::triggerSummaryFetchIfNeeded(std::uint64_t titleId) {
 
     char hexBuf[17];
     std::snprintf(hexBuf, sizeof(hexBuf), "%016llX", static_cast<unsigned long long>(titleId));
-    std::string path = std::string("sdmc:/config/SwitchU/metadata/") + hexBuf + ".txt";
+    std::string path = std::string("sdmc:/config/OmniLaunch/metadata/") + hexBuf + ".txt";
 
     m_threadPool.submit([this, titleId, titleName, path]() {
         // Check SD cache first
@@ -3029,7 +3061,7 @@ void WiiUMenuApp::triggerSummaryFetchIfNeeded(std::uint64_t titleId) {
                 }
 
                 if (!summary.empty()) {
-                    std::filesystem::create_directories("sdmc:/config/SwitchU/metadata");
+                    std::filesystem::create_directories("sdmc:/config/OmniLaunch/metadata");
                     std::ofstream out(path);
                     if (out.is_open()) {
                         out << summary;
@@ -3174,6 +3206,7 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
+    applyMetroPowerButton(isMetro);
     m_grid->onEdgePage([this](int dir) { flipPageFromEdge(dir); });
     m_grid->onEdgePageHold([this](int dir) -> bool {
         if (app().navHoldFrames() < 12)
@@ -3259,7 +3292,7 @@ void WiiUMenuApp::requestTextEntry(const std::string& title, const std::string& 
         }
         // The ring was hidden while the keyboard was up and its target was never
         // moved, so showing it again animated it down from the panel's own rect
-        // ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the keyboard-sized selection left behind on close. Snap it instead.
+        // -- the keyboard-sized selection left behind on close. Snap it instead.
         if (m_cursor && target)
             m_cursor->moveTo(target->focusRect().expanded(4.f), 0.f);
         DebugLog::log("[textentry] restoreFocus target=%p returnFocus=%p m_dialog=%p fellBackToGrid=%d",
@@ -4222,13 +4255,13 @@ void WiiUMenuApp::syncWidgetPageAssets() {
     m_widgetAssetsWereSliding = sliding;
 
     if (dynamicLine) {
-        // The carousel renderer keeps roughly four neighbours on each side in
-        // view. One extra item avoids a decode exactly as it enters the clip.
-        const int begin = std::max(0, page - 5);
-        const int end = std::min(static_cast<int>(icons.size()), page + 6);
-        for (int i = begin; i < end; ++i) {
-            keep[static_cast<std::size_t>(i)] = true;
-            current[static_cast<std::size_t>(i)] = true;
+        // The visible row wraps: index zero is next to the last icon. Keep the
+        // same five-neighbour window on each side across that seam as well.
+        const int count = static_cast<int>(icons.size());
+        for (int distance = -5; distance <= 5; ++distance) {
+            const int index = (page + distance + count) % count;
+            keep[static_cast<std::size_t>(index)] = true;
+            current[static_cast<std::size_t>(index)] = true;
         }
     } else {
         const int perPage = std::max(1, m_grid->iconsPerPage());
@@ -4459,9 +4492,9 @@ void WiiUMenuApp::showWidgetSizeMenu(int targetSlot, const nxui::Rect& anchor,
     std::vector<ContextMenu::Item> items;
     for (const auto size : switchu::widgets::supportedSizes(type, m_appLayoutMode)) {
         const bool available = canPlaceWidget(targetSlot, size);
-        const std::string label = std::to_string(size.columns) + "ÃƒÆ’Ã¢â‚¬â€"
+        const std::string label = std::to_string(size.columns) + "x"
             + std::to_string(size.rows)
-            + (available ? std::string() : " ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â " + i18n.tr("widget.no_space", "No space"));
+            + (available ? std::string() : " - " + i18n.tr("widget.no_space", "No space"));
         items.push_back({label, [this, targetSlot, anchor, type, size]() {
             if (type == switchu::widgets::WidgetType::ImagePin)
                 showWidgetAssetMenu(targetSlot, anchor, type, size);
@@ -4539,7 +4572,7 @@ void WiiUMenuApp::showWidgetOptionsMenu(std::uint32_t widgetId, int slot,
     for (const auto size : switchu::widgets::supportedSizes(widget->type, m_appLayoutMode)) {
         const bool available = canPlaceWidget(slot, size, widgetId);
         const std::string label = i18n.tr("widget.resize", "Resize") + " "
-            + std::to_string(size.columns) + "ÃƒÆ’Ã¢â‚¬â€" + std::to_string(size.rows);
+            + std::to_string(size.columns) + "x" + std::to_string(size.rows);
         items.push_back({label, [this, widgetId, size]() {
             if (!m_widgetStore.setSize(widgetId, size)) {
                 m_contextMenu->hide();
@@ -4854,6 +4887,7 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
+    applyMetroPowerButton(isMetro);
 
     if (rebuildRoot) {
         std::uint64_t focused = 0;
@@ -5190,7 +5224,7 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     // painted a one-cell panel over the right half of every 2x1 widget: the
     // "1x1 icon cutting it in half". The move ghost renders through a different
     // path, which is why the tile looked correct only while being moved. The
-    // instrumentation showed the span was never lost ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the model reported
+    // instrumentation showed the span was never lost -- the model reported
     // span=2x1 and layoutPage assigned rect 320x150 against a 150x150 cell.
     // bindGridNavigation already skips icons that are not focusable or not
     // visible, and it is span-aware, so hiding this one keeps navigation intact.
@@ -5228,8 +5262,8 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     // setEntryKind, setWidgetData, setFolderPreviewCount or
     // setBatteryIconTextures: the 1.2 presentation layer was merged in but this
     // factory was left as the fork wrote it. Every folder and widget therefore
-    // took the application path below, which gave them no texture ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so the
-    // loading spinner span forever ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â and an activation that asked the launcher
+    // took the application path below, which gave them no texture -- so the
+    // loading spinner span forever -- and an activation that asked the launcher
     // to start a title id that is not a title. That is the user picker followed
     // by the whole menu being recreated on page one.
     if (entry.isFolder()) {
@@ -5345,7 +5379,7 @@ std::shared_ptr<GlossyIcon> WiiUMenuApp::makeIcon(const AppEntry& entry) {
     icon->setAccessibilityHint(entry.isLaunchable()
         ? i18n.tr("accessibility.hints.game_launchable", "A to launch. X for options. Y to move. ZL or ZR to change page.")
         : i18n.tr("accessibility.hints.game_blocked", "A to show why this item is blocked."));
-    // Texture is set by IconStreamer::onPageChanged() ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â not here.
+    // Texture is set by IconStreamer::onPageChanged() -- not here.
     icon->setCornerRadius(m_theme.iconCornerRadius);
     icon->setLoadingColor(m_theme.cursorNormal);
     icon->setIsGameCard(entry.isGameCard());
@@ -5957,6 +5991,7 @@ void WiiUMenuApp::buildGrid() {
         );
         focusManager().setFocus(m_dialog.get());
     };
+    m_showPowerDialog = sidebarActions.onSleep;
     sidebarActions.onMiiverse = [this]() {
         m_audio.playSfx(Sfx::ModalShow);
         createThemeShop();
@@ -6098,6 +6133,17 @@ void WiiUMenuApp::buildGrid() {
     });
     m_topCenterCluster->addChild(m_mediaCenterButton);
 
+    m_powerButton = std::make_shared<widgets::PowerButton>();
+    m_powerButton->setSize(54.f, 48.f);
+    m_powerButton->setMarginTop(0.f);
+    m_powerButton->setShrink(0.f);
+    m_powerButton->setVisible(false); // Metro only; see applyMetroPowerButton().
+    m_powerButton->onActivate([this]() {
+        m_audio.playSfx(Sfx::Activate);
+        if (m_showPowerDialog) m_showPowerDialog();
+    });
+    m_topCenterCluster->addChild(m_powerButton);
+
     m_topCenterCluster->layout();
     m_topHud->addChild(m_topCenterCluster);
 
@@ -6139,6 +6185,7 @@ void WiiUMenuApp::buildGrid() {
     if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
+    applyMetroPowerButton(isMetro);
 
     m_overlayLayer = std::make_shared<nxui::Box>();
     m_overlayLayer->setRect({0, 0, 1280, 720});
@@ -6448,7 +6495,7 @@ void WiiUMenuApp::loadSoundPreset(const std::string& preset) {
     reloadMusicTracks();
 }
 
-constexpr const char* kCustomMusicDir = "sdmc:/config/SwitchU/music";
+constexpr const char* kCustomMusicDir = "sdmc:/config/OmniLaunch/music";
 
 std::vector<TrackInfo> WiiUMenuApp::scanCustomBgmTracks() {
     std::vector<TrackInfo> tracks;
@@ -6705,8 +6752,8 @@ void WiiUMenuApp::finalizeRefresh() {
     app().gpu().waitIdle();
 
     // The icons about to be replaced are held as raw pointers by both focus
-    // managers, and FocusManager::changeFocusTo calls onFocusLost() ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a virtual
-    // ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â on whatever it thinks is focused. Destroying them without saying so
+    // managers, and FocusManager::changeFocusTo calls onFocusLost() -- a virtual
+    // -- on whatever it thinks is focused. Destroying them without saying so
     // leaves that call reading a freed vtable, which is what two crash reports
     // from a clean install show: a garbage pointer in x1, then
     // ldr x1,[x1,#40]; blr x1 inside changeFocusTo.
@@ -7197,7 +7244,7 @@ void WiiUMenuApp::onUpdate(float dt) {
     // dynamic line has no pages: wireFocusCallback() loads around the focused
     // icon with a page size of one, and this pump kept asking for page 0 of a
     // full grid page. It therefore only ever scheduled the first fifteen icons,
-    // and everything past them ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the homebrew at the end of the line ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â stayed on
+    // and everything past them -- the homebrew at the end of the line -- stayed on
     // its loading spinner until the focus callback happened to reach it.
     if (m_plazaScreen && m_plazaScreen->isActive()) {
         // Plaza communities are populated before startup icon decodes finish.
@@ -7355,8 +7402,8 @@ void WiiUMenuApp::onUpdate(float dt) {
     }
 
     // The selection ring used to be placed only from onFocusChanged, so any
-    // focus change that landed while the grid was mid-transition ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â which is
-    // what moving quickly between the top row and the grid produces ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â left the
+    // focus change that landed while the grid was mid-transition -- which is
+    // what moving quickly between the top row and the grid produces -- left the
     // ring hidden or parked on the previous widget while the hint bar already
     // described the new one. SelectionCursor::moveTo ignores a target it is
     // already animating towards, so repairing it every frame costs nothing and
@@ -7432,7 +7479,7 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     // Skip rendering the home scene while the settings overlay is settled.
     // The A/B probe measured it: with the occluded scene rendered the frame
-    // costs ~31ms of GPU; with it hidden, ~14-15ms ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â inside the 16.7ms
+    // costs ~31ms of GPU; with it hidden, ~14-15ms -- inside the 16.7ms
     // budget. The scene under the panel was ~16ms a frame spent on pixels
     // the panel covers. The glass widgets sample the held offscreen capture,
     // not the live framebuffer, so their appearance does not change, and the
@@ -7503,7 +7550,7 @@ void WiiUMenuApp::onUpdate(float dt) {
         const float avgMs = (m_perfAccumDt / m_perfFrames) * 1000.f;
         const auto& gpu = app().gpu();
         // Operation and performance mode. After exiting DBI the menu renders
-        // an unchanged workload ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â same 90 draws, same 17448 vertices ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â at
+        // an unchanged workload -- same 90 draws, same 17448 vertices -- at
         // gpu=65ms instead of the usual 0-15ms, which is the GPU running at a
         // fraction of its clock. Nothing in this project manages the
         // performance configuration; the real qlaunch does, and this daemon
@@ -7962,8 +8009,8 @@ void WiiUMenuApp::onUpdate(float dt) {
         if (!lockScreenUp && !dialogActiveNow && m_themeShop && m_themeShop->isActive())
             m_themeShop->handleTouch(app().input());
 
-        // L e R viram a página do catálogo de temas. Roteado daqui porque é onde a
-        // entrada está: a loja é um widget e não alcança o Input por conta própria.
+        // L e R viram a p--gina do cat--logo de temas. Roteado daqui porque -- onde a
+        // entrada est--: a loja -- um widget e n--o alcan--a o Input por conta pr--pria.
         if (!lockScreenUp && m_themeShop && m_themeShop->isActive()
             && !dialogActiveNow) {
             const int delta = app().input().isDown(nxui::Button::L) ? -1
@@ -8065,6 +8112,11 @@ void WiiUMenuApp::onUpdate(float dt) {
 
     if (!debugTouchBlocked && !lockScreenUp && m_mediaCenterButton)
         m_mediaCenterButton->handleTouch(app().input());
+
+    if (!debugTouchBlocked && !lockScreenUp && !dialogActiveNow &&
+        m_navigator.route() == switchu::navigation::Route::Home &&
+        m_powerButton && m_powerButton->isVisible())
+        m_powerButton->handleTouch(app().input());
 
     if (!debugTouchBlocked && !lockScreenUp && m_mediaCenterScreen && m_mediaCenterScreen->isActive())
         m_mediaCenterScreen->handleTouch(app().input());
@@ -9183,7 +9235,7 @@ void WiiUMenuApp::onRender(nxui::Renderer& ren) {
             // and leaves its result in OFF_SHARP_A. Copying target 0 into 2
             // therefore published the half-res scene capture, never the blurred
             // frame, and FolderBackdrop drew that quarter-sized image stretched
-            // across the full 1280x720 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the doubled, smeared frame seen when a
+            // across the full 1280x720 -- the doubled, smeared frame seen when a
             // folder opened. Capture sharp, blur it, publish the blurred one.
             ren.captureToOffscreenSharp();
             ren.applyBlur(4.f, 2);

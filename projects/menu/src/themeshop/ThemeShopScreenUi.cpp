@@ -2005,7 +2005,7 @@ void ThemeShopScreen::drawCustomContent(nxui::Renderer& ren, const nxui::Rect&, 
             subtitle = i18n.tr("themeshop.music.results_subtitle", "Online songs found for: ") + "'" + m_youtubeSearchQuery + "'";
         } else {
             title = i18n.tr("themeshop.music.installed_title", "Installed Music Library");
-            subtitle = i18n.tr("themeshop.music.installed_subtitle", "Your local songs saved in sdmc:/config/SwitchU/music/");
+            subtitle = i18n.tr("themeshop.music.installed_subtitle", "Your local songs saved in sdmc:/config/OmniLaunch/music/");
         }
     } else if (isAnimatedTab()) {
         title = i18n.tr("themeshop.animated.title", "Animated Themes");
@@ -2533,7 +2533,7 @@ void ThemeShopScreen::drawCustomContent(nxui::Renderer& ren, const nxui::Rect&, 
         detailSubtitle = track->author.empty() ? "YouTube" : track->author;
         detailInfoA = track->isDownloaded ? (i18n.tr("themeshop.music.size", "Size: ") + track->duration)
                                           : (i18n.tr("themeshop.music.duration", "Duration: ") + track->duration + "  •  " + i18n.tr("themeshop.music.est_size", "Est. Size: ") + estimateDownloadSize(track->duration));
-        detailInfoB = track->isDownloaded ? i18n.tr("themeshop.music.status_downloaded", "Status: Saved in sdmc:/config/SwitchU/music/")
+        detailInfoB = track->isDownloaded ? i18n.tr("themeshop.music.status_downloaded", "Status: Saved in sdmc:/config/OmniLaunch/music/")
                                           : (i18n.tr("themeshop.music.video_id", "Video ID: ") + track->id);
         detailInfoC = track->isDownloaded
             ? i18n.tr("themeshop.music.status_ready_play", "Status: Ready to play or delete")

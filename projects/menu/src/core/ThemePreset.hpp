@@ -40,6 +40,7 @@ enum class ThemeBackgroundSymmetry {
 
 struct ThemeBackgroundConfig {
     std::string imagePath;
+    std::string videoPath;
     // A wallpaper that moves. Frames are decoded once when the theme is
     // applied and then only swapped, because decoding per frame was measured
     // on hardware and is not affordable at any resolution.

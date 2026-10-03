@@ -27,8 +27,8 @@ InstallationSnapshot SwitchUInstallation::inspect() const {
     const bool disabled = regularFileExists(kDisabledOverride);
 
     InstallationSnapshot snapshot;
-    snapshot.menuPayloadPresent = regularFileExists(kMenuMain)
-        && regularFileExists(kMenuNpdm);
+    snapshot.menuPayloadPresent = (regularFileExists(kMenuMain) && regularFileExists(kMenuNpdm))
+        || (regularFileExists(kLegacyMenuMain) && regularFileExists(kLegacyMenuNpdm));
 
     if (active && disabled)
         snapshot.state = InstallationState::Conflict;

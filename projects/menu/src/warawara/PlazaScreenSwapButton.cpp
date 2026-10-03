@@ -37,7 +37,7 @@ void PlazaScreenSwapButton::onRender(nxui::Renderer& ren) {
     if (m_metroStyle) {
         if (!m_metroUIconLoaded) {
             m_metroUIconLoaded = true;
-            m_metroUIconTex.loadFromFile(ren.gpu(), ren, "sdmc:/switch/SwitchU/icons/metro/warawara.png", 128);
+            m_metroUIconTex.loadFromFile(ren.gpu(), ren, "sdmc:/switch/OmniLaunch/icons/metro/warawara.png", 128);
         }
         nxui::Color bgCol = nxui::Color(0.f, 0.47f, 0.84f, 0.90f * alpha);
         ren.drawRoundedRect(m_rect, bgCol, 4.f);
@@ -56,7 +56,7 @@ void PlazaScreenSwapButton::onRender(nxui::Renderer& ren) {
 
     if (!m_uIconLoaded) {
         m_uIconLoaded = true;
-        static constexpr const char* kSdIcon = "sdmc:/switch/SwitchU/icons/warawara_u.png";
+        static constexpr const char* kSdIcon = "sdmc:/switch/OmniLaunch/icons/warawara_u.png";
         static constexpr const char* kRomfsIcon = "romfs:/icons/warawara_u.png";
         if (!m_uIconTex.loadFromFile(ren.gpu(), ren, kSdIcon, 128)) {
             m_uIconTex.loadFromFile(ren.gpu(), ren, kRomfsIcon, 128);

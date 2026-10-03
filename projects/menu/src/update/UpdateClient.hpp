@@ -21,6 +21,8 @@ public:
         "https://api.github.com/repos/ncarvalho99/SwitchU/releases/latest";
     static constexpr const char* kOmniLauncherReleasesUrl =
         "https://api.github.com/repos/ncarvalho99/omnilauncher/releases/latest";
+    static constexpr const char* kOmniLaunchReleasesUrl =
+        "https://api.github.com/repos/ncarvalho99/omnilaunch/releases/latest";
 
     struct Release {
         std::string version;      // "1.1.0+fork.8"

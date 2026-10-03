@@ -135,7 +135,7 @@ bool FolderStore::load() {
 
 bool FolderStore::save() const {
     std::error_code ec;
-    std::filesystem::create_directories("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directories("sdmc:/config/OmniLaunch", ec);
 
     nlohmann::json root;
     root["version"] = 2;

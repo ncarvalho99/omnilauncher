@@ -720,7 +720,7 @@ bool hasAllDeclaredFrames(const std::string& root, std::string& detail) {
 
 std::string ThemePackageInstaller::destinationRootFor(const std::string& themeId, Mode mode) {
     (void)mode;
-    return "sdmc:/config/SwitchU/themes/" + themeId;
+    return "sdmc:/config/OmniLaunch/themes/" + themeId;
 }
 
 ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& catalogUrl,

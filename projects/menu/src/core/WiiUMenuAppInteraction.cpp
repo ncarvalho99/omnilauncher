@@ -142,7 +142,7 @@ std::string WiiUMenuApp::accessibilityActionsFor(nxui::Widget* w) const {
     if (m_gameMods && w == m_gameMods.get())
         return i18n.tr("dialog.mods_hint", "A enable/disable. X remove. B back.");
     if (m_gameCheats && w == m_gameCheats.get())
-        return i18n.tr("dialog.cheats_hint", "A toggle  â€¢  X toggle all  â€¢  B back");
+        return i18n.tr("dialog.cheats_hint", "A toggle  -  X toggle all  -  B back");
     if (m_gameDetails && w == m_gameDetails.get())
         return i18n.tr("dialog.details_actions", "Left and right to select gameplay art. A to expand. B to return.");
     if ((m_dialog && w == m_dialog.get()) || (m_userSelect && w == m_userSelect.get()))
@@ -1005,7 +1005,7 @@ bool WiiUMenuApp::handleFrameDumpShortcut() {
     localtime_r(&now, &tmNow);
     std::strftime(ts, sizeof(ts), "%Y%m%d_%H%M%S", &tmNow);
 
-    m_frameDumpBatchDir = fmt::format("sdmc:/config/SwitchU/frame_dumps/{}", ts);
+    m_frameDumpBatchDir = fmt::format("sdmc:/config/OmniLaunch/frame_dumps/{}", ts);
     std::error_code ec;
     std::filesystem::create_directories(m_frameDumpBatchDir, ec);
 

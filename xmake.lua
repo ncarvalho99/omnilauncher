@@ -1,4 +1,4 @@
-set_project("SwitchU")
+set_project("OmniLaunch")
 
 add_repositories("switchu-repo local-repo")
 add_repositories("switch-repo https://github.com/PoloNX/switch-repo.git")
@@ -6,27 +6,12 @@ add_repositories("switch-repo https://github.com/PoloNX/switch-repo.git")
 includes("toolchain/*.lua")
 add_rules("mode.debug", "mode.release")
 
--- Plain semver, counted by this fork.
---
--- Eleven releases were numbered "1.1.0+fork.N", which kept the upstream version
--- visible but put the number that actually changes into semver's build
--- metadata -- the one field the specification says to ignore when comparing
--- versions. Formally every one of those releases was the same version, and the
--- console only ordered them because the updater's comparator was written to
--- read that field. The one place a version must be unambiguous is the code that
--- decides whether to install an update.
---
--- What it is built from has its own line on the About screen, fed by
--- upstream_version below, which is where that belongs.
-local version = "2.6.5"
--- The PoloNX release this fork descends from. Shown as "Based on", never as
--- our own version.
-local upstream_version = "1.2.0"
+-- OmniLaunch versioning
+local version = "1.0.0"
+local upstream_version = "SwitchU + sLaunch"
 local version_define = string.format('SWITCHU_VERSION="%s"', version)
 local upstream_define = string.format('SWITCHU_UPSTREAM_VERSION="%s"', upstream_version)
 
--- The NACP rejects build metadata, which is why this used to get the upstream
--- number instead. There is none to reject now, so it gets the real version.
 set_version(version)
 
 add_requires("libsdl", "libsdl_mixer", "libsdl_ttf", "zlib", "libwebp", "nlohmann_json", "fmt", "libcurl", "curlpp", {configs = {toolchains = "devkita64"}})
@@ -211,6 +196,24 @@ target("atmosphere-stratosphere")
     end)
 target_end()
 
+target("haze")
+    set_kind("static")
+    set_default(false)
+    if not is_plat("cross") then return end
+
+    set_toolchains("devkita64")
+    set_languages("c++23")
+
+    add_includedirs("lib/haze/include", {public = true})
+    add_includedirs("lib/Atmosphere-libs/libvapours/include", {public = true})
+
+    add_files("lib/haze/source/*.cpp")
+    add_cxxflags("-frtti", "-fexceptions", {force = true})
+    if is_mode("release") then
+        add_cxflags("-O3", "-flto=auto", {force = true})
+    end
+target_end()
+
 local function generate_client_key_header(os, io, path, raise_fn)
     local key = os.getenv("SWITCHU_CLIENT_KEY")
     if not key or key == "" then
@@ -264,14 +267,18 @@ target("SwitchU")
     set_languages("c++20")
     add_rules("switch")
 
-    add_deps("nxui")
+    add_deps("nxui", "haze")
     add_includedirs("projects/common/include", {public = false})
     add_includedirs("projects/menu/src", {public = false})
     add_includedirs("build/generated", {public = false})
+    add_includedirs("lib/haze/include", {public = false})
+    add_includedirs("lib/Atmosphere-libs/libvapours/include", {public = false})
     add_files("projects/menu/src/**.cpp")
     add_packages("nlohmann_json", "fmt", "libsdl", "libsdl_mixer", "libsdl_ttf", "zlib", "libwebp", "libcurl", "curlpp")
     add_linkgroups("SDL2_ttf", "harfbuzz-subset", "harfbuzz", "freetype", "png16", "bz2", "z", {group = true})
     add_linkgroups("SDL2_mixer", "FLAC++", "FLAC", "vorbisidec", "ogg", "modplug", "opusurl", "opusfile", "opus", {group = true})
+    add_linkgroups("avformat", "avcodec", "swscale", "swresample", "avutil", "dav1d", {group = true})
+    add_defines("SWITCHU_HAS_VIDEO=1", "SWITCHU_HAS_NVTEGRA=1")
 
     if is_mode("debug") and get_config("backend") ~= "sdl2" then
         add_packages("imgui")
@@ -356,15 +363,15 @@ target("SwitchU")
         if has_config("resume_failure_test") then
             add_defines("SWITCHU_RESUME_FAILURE_TEST")
         end
-        set_values("switch.name",    "switchu-menu")
+        set_values("switch.name",    "omnilaunch-menu")
         set_values("switch.author",  "PoloNX")
         set_values("switch.version", version)
         set_values("switch.romfs",   "romfs")
         set_values("switch.json",    "projects/menu/menu.json")
         set_values("switch.format",  "nsp")
         set_values("switch.install_contents", false)
-        set_values("switch.assets_dir", "SwitchU")
-        set_values("switch.raw_exefs_dir", "switch/SwitchU/bin/menu")
+        set_values("switch.assets_dir", "OmniLaunch")
+        set_values("switch.raw_exefs_dir", "switch/OmniLaunch/bin/menu")
     end
 target_end()
 
@@ -413,7 +420,7 @@ target("SwitchU-Manager")
         os.cp(path.join(os.projectdir(), "projects/manager/romfs/i18n/*.json"), i18n_dir)
     end)
 
-    set_values("switch.name",    "SwitchU-Manager")
+    set_values("switch.name",    "OmniLaunch-Manager")
     set_values("switch.author",  "PoloNX")
     set_values("switch.version", version)
     set_values("switch.romfs",   "build/manager-romfs")

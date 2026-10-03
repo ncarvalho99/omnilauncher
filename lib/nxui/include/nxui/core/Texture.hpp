@@ -102,6 +102,9 @@ public:
     // Upload pixels already decoded. Cheap enough to do mid-frame.
     bool loadFromDecoded(GpuDevice& gpu, Renderer& ren, const DecodedImage& image);
 
+    // Fast in-place pixel update for streaming video frames (RGBA8)
+    bool updatePixels(GpuDevice& gpu, const void* pixels, uint32_t size);
+
     // Load from in-memory image data (JPEG/PNG via stb_image)
     bool loadFromMemory(GpuDevice& gpu, Renderer& ren,
                         const uint8_t* data, size_t dataSize, int maxSide = 0);

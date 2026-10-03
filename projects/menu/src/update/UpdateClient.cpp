@@ -210,7 +210,7 @@ std::string UpdateClient::feedUrl() {
     // which is what makes the whole update path testable end to end -- against
     // a payload of your own, as often as you like -- without publishing a
     // release to everybody first.
-    std::ifstream override("sdmc:/config/SwitchU/update-source.txt");
+    std::ifstream override("sdmc:/config/OmniLaunch/update-source.txt");
     if (override) {
         std::string url;
         std::getline(override, url);
@@ -230,12 +230,22 @@ UpdateClient::Snapshot UpdateClient::fetch(const std::string& currentVersion, st
     bool usingOmniLauncher = false;
     try {
         feed = nlohmann::json::parse(
-            themeshop::http::getText(kOmniLauncherReleasesUrl, {"Accept: application/vnd.github+json"}));
+            themeshop::http::getText(kOmniLaunchReleasesUrl, {"Accept: application/vnd.github+json"}));
         if (feed.contains("tag_name") && feed["tag_name"].is_string()) {
             usingOmniLauncher = true;
         }
-    } catch (...) {
-        // Fall back to SwitchU feed if omnilauncher repository has no releases yet
+    } catch (...) {}
+
+    if (!usingOmniLauncher) {
+        try {
+            feed = nlohmann::json::parse(
+                themeshop::http::getText(kOmniLauncherReleasesUrl, {"Accept: application/vnd.github+json"}));
+            if (feed.contains("tag_name") && feed["tag_name"].is_string()) {
+                usingOmniLauncher = true;
+            }
+        } catch (...) {
+            // Fall back to SwitchU feed if omnilauncher repository has no releases yet
+        }
     }
 
     if (!usingOmniLauncher) {

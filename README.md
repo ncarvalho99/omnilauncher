@@ -1,275 +1,238 @@
 <div align="center">
-    <h1>SwitchU</h1>
-    <p>A Wii U-style custom home menu replacement for Nintendo Switch</p>
-    <p><i>Fork of <a href="https://github.com/PoloNX/SwitchU">PoloNX/SwitchU</a>, whose work this is built on.</i></p>
+    <h1>OmniLaunch</h1>
+    <p>The definitive multi-layout, highly customizable custom HOME menu replacement for Nintendo Switch.</p>
+    <p><i>Unifying the runtime architecture and rich services of SwitchU with the signature 3D carousel and presentation engines of sLaunch.</i></p>
 </div>
 
 <p align="center">
-  <a rel="LICENSE" href="https://github.com/ncarvalho99/SwitchU/blob/master/LICENSE">
+  <a rel="LICENSE" href="https://github.com/ncarvalho99/omnilauncher/blob/master/LICENSE">
     <img src="https://img.shields.io/static/v1?label=license&message=GPLV3&labelColor=111111&color=0057da&style=for-the-badge" alt="License">
   </a>
-  <a rel="VERSION" href="https://github.com/ncarvalho99/SwitchU/releases/latest">
-    <img src="https://img.shields.io/github/v/release/ncarvalho99/SwitchU?labelColor=111111&color=06f&style=for-the-badge" alt="Version">
+  <a rel="VERSION" href="https://github.com/ncarvalho99/omnilauncher/releases/latest">
+    <img src="https://img.shields.io/github/v/release/ncarvalho99/omnilauncher?labelColor=111111&color=06f&style=for-the-badge" alt="Version">
   </a>
-  <a rel="BUILD" href="https://github.com/ncarvalho99/SwitchU/actions">
-      <img src="https://img.shields.io/github/actions/workflow/status/ncarvalho99/SwitchU/switch.yml?branch=master&labelColor=111111&color=06f&style=for-the-badge" alt="Build">
+  <a rel="BUILD" href="https://github.com/ncarvalho99/omnilauncher/actions">
+      <img src="https://img.shields.io/github/actions/workflow/status/ncarvalho99/omnilauncher/switch.yml?branch=master&labelColor=111111&color=06f&style=for-the-badge" alt="Build">
   </a>
 </p>
 
 ---
 
-- [Features](#features)
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+  - [8 Selectable Launcher View Modes](#8-selectable-launcher-view-modes)
+  - [Hardware NVDEC Video Wallpapers](#hardware-nvdec-video-wallpapers)
+  - [Integrated USB MTP File Transfer](#integrated-usb-mtp-file-transfer)
+  - [Full SteamGridDB Artwork Integration & Game Dossier](#full-steamgriddb-artwork-integration--game-dossier)
+  - [WaraWara Plaza & Miiverse Experience](#warawara-plaza--miiverse-experience)
+  - [Audio & Multimedia Center](#audio--multimedia-center)
+  - [Folders, Custom Widgets & Live Tiles](#folders-custom-widgets--live-tiles)
+  - [Built-In System Settings & On-Screen Keyboard](#built-in-system-settings--on-screen-keyboard)
+  - [Activity Log & Playtime Tracker](#activity-log--playtime-tracker)
+  - [Cheats & Mods Manager](#cheats--mods-manager)
+  - [Auto-Update & Self-Uninstall Engine](#auto-update--self-uninstall-engine)
+  - [Accessibility & Multi-Language Support](#accessibility--multi-language-support)
 - [Screenshots](#screenshots)
-- [Installing](#installing)
-- [How to build](#how-to-build)
-- [Transition performance audit](#transition-performance-audit)
-- [Known issues](#known-issues)
-- [Help me](#help-me)
-- [Credits](#credits)
+- [Installation](#installation)
+- [Building from Source](#building-from-source)
+- [Credits & Acknowledgements](#credits--acknowledgements)
 - [License](#license)
 
-## Features
+---
 
-### The home menu
+## Overview
 
-- A Wii U-style grid over an animated background, with pages, a configurable
-  layout (3–8 columns, 2–5 rows) and drag-to-reorder edit mode.
-- Games launch through a daemon that replaces qlaunch, so the menu is a real
-  home menu: HOME returns to it, a suspended game resumes, and the console
-  sleeps, restarts and shuts down from it.
-- **A single-row view** on **−**: one large icon with its neighbours either
-  side, the game's hero art filling the screen behind it and its logo above the
-  row. It is a carousel — it wraps in both directions, skips empty slots, and
-  repeats while ZL, ZR or the d-pad is held.
-- Sorting on **R** by name, by recently played and by install order. The grid
-  remembers the page you were on per title rather than per page number, so it
-  lands in the right place after being rebuilt at a different width. The
-  single-row view keeps your own arrangement instead, so R does nothing there.
+**OmniLaunch** is a complete, feature-rich replacement for the stock Nintendo Switch `qlaunch` HOME Menu. It merges the rock-solid daemon lifecycle, application handoff authority, folder hierarchy, widgets, and offline/online services of the **SwitchU** ecosystem with the presentation prowess, hardware-accelerated 3D carousel views, and aesthetic minimalism of **sLaunch**.
 
-### Folders
+Games and applets launch through a persistent, low-overhead daemon (`0100000000001000`), meaning HOME returns to it seamlessly, suspended titles can be resumed instantly, and sleep, shutdown, and reboot are natively managed.
 
-- Group software into folders with a name, a colour and their own pages. Games
-  and homebrew mix freely.
-- The tile shows up to nine of the icons inside it, on clear glass, in a grid
-  that follows how many members there are.
-- **+** on a title files it into a folder. Inside an open folder, **R** takes
-  the focused title straight back out, and **↑** reaches the folder's name to
-  rename it.
+---
 
-### Widgets
+## Key Features
 
-- Tiles that are not software: a clock, console and Joy-Con battery, the last
-  game you played, recent playtime, a pinned image and a random screenshot.
-- 1x1 and 2x1 sizes, placed and moved like any other tile.
+### 8 Selectable Launcher View Modes
+Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the Settings / Theme Shop menu:
+1. **Grid Mode:** Traditional Wii U-style layout with configurable columns (3–8) and rows (2–5), page transitions, drag-and-drop reordering, and expandable tiles.
+2. **Dynamic Line:** Fast horizontal carousel with a single focused hero tile and proximity-scaled neighbors.
+3. **Flow (3D Coverflow):** Authentic 3D coverflow carousel with watertight case geometry, dynamic perspective tilt, real-time ground reflection, proximity lighting, and 2:3 vertical cover art.
+4. **Shelf:** 3D perspective shelf view featuring vertical spine and front case art.
+5. **Deck:** Clean angled card deck with physical depth cues.
+6. **Cover:** Focused large-format single cover presentation.
+7. **XMB:** PlayStation-inspired Cross-Media Bar featuring vertical categorical navigation (Users, Settings, Games, Media, Homebrew).
+8. **Metro (Live Tiles):** Windows Phone / Xbox-inspired Live Tiles grid with customizable 1×1, 2×1 (wide), and 2×2 (expanded) live animated tiles, SteamGridDB hero banners, high-resolution vector glyphs, and a dedicated top-bar control cluster.
+9. **List (Niagara):** High-speed vertical carousel with dynamic cursor easing, proximity pill highlighting, and a dedicated hero detail card displaying synopsis, play records, publisher, and size badges.
 
-### Per-game panel
+### Hardware NVDEC Video Wallpapers
+- Supports native video playback (`.mp4`, `.mkv`, `.webm`, `.mov`) directly as animated theme wallpapers using the Tegra X1 **NVDEC hardware video accelerator** (`nvtegra` via FFmpeg).
+- Operates on a dedicated Horizon OS worker thread with zero frame-drops or UI stutter.
+- Includes a resolution and rate guard: safely blocks clips exceeding 1080p60 to protect hardware performance.
 
-Pressing **+** on a game opens its panel:
+### Integrated USB MTP File Transfer
+- Built-in background USB MTP responder (adapted from Atmosphère's `haze` and sLaunch).
+- Plug the console directly into Windows, macOS, or Linux (KDE Dolphin / GNOME Files) to drag and drop files directly onto the microSD card without rebooting into payload mode or removing the card.
+- Native Linux / KDE Solid compatibility via Vendor-Specific class declaration (`0xFF`).
 
-- **Details** — a dossier with the description, genre, developer, release date
-  and reviews, fetched from a metadata service. Only for native applications;
-  homebrew and ports get a smaller menu instead of an empty dossier.
-- **Gallery** — covers and backgrounds from SteamGridDB, picked on the console
-  and stored per game, independent of the theme.
-- **Mods** — enables, disables and removes LayeredFS content under
-  `atmosphere/contents/<titleId>`, one mod at a time rather than treating the
-  whole folder as opaque.
-- **Delete software** — removes the title *and* what it left on the card:
-  `atmosphere/contents`, the older `atmosphere/titles`, the SX OS layout and the
-  launcher's own artwork caches. The folders are named before you confirm, and a
-  progress bar runs while they go. A port installed by hand is removed too,
-  which the system's own uninstall leaves behind.
+### Full SteamGridDB Artwork Integration & Game Dossier
+- Automatic and manual SteamGridDB artwork search for all installed titles and homebrew applications.
+- In-menu artwork picker with live candidate preview: apply high-res 600×900 vertical covers, 920×430 wide grid banners, 460×215 hero banners, and transparent PNG logos.
+- Rich Game Dossier screen: view playtime records, game version, launch counts, publisher, synopsis, and local screenshot gallery.
 
-### Artwork
+### WaraWara Plaza & Miiverse Experience
+- Full-screen interactive WaraWara Plaza populated by console user accounts and bundled high-resolution guest Mii avatars.
+- Dialogue engine with game tips, community news, and classic Miiverse-style speech bubbles.
+- Procedural **Animalese voice synthesizer** powered by eSpeak NG.
 
-- SteamGridDB heroes and logos behind the menu, scanned for the whole library or
-  chosen title by title.
-- **No API key needed.** Searches, heroes and grids go through this fork's own
-  service. A personal key is still accepted and additionally unlocks logos.
+### Audio & Multimedia Center
+- Dedicated Multimedia Center for local MP3, OGG, and WAV soundtrack playback.
+- Background BGM playback during menu navigation with shuffle and volume controls.
+- Integrated YouTube-DL audio streaming bridge client (`ytdl.nclabs.dev`).
 
-### Themes
+### Folders, Custom Widgets & Live Tiles
+- Full folder hierarchy support: group games into folders with customizable color tint, live 9-item mini-previews, and smooth opening animations.
+- Interactive widgets: Live Digital Clock, Console & Controller Battery rings (Joy-Con L/R/Pro), Recently Played game hero card, Recent Playtime, Random Screenshot, and Image Pin widgets (supporting static pictures and animated GIFs).
 
-- Five tabs: **Installed**, **Static Themes**, **Animated Themes**, **Options**
-  and **Update**.
-- Animated themes are frame sequences compressed as BC1/BC7 and sampled by the
-  GPU without unpacking, read a few frames per rendered frame so the menu opens
-  immediately and the rest arrives while it is already in your hands.
-- The catalogue says what each theme costs to download and what it occupies once
-  unpacked, per theme and as a total, and marks the ones already installed.
-- L and R turn the page anywhere in the catalogue.
-- **Options** tunes the look directly: glass sharpness, background blur,
-  background animation speed, grid columns and rows, menu music and volumes.
+### Built-In System Settings & On-Screen Keyboard
+- **System Settings:** Firmware info, Atmosphère version, EmuNAND status, timezone, clock sync, and language selector.
+- **Hardware Controls:** Bluetooth pairing and connection manager, display brightness, audio output, sleep timers, and storage manager.
+- **Controller Test:** Live visual diagnostics for Joy-Cons, Pro Controllers, stick deadzones, buttons, and touch screen calibration.
+- **Custom Touch & Controller Virtual Keyboard:** Full on-screen keyboard with accented letters, symbols, and word prediction.
 
-### Settings
+### Activity Log & Playtime Tracker
+- Accurate per-title playtime tracker logging total hours, minutes, launch counts, and first/last played timestamps.
+- Daily, monthly, and yearly activity bar charts.
 
-- **System** — SwitchU's own language, firmware and Atmosphère versions, EmuNAND
-  state, nickname, timezone and clock sync.
-- **Internet**, **Bluetooth** (real pairing and connection, not just a saved
-  flag), **Audio**, **Display**, **Storage**, **Sleep** and **Controllers**,
-  including a **controller test** for sticks, buttons and the touch screen.
-- An **on-screen keyboard** for every text field, with accented characters, a
-  symbols page and touch. The system keyboard cannot be used from a menu that
-  runs as a library applet, so SwitchU draws its own.
+### Cheats & Mods Manager
+- Built-in game cheats toggle reading Atmosphere cheat databases directly from the SD card.
+- RomFS LayeredFS mod toggles per game.
 
-### Updating itself
+### Auto-Update & Self-Uninstall Engine
+- Self-updater fetching stable releases and assets from GitHub API (`ncarvalho99/omnilauncher`).
+- Safe two-phase staging: updates are verified, unpacked, and applied at boot by the daemon before the menu executable loads.
+- **Clean Self-Uninstall:** Permanently purges OmniLaunch and SwitchU files from `atmosphere/contents/`, `switch/`, and `config/`, rebooting cleanly into the original stock Nintendo HOME Menu.
 
-- The Update tab shows the installed version, what the last check found and what
-  changed. The notes for the installed build ship with it, so the tab answers
-  before it has spoken to anyone.
-- GitHub is checked once a day, and there is a button to check immediately.
-- An accepted update is downloaded, checked against the published size and
-  inspected path by path; the daemon puts the files in place at the next boot,
-  before the menu exists, because a running menu cannot replace the font and
-  binaries it is holding open. **That first boot takes about half a minute
-  longer.**
+### Accessibility & Multi-Language Support
+- Full text-to-speech voice guidance via eSpeak NG with adjustable speed.
+- Native localization in 8 languages: English, Portuguese (Brasil), Spanish, French, German, Italian, Dutch, and Russian.
 
-### Accessibility and languages
-
-- Voice guidance through eSpeak NG, reading the focused item, its role and its
-  position, with a configurable speech rate.
-- Eight languages: English, Portuguese, Spanish, French, German, Italian, Dutch
-  and Russian. Changing SwitchU's language applies immediately, without a
-  restart, and is separate from the console's own setting.
+---
 
 ## Screenshots
 
-![](./screenshots/1.jpg)
+<div align="center">
+  <img src="./screenshots/2026100222051600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222052600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+</div>
+<div align="center">
+  <img src="./screenshots/2026100222053000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222053400-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+</div>
+<div align="center">
+  <img src="./screenshots/2026100222053800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  <img src="./screenshots/2026100222054000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+</div>
 
 <details>
-  <summary><b>More screenshots</b></summary>
-
-![](./screenshots/2.jpg)
-![](./screenshots/3.jpg)
-![](./screenshots/4.jpg)
-![](./screenshots/5.jpg)
-![](./screenshots/6.jpg)
-![](./screenshots/7.jpg)
-![](./screenshots/8.jpg)
-![](./screenshots/9.jpg)
-![](./screenshots/10.jpg)
-![](./screenshots/11.jpg)
-![](./screenshots/12.jpg)
-![](./screenshots/13.jpg)
-![](./screenshots/14.jpg)
-![](./screenshots/15.jpg)
-![](./screenshots/16.jpg)
-![](./screenshots/17.jpg)
-![](./screenshots/18.jpg)
-![](./screenshots/19.jpg)
-![](./screenshots/20.jpg)
-![](./screenshots/21.jpg)
-![](./screenshots/22.jpg)
-![](./screenshots/23.jpg)
-![](./screenshots/24.jpg)
-![](./screenshots/25.jpg)
-![](./screenshots/26.jpg)
-![](./screenshots/27.jpg)
-![](./screenshots/28.jpg)
-![](./screenshots/29.jpg)
-![](./screenshots/30.jpg)
-![](./screenshots/35.jpg)
-![](./screenshots/36.jpg)
-![](./screenshots/37.jpg)
-![](./screenshots/38.jpg)
-![](./screenshots/39.jpg)
-![](./screenshots/40.jpg)
-
+  <summary><b>View More Screenshots (Metro, Niagara List, Flow, Settings, Media)</b></summary>
+  <br>
+  <div align="center">
+    <img src="./screenshots/2026100222054300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222054800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222061300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222061800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222064000-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222064300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222065200-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222065800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222070100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222072800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222073200-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222074100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222074400-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222074700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222083300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222084100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222104600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222110700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222112300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222112800-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222113700-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222114300-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222115100-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+    <img src="./screenshots/2026100222115600-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
+  <div align="center">
+    <img src="./screenshots/2026100222123900-DB1426D1DFD034027CECDE9C2DD914B8.jpg" width="48%" />
+  </div>
 </details>
 
-## Installing
+---
 
-Download the archive from the [latest release](https://github.com/ncarvalho99/SwitchU/releases/latest)
-and copy `atmosphere` and `switch` to the root of the microSD card, replacing
-what is there. Restart the console.
+## Installation
 
-Updating from an older build works the same way. Nothing is deleted that the
-launcher does not own: your themes, artwork and settings live under
-`config/SwitchU` and are left alone.
+1. Download the latest `OmniLaunch-sysmodule-release.zip` from the [Releases](https://github.com/ncarvalho99/omnilauncher/releases) page.
+2. Extract the archive directly to the root of your Nintendo Switch microSD card:
+   - `atmosphere/contents/0100000000001000/exefs.nsp`
+   - `switch/OmniLaunch/`
+   - `switch/OmniLaunch-Manager/OmniLaunch-Manager.nro`
+3. If upgrading from **SwitchU**, you do not need to do anything: on first boot, OmniLaunch will automatically detect and migrate your existing `config/SwitchU/` and `switch/SwitchU/` data to `config/OmniLaunch/` with all settings, themes, and saves intact.
+4. Reboot your console.
 
-## How to build
+---
 
-### Requirements
+## Building from Source
 
-- [devkitPro](https://devkitpro.org/wiki/Getting_Started)
-- [Xmake](https://xmake.io/#/)
+### Prerequisites
+- [devkitPro](https://devkitpro.org/) with `devkitA64` toolchain and Switch portlibs.
+- [xmake](https://xmake.io/) build utility.
 
-### Clone
-
+### Production Sysmodule Build
 ```bash
-git clone --recursive https://github.com/ncarvalho99/SwitchU
-cd SwitchU
+xmake f -p cross -a aarch64 --toolchain=devkita64 -m release --homebrew=n --backend=deko3d
+xmake -j$(nproc)
 ```
 
-### Build (production daemon + external menu mode)
-
-```bash
-xmake f -p cross --toolchain=devkita64 --homebrew=n --backend=deko3d
-xmake
-```
-
-### Build (homebrew .nro mode)
-
-```bash
-xmake f -p cross --toolchain=devkita64 --homebrew=y --backend=deko3d
-xmake
-```
-
-### Clean
-
-```bash
-xmake clean
-```
-
-Build outputs are generated under `build/cross/aarch64/<mode>/`.
-
-### Local Windows build with Docker
-
-The reproducible local environment is defined in `tools/Dockerfile.build`; it
-pins the devkitPro base image used to make SwitchU. After installing Docker
-Desktop, create it once and then build the installable sysmodule archive:
-
+### Reproducible Build with Docker
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-image.ps1 -PullBase
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-local.ps1 -Mode release -Variant sysmodule
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-local.ps1 -Mode release -Variant sysmodule -SkipConsoleDeploy
 ```
+The compiled output package will be placed under `artifacts/OmniLaunch-sysmodule-release.zip`.
 
-The resulting archive is `artifacts/SwitchU-sysmodule-release.zip`. When the
-Switch microSD card is connected, pass its drive letter with `-ConsoleDrive`
-(`E:` by default): a successful sysmodule build copies `atmosphere` and `switch`
-to it and verifies the main binaries by SHA-256. Use `-SkipConsoleDeploy` to
-keep a build local. Read hardware logs directly with:
+---
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\read-console-logs.ps1
-```
+## Credits & Acknowledgements
 
-## Transition performance
+- **[PoloNX](https://github.com/PoloNX):** Creator of [SwitchU](https://github.com/PoloNX/SwitchU).
+- **[etonedemid](https://github.com/etonedemid):** Creator of [sLaunch](https://github.com/etonedemid/slaunch).
+- **[Xortroll](https://github.com/Xortroll):** Creator of [uLaunch](https://github.com/Xortroll/uLaunch).
+- **[ncarvalho99](https://github.com/ncarvalho99):** Architecture, integration engineering, optimization, and maintenance of OmniLaunch.
 
-Raw-tick hardware traces of launch and HOME-return can be summarized with
-[`tools/analyze-transition-traces.ps1`](./tools/analyze-transition-traces.ps1).
-
-## Known issues
-
-- Some settings are still not implemented.
-- Memory is tight with many sysmodules running. It has been reduced a good deal,
-  but launching a game on a loaded console can still be unstable.
-- A theme deleted before v1.1.0+fork.11 left its folder on the card. Those have
-  to be removed by hand once; deletions from that version on free the space.
-
-## Help me
-
-If you want to help, open an issue when you find a bug and open a pull request
-if you have a fix. Reports that come with the logs from `config/SwitchU` and,
-when the console crashed, the files from `atmosphere/fatal_errors` and
-`atmosphere/crash_reports`, are the ones that get fixed.
-
-## Credits
-
-- [PoloNX](https://github.com/PoloNX) for SwitchU itself. This fork adds to his
-  work and does not replace it.
-- Thanks to [Xortroll](https://github.com/Xortroll) for the help and for
-  [uLaunch](https://github.com/Xortroll/uLaunch) which inspired this project a lot
+---
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0. See the [LICENSE](https://github.com/ncarvalho99/SwitchU/blob/master/LICENSE) file for details.
+OmniLaunch is licensed under the [GNU General Public License v3.0](https://github.com/ncarvalho99/omnilauncher/blob/master/LICENSE).

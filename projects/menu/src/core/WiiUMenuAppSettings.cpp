@@ -1,4 +1,5 @@
 #include "WiiUMenuApp.hpp"
+#include "video/VideoPlayer.hpp"
 #include "themeshop/ThemePackageInstaller.hpp"
 #include "settings/SettingsGlassTuning.hpp"
 #include "widgets/GlossyIcon.hpp"
@@ -514,7 +515,7 @@ void WiiUMenuApp::createSettings() {
             m_settings->requestToast(
                 R_SUCCEEDED(rc)
                     ? i18n.tr("settings.system.save_logs_done",
-                              "Logs saved. Copy menu-*.log and daemon-*.log from config/SwitchU.")
+                              "Logs saved. Copy menu-*.log and daemon-*.log from config/OmniLaunch.")
                     : i18n.tr("settings.system.save_logs_failed",
                               "The menu log was saved; the daemon did not answer."),
                 4.5f);
@@ -1157,7 +1158,7 @@ void WiiUMenuApp::createThemeShop() {
         const auto* entry = m_themeShop->findCommunityThemeEntry(themeId);
         if (!entry) {
             auto& i18n = nxui::I18n::instance();
-            showThemeShopInfo(i18n.tr("sidebar.theme_shop", "SwitchU"),
+            showThemeShopInfo(i18n.tr("sidebar.theme_shop", "OmniLaunch"),
                               i18n.tr("themeshop.community.selected_missing",
                                       "The selected community theme is no longer available in the catalog."));
             return;
@@ -1350,15 +1351,15 @@ void WiiUMenuApp::createThemeShop() {
         m_audio.playSfx(Sfx::ModalShow);
         raiseOverlay(m_dialog);
         m_dialog->show(
-            i18n.tr("themeshop.uninstall", "Uninstall SwitchU"),
+            i18n.tr("themeshop.uninstall", "Uninstall OmniLaunch"),
             i18n.tr("themeshop.uninstall_information",
-                    "This permanently removes SwitchU from your console and restarts into the stock Nintendo HOME Menu.\n\n"
-                    "All SwitchU data on your SD card will be completely deleted, including:\n"
+                    "This permanently removes OmniLaunch from your console and restarts into the stock Nintendo HOME Menu.\n\n"
+                    "All OmniLaunch data on your SD card will be completely deleted, including:\n"
                     "• All settings, configurations, and logs\n"
                     "• All downloaded static and animated themes\n"
                     "• All cached game artwork and icons\n"
-                    "• SwitchU menu binaries and SwitchU Manager\n\n"
-                    "To use SwitchU again in the future, a fresh manual installation will be required."),
+                    "• OmniLaunch menu binaries and OmniLaunch Manager\n\n"
+                    "To use OmniLaunch again in the future, a fresh manual installation will be required."),
             {
                 {i18n.tr("button.cancel", "Cancel"), [this]() {}, true},
                 {i18n.tr("themeshop.uninstall_continue", "Continue"), [this]() {
@@ -1366,10 +1367,10 @@ void WiiUMenuApp::createThemeShop() {
                     m_audio.playSfx(Sfx::ModalShow);
                     raiseOverlay(m_dialog);
                     m_dialog->show(
-                        i18n.tr("themeshop.uninstall_confirm_title", "Permanently Delete SwitchU?"),
+                        i18n.tr("themeshop.uninstall_confirm_title", "Permanently Delete OmniLaunch?"),
                         i18n.tr("themeshop.uninstall_confirm",
                                 "This action cannot be undone. "
-                                "All SwitchU files, themes, artwork, and settings will be permanently erased from your SD card."),
+                                "All OmniLaunch files, themes, artwork, and settings will be permanently erased from your SD card."),
                         {
                             {i18n.tr("button.cancel", "Cancel"), [this]() {}, true},
                             {i18n.tr("themeshop.uninstall_confirm_action", "Uninstall and delete everything"),
@@ -1379,7 +1380,7 @@ void WiiUMenuApp::createThemeShop() {
                                     m_progressDialog->setTheme(&m_theme);
                                     raiseOverlay(m_progressDialog);
                                     m_progressDialog->show(
-                                        i18n.tr("themeshop.uninstall_progress_title", "Removing SwitchU"),
+                                        i18n.tr("themeshop.uninstall_progress_title", "Removing OmniLaunch"),
                                         i18n.tr("themeshop.uninstall_preparing", "Preparing removal..."), 0.25f);
                                     focusManager().setFocus(m_progressDialog.get());
                                 }
@@ -1392,7 +1393,7 @@ void WiiUMenuApp::createThemeShop() {
                                     m_dialog->show(
                                         i18n.tr("themeshop.uninstall_failed_title", "Removal could not be prepared"),
                                         i18n.tr("themeshop.uninstall_failed",
-                                                "SwitchU was not changed. Check that the SD card is writable and try again."),
+                                                "OmniLaunch was not changed. Check that the SD card is writable and try again."),
                                         {{i18n.tr("button.ok", "OK"), [this]() {}, true}}, 0, {});
                                     focusManager().setFocus(m_dialog.get());
                                     return;
@@ -1410,7 +1411,7 @@ void WiiUMenuApp::createThemeShop() {
                                     m_dialog->show(
                                         i18n.tr("themeshop.uninstall_failed_title", "Removal could not be prepared"),
                                         i18n.tr("themeshop.uninstall_daemon_failed",
-                                                "SwitchU was not changed because the restart request failed."),
+                                                "OmniLaunch was not changed because the restart request failed."),
                                         {{i18n.tr("button.ok", "OK"), [this]() {}, true}}, 0, {});
                                     focusManager().setFocus(m_dialog.get());
                                 }
@@ -1884,6 +1885,8 @@ void WiiUMenuApp::reloadThemePresets() {
     auto installedPackages = ThemePreset::loadInstalledPackages();
     m_allPresets.insert(m_allPresets.end(), userPresets.begin(), userPresets.end());
     m_allPresets.insert(m_allPresets.end(), installedPackages.begin(), installedPackages.end());
+    DebugLog::log("[theme-apply] reloadThemePresets: builtIn=%zu user=%zu installed=%zu total=%zu",
+                  ThemePreset::builtInPresets().size(), userPresets.size(), installedPackages.size(), m_allPresets.size());
 }
 
 void WiiUMenuApp::startThemePackageTransfer(const ThemeCatalogClient::Entry& entry, bool installMode) {
@@ -2107,6 +2110,8 @@ std::vector<ThemeShopScreen::ThemeShopEntry> WiiUMenuApp::buildThemeShopEntries(
 void WiiUMenuApp::refreshThemeShopState() {
     if (!m_themeShop) return;
 
+    reloadThemePresets();
+
     ThemePreset* activePreset = findPresetPtr(m_activePresetName);
     std::string activeId = activePreset ? (activePreset->id.empty() ? activePreset->name : activePreset->id)
                                         : m_activePresetName;
@@ -2266,8 +2271,15 @@ void WiiUMenuApp::applyThemeResources(const ThemePreset& preset) {
     const std::string desiredGameCardPath = gameCardExists ? gameCardPath : defaultGameCardPath;
     const bool gameCardNeedsReload = forceResourceReload || m_loadedGameCardPath != desiredGameCardPath;
 
+    const std::string backgroundVideoPath = !preset.background.videoPath.empty()
+        ? resolveThemeAssetPath(preset, preset.background.videoPath)
+        : (switchu::video::isVideoPath(backgroundImagePath) ? backgroundImagePath : std::string());
+    const bool videoExists = !backgroundVideoPath.empty() && pathExists(backgroundVideoPath);
+    const bool wantsVideo = videoExists;
+    const bool isVideoLoaded = m_background && m_background->isVideoActive();
+
     const bool imageExists = !backgroundImagePath.empty() && pathExists(backgroundImagePath);
-    const bool wantsBackgroundImage = imageExists;
+    const bool wantsBackgroundImage = imageExists || wantsVideo;
     // A frames-only theme has no imagePath, so both sides of the path check are
     // empty and this decided nothing needed loading -- the frames never loaded
     // and the wallpaper came up blank. The gate has to know about the sequence
@@ -2277,7 +2289,8 @@ void WiiUMenuApp::applyThemeResources(const ThemePreset& preset) {
     const bool backgroundImageNeedsReload = forceResourceReload
         || m_loadedBackgroundImagePath != backgroundImagePath
         || m_backgroundImageLoaded != wantsBackgroundImage
-        || wantsFrames != hasFramesLoaded;
+        || wantsFrames != hasFramesLoaded
+        || wantsVideo != isVideoLoaded;
 
     const bool needsGpuResourceReload = regularFontNeedsReload
         || smallFontNeedsReload
@@ -2402,7 +2415,12 @@ void WiiUMenuApp::applyThemeResources(const ThemePreset& preset) {
             // paid before. Frames are resolved against the theme's own folder,
             // the same way its single image is.
             bool imageLoaded = false;
-            if (!preset.background.imageFrames.empty()) {
+            if (wantsVideo) {
+                imageLoaded = m_background->loadVideo(backgroundVideoPath, true);
+                DebugLog::log("[theme-apply] background hardware video wallpaper: path=%s loaded=%d",
+                              safeLogPath(backgroundVideoPath), imageLoaded ? 1 : 0);
+            }
+            if (!imageLoaded && !preset.background.imageFrames.empty()) {
                 std::vector<std::string> framePaths;
                 framePaths.reserve(preset.background.imageFrames.size());
                 for (const auto& rel : preset.background.imageFrames) {

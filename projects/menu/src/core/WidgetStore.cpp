@@ -89,7 +89,7 @@ bool WidgetStore::load() {
 
 bool WidgetStore::save() const {
     std::error_code ec;
-    std::filesystem::create_directories("sdmc:/config/SwitchU/widgets", ec);
+    std::filesystem::create_directories("sdmc:/config/OmniLaunch/widgets", ec);
     ec.clear();
     std::filesystem::create_directories(kAssetRoot, ec);
 

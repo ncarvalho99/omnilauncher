@@ -28,12 +28,12 @@
 
 namespace {
 
-constexpr const char* kUpdateDir = "sdmc:/config/SwitchU/update";
-constexpr const char* kUpdateArchive = "sdmc:/config/SwitchU/update/update.zip";
-constexpr const char* kReadyMarker = "sdmc:/config/SwitchU/update/ready";
+constexpr const char* kUpdateDir = "sdmc:/config/OmniLaunch/update";
+constexpr const char* kUpdateArchive = "sdmc:/config/OmniLaunch/update/update.zip";
+constexpr const char* kReadyMarker = "sdmc:/config/OmniLaunch/update/ready";
 // Written once the daemon inside the archive is already on the card, which is
 // what lets the boot that applies the rest skip its own restart.
-constexpr const char* kDaemonMarker = "sdmc:/config/SwitchU/update/daemon";
+constexpr const char* kDaemonMarker = "sdmc:/config/OmniLaunch/update/daemon";
 // The archive lays out atmosphere/ and switch/ exactly as they sit on the card,
 // so the card root is the extraction target.
 constexpr const char* kCardRoot = "sdmc:/";

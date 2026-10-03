@@ -88,7 +88,7 @@ inline Result prepare() {
     if (kEnableExternalContentLaunch) {
         g_launchTrace.registrationStartTick = armGetSystemTick();
         Result ecsRc = switchu::daemon::registerExternalContent(
-            switchu::smi::kMenuTakeoverProgramId, "/switch/SwitchU/bin/menu");
+            switchu::smi::kMenuTakeoverProgramId, "/switch/OmniLaunch/bin/menu");
         g_launchTrace.registrationEndTick = armGetSystemTick();
         if (R_FAILED(ecsRc)) {
             switchu::FileLog::log("[menu_la] external content registration failed rc=0x%X", ecsRc);

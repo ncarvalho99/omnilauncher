@@ -45,8 +45,12 @@ public:
     static constexpr const char* kDisabledOverride =
         "sdmc:/atmosphere/contents/0100000000001000/exefs.nsp.disabled";
     static constexpr const char* kMenuMain =
-        "sdmc:/switch/SwitchU/bin/menu/main";
+        "sdmc:/switch/OmniLaunch/bin/menu/main";
     static constexpr const char* kMenuNpdm =
+        "sdmc:/switch/OmniLaunch/bin/menu/main.npdm";
+    static constexpr const char* kLegacyMenuMain =
+        "sdmc:/switch/SwitchU/bin/menu/main";
+    static constexpr const char* kLegacyMenuNpdm =
         "sdmc:/switch/SwitchU/bin/menu/main.npdm";
 
     InstallationSnapshot inspect() const;

@@ -126,7 +126,13 @@ function Deploy-SysmoduleToConsole {
     $sourceSwitch = Join-Path $sourceRoot 'switch'
     $destinationAtmosphere = Join-Path $ConsoleDrive 'atmosphere'
     $destinationSwitch = Join-Path $ConsoleDrive 'switch'
-    $consoleSwitchU = Join-Path $destinationSwitch 'SwitchU'
+    $consoleSwitchU = Join-Path $destinationSwitch 'OmniLaunch'
+    if (-not (Test-Path -LiteralPath $consoleSwitchU)) {
+        $consoleLegacy = Join-Path $destinationSwitch 'SwitchU'
+        if (Test-Path -LiteralPath $consoleLegacy) {
+            $consoleSwitchU = $consoleLegacy
+        }
+    }
 
     if (-not (Test-Path -LiteralPath $sourceAtmosphere) -or
         -not (Test-Path -LiteralPath $sourceSwitch)) {
@@ -140,10 +146,10 @@ function Deploy-SysmoduleToConsole {
     Write-Host "implantando sysmodule no cartao $ConsoleDrive ..." -ForegroundColor Cyan
     Copy-TreeToConsole -Source $sourceAtmosphere -Destination $destinationAtmosphere -Label 'atmosphere'
     Copy-TreeToConsole -Source $sourceSwitch -Destination $destinationSwitch -Label 'switch'
-    Remove-RetiredDefaultThemeMedia -SourceSwitchU (Join-Path $sourceSwitch 'SwitchU') -ConsoleSwitchU $consoleSwitchU
+    Remove-RetiredDefaultThemeMedia -SourceSwitchU (Join-Path $sourceSwitch 'OmniLaunch') -ConsoleSwitchU $consoleSwitchU
 
     # Garante que todos os arquivos i18n sejam copiados sem serem ignorados pelo robocopy no FAT32
-    $sourceI18n = Join-Path $sourceSwitch 'SwitchU\i18n'
+    $sourceI18n = Join-Path $sourceSwitch 'OmniLaunch\i18n'
     $consoleI18n = Join-Path $consoleSwitchU 'i18n'
     if (Test-Path -LiteralPath $sourceI18n) {
         if (-not (Test-Path -LiteralPath $consoleI18n)) {
@@ -156,8 +162,8 @@ function Deploy-SysmoduleToConsole {
 
     $checks = @(
         @{ Source = Join-Path $sourceAtmosphere 'contents\0100000000001000\exefs.nsp'; Destination = Join-Path $destinationAtmosphere 'contents\0100000000001000\exefs.nsp' },
-        @{ Source = Join-Path $sourceSwitch 'SwitchU\bin\menu\main'; Destination = Join-Path $destinationSwitch 'SwitchU\bin\menu\main' },
-        @{ Source = Join-Path $sourceSwitch 'SwitchU\bin\menu\main.npdm'; Destination = Join-Path $destinationSwitch 'SwitchU\bin\menu\main.npdm' }
+        @{ Source = Join-Path $sourceSwitch 'OmniLaunch\bin\menu\main'; Destination = Join-Path $destinationSwitch 'OmniLaunch\bin\menu\main' },
+        @{ Source = Join-Path $sourceSwitch 'OmniLaunch\bin\menu\main.npdm'; Destination = Join-Path $destinationSwitch 'OmniLaunch\bin\menu\main.npdm' }
     )
     foreach ($check in $checks) {
         $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $check.Source).Hash

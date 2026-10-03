@@ -407,4 +407,10 @@ bool Texture::loadFromSurface(GpuDevice& gpu, Renderer& ren,
     return loadFromPixels(gpu, ren, tight.data(), w, h);
 }
 
+bool Texture::updatePixels(GpuDevice& gpu, const void* pixels, uint32_t size) {
+    if (!m_valid || !pixels || size == 0 || !m_image.getGpuAddr())
+        return false;
+    return gpu.uploadTexture(m_image, pixels, size, m_width, m_height, size);
+}
+
 } // namespace nxui

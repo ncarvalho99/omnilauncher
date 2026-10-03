@@ -50,6 +50,7 @@
 #include "warawara/WaraWaraPlazaScreen.hpp"
 #include "warawara/PlazaScreenSwapButton.hpp"
 #include "widgets/MediaCenterButton.hpp"
+#include "widgets/PowerButton.hpp"
 #include "media/MediaCenterScreen.hpp"
 #include "gallery/GameArtworkStore.hpp"
 #include "core/Config.hpp"
@@ -87,7 +88,7 @@
 #ifdef SWITCHU_HOMEBREW
 static constexpr const char* SD_ASSETS = "romfs:";
 #else
-static constexpr const char* SD_ASSETS = "sdmc:/switch/SwitchU";
+static constexpr const char* SD_ASSETS = "sdmc:/switch/OmniLaunch";
 #endif
 
 class WiiUMenuApp : public nxui::Activity {
@@ -181,6 +182,7 @@ private:
     void updateGridXmbContext();
     void updateGridListContext();
     void updateGridMetroContext();
+    void applyMetroPowerButton(bool isMetro);
     void cycleCurrentMetroTileSize();
     IconGrid::GameDetailInfo getGameDetailInfo(std::uint64_t titleId);
     std::string getOrFetchSummary(std::uint64_t titleId);
@@ -581,6 +583,8 @@ private:
     std::shared_ptr<nxui::Box>                       m_topCenterCluster;
     std::shared_ptr<warawara::PlazaScreenSwapButton> m_screenSwapButton;
     std::shared_ptr<widgets::MediaCenterButton>      m_mediaCenterButton;
+    std::shared_ptr<widgets::PowerButton>            m_powerButton;
+    std::function<void()>                            m_showPowerDialog;
     std::shared_ptr<media::MediaCenterScreen>        m_mediaCenterScreen;
     int m_plazaIconPumpIndex = 0;
     nxui::Widget* m_activityLogReturnFocus = nullptr;

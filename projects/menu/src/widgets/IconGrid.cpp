@@ -55,15 +55,15 @@ std::string resolveFlowCoverPath(std::uint64_t titleId) {
 
     for (const char* ext : exts) {
         // 1. SwitchU covers root (SteamGridDB 600x900 covers or manual drops)
-        std::string p1 = std::string("sdmc:/config/SwitchU/covers/") + hexUpper + ext;
+        std::string p1 = std::string("sdmc:/config/OmniLaunch/covers/") + hexUpper + ext;
         if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p1); break; }
-        p1 = std::string("sdmc:/config/SwitchU/covers/") + hexLower + ext;
+        p1 = std::string("sdmc:/config/OmniLaunch/covers/") + hexLower + ext;
         if (stat(p1.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p1); break; }
 
         // 2. SwitchU game_art cover slot (custom covers applied from Dossier/Gallery)
-        std::string p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexUpper + "/cover" + ext;
+        std::string p2 = std::string("sdmc:/config/OmniLaunch/game_art/") + hexUpper + "/cover" + ext;
         if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p2); break; }
-        p2 = std::string("sdmc:/config/SwitchU/game_art/") + hexLower + "/cover" + ext;
+        p2 = std::string("sdmc:/config/OmniLaunch/game_art/") + hexLower + "/cover" + ext;
         if (stat(p2.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p2); break; }
 
         // 3. sLaunch covers root (shared SD cover art)
@@ -3855,7 +3855,7 @@ void IconGrid::layoutMetro() {
         const int leftIdx = metroTileNeighbour(tile.itemIndex, 0);
         const int rightIdx = metroTileNeighbour(tile.itemIndex, 1);
 
-        nxui::Widget* up = (tile.row == 0) ? nullptr
+        nxui::Widget* up = (tile.row == 0) ? m_metroUpTarget
             : ((upIdx != tile.itemIndex) ? metroIconAt(upIdx) : nullptr);
 
         nxui::Widget* down = (downIdx != tile.itemIndex)
@@ -3875,6 +3875,16 @@ void IconGrid::layoutMetro() {
         addChild(icon);
     }
     syncMetroChildRects();
+}
+
+void IconGrid::setMetroUpTarget(nxui::Widget* target) {
+    m_metroUpTarget = target;
+    if (m_layoutMode != AppLayoutMode::Metro) return;
+    for (const auto& tile : m_metroTiles) {
+        if (tile.row != 0) continue;
+        if (auto icon = metroSharedIconAt(tile.itemIndex))
+            icon->setCustomNavigation(nxui::FocusDirection::UP, target);
+    }
 }
 
 void IconGrid::syncMetroChildRects() {

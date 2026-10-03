@@ -1,4 +1,5 @@
 #include "ThemePreset.hpp"
+#include "video/VideoPlayer.hpp"
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
@@ -102,7 +103,7 @@ std::string normalizeThemeId(const char* prefix, const std::string& value) {
 #ifdef SWITCHU_HOMEBREW
 static constexpr const char* kBuiltInThemesDir = "romfs:/themes";
 #else
-static constexpr const char* kBuiltInThemesDir = "sdmc:/switch/SwitchU/themes";
+static constexpr const char* kBuiltInThemesDir = "sdmc:/switch/OmniLaunch/themes";
 #endif
 
 static constexpr const char* kDefaultSharedSoundPreset = "wiiu";
@@ -319,6 +320,7 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
     readFloatPair(j, {"spacing", "gap"}, background.spacingX, background.spacingY);
     readFloatPair(j, {"size", "sizeRange", "size_range", "shapeSize", "shape_size"}, background.sizeMin, background.sizeMax);
     readFloatPair(j, {"speed", "speedRange", "speed_range", "motionSpeed", "motion_speed"}, background.speedMin, background.speedMax);
+    readJsonAliases(j, {"video", "videoPath", "video_path"}, background.videoPath);
 
     auto imageIt = j.find("image");
     if (imageIt != j.end() && !imageIt->is_null()) {
@@ -327,6 +329,7 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
                 background.imagePath = imageIt->get<std::string>();
             } else if (imageIt->is_object()) {
                 readJsonAliases(*imageIt, {"path", "file", "src"}, background.imagePath);
+                readJsonAliases(*imageIt, {"video", "videoPath", "video_path"}, background.videoPath);
                 // "frames": ["a.jpg", "b.jpg", ...] alongside "fps". A theme
                 // with a single still is unaffected and costs what it always
                 // did; this only adds a way to say there is more than one.
@@ -739,8 +742,8 @@ const std::vector<ThemePreset>& ThemePreset::builtInPresets() {
     return presets;
 }
 
-static constexpr const char* kUserPresetsPath = "sdmc:/config/SwitchU/theme_presets.ini";
-static constexpr const char* kInstalledThemesDir = "sdmc:/config/SwitchU/themes";
+static constexpr const char* kUserPresetsPath = "sdmc:/config/OmniLaunch/theme_presets.ini";
+static constexpr const char* kInstalledThemesDir = "sdmc:/config/OmniLaunch/themes";
 
 // The three names ThemePackageInstaller works under: the staging folder, the
 // archive it downloads into it, and the copy of the previous version it keeps
@@ -821,37 +824,81 @@ std::vector<ThemePreset> ThemePreset::loadUserPresets() {
 
 std::vector<ThemePreset> ThemePreset::loadInstalledPackages() {
     std::vector<ThemePreset> result;
+    static constexpr const char* kThemeScanDirs[] = {
+        "sdmc:/config/OmniLaunch/themes",
+        "sdmc:/switchu/themes",
+        "sdmc:/slaunch/themes"
+    };
 
-    std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(kInstalledThemesDir, ec)) {
-        if (ec)
-            break;
-        if (!entry.is_directory(ec)) {
-            ec.clear();
+    for (const char* baseDir : kThemeScanDirs) {
+        std::error_code ec;
+        if (!std::filesystem::exists(baseDir, ec))
             continue;
+
+        for (const auto& entry : std::filesystem::directory_iterator(baseDir, ec)) {
+            if (ec)
+                break;
+            if (entry.is_directory(ec)) {
+                std::string dirName = entry.path().filename().string();
+                if (isThemeInstallLeftover(dirName))
+                    continue;
+                std::string installDir = entry.path().string();
+
+                std::string manifestPath = installDir + "/theme.json";
+                ThemePreset preset;
+                if (loadThemePresetFromManifest(manifestPath,
+                                                ThemePresetSource::InstalledPackage,
+                                                dirName,
+                                                nxui::ThemeMode::Dark,
+                                                installDir,
+                                                preset)) {
+                    bool exists = std::any_of(result.begin(), result.end(), [&](const ThemePreset& p) {
+                        return p.id == preset.id || p.installPath == preset.installPath;
+                    });
+                    if (!exists) {
+                        DebugLog::log("[themes] discovered package theme: %s (%s)", preset.name.c_str(), installDir.c_str());
+                        result.push_back(std::move(preset));
+                    }
+                } else {
+                    for (const auto& subEntry : std::filesystem::directory_iterator(installDir, ec)) {
+                        if (ec) break;
+                        if (subEntry.is_regular_file(ec)) {
+                            std::string spath = subEntry.path().string();
+                            if (switchu::video::isVideoPath(spath)) {
+                                preset = makeLegacyBuiltInPreset(dirName.c_str(), nxui::ThemeMode::Dark);
+                                preset.id = "package:" + dirName;
+                                preset.name = dirName;
+                                preset.source = ThemePresetSource::InstalledPackage;
+                                preset.installPath = installDir;
+                                preset.background.videoPath = spath;
+                                preset.background.shapeCount = 0;
+                                preset.background.opacity = 0.0f;
+                                preset.background.imageOpacity = 1.0f;
+                                DebugLog::log("[themes] discovered folder video theme: %s -> %s", dirName.c_str(), spath.c_str());
+                                result.push_back(std::move(preset));
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else if (entry.is_regular_file(ec)) {
+                std::string fpath = entry.path().string();
+                if (switchu::video::isVideoPath(fpath)) {
+                    std::string stem = entry.path().stem().string();
+                    ThemePreset preset = makeLegacyBuiltInPreset(stem.c_str(), nxui::ThemeMode::Dark);
+                    preset.id = "video:" + stem;
+                    preset.name = stem;
+                    preset.source = ThemePresetSource::InstalledPackage;
+                    preset.installPath = entry.path().parent_path().string();
+                    preset.background.videoPath = fpath;
+                    preset.background.shapeCount = 0;
+                    preset.background.opacity = 0.0f;
+                    preset.background.imageOpacity = 1.0f;
+                    DebugLog::log("[themes] discovered loose video wallpaper: %s (%s)", stem.c_str(), fpath.c_str());
+                    result.push_back(std::move(preset));
+                }
+            }
         }
-
-        std::string dirName = entry.path().filename().string();
-        // Work the installer leaves behind while it runs, and would clean up if
-        // it finished. One that survives a crash or a power cut still holds a
-        // theme.json, so it was listed as a second copy of the same theme --
-        // with the same package id, which made deleting either of them remove
-        // both from the list and only one from the card.
-        if (isThemeInstallLeftover(dirName))
-            continue;
-        std::string installDir = entry.path().string();
-
-        std::string manifestPath = installDir + "/theme.json";
-        ThemePreset preset;
-        if (!loadThemePresetFromManifest(manifestPath,
-                                         ThemePresetSource::InstalledPackage,
-                                         dirName,
-                                         nxui::ThemeMode::Dark,
-                                         installDir,
-                                         preset)) {
-            continue;
-        }
-        result.push_back(std::move(preset));
     }
 
     std::sort(result.begin(), result.end(), [](const ThemePreset& lhs, const ThemePreset& rhs) {
@@ -864,7 +911,7 @@ bool ThemePreset::saveUserPresets(const std::vector<ThemePreset>& presets) {
     std::error_code ec;
     std::filesystem::create_directory("sdmc:/config", ec);
     ec.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", ec);
 
     std::ofstream f(kUserPresetsPath, std::ios::trunc);
     if (!f.is_open()) return false;

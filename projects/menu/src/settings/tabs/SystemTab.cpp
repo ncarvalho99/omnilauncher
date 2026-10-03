@@ -445,7 +445,7 @@ SettingsScreen::Tab settings::tabs::SystemTab::build(SettingsScreen& screen) {
         SettingItem it; it.label = i18n.tr("settings.system.save_logs", "Save logs for copying");
         it.type = ItemType::Action;
         it.description = i18n.tr("settings.system.save_logs_desc",
-                                 "Closes the current logs so they can be copied from config/SwitchU.");
+                                 "Closes the current logs so they can be copied from config/OmniLaunch.");
         it.onChange = [&screen](SettingItem& /* self */) {
             if (screen.m_rotateLogsCb) screen.m_rotateLogsCb();
         };

@@ -75,7 +75,7 @@ YouTubeClient::~YouTubeClient() {
 }
 
 std::string YouTubeClient::musicDirectory() {
-    return "sdmc:/config/SwitchU/music";
+    return "sdmc:/config/OmniLaunch/music";
 }
 
 std::string YouTubeClient::sanitizeFilename(const std::string& name) {

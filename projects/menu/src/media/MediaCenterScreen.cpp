@@ -620,7 +620,7 @@ void MediaCenterScreen::onRender(nxui::Renderer& ren) {
         const nxui::Rect emptyRect{215.0f, listY, 850.0f, 150.0f};
         ren.drawRoundedRect(emptyRect, nxui::Color(0.04f, 0.08f, 0.15f, 0.35f * alpha), 14.0f);
         if (m_smallFont) {
-            std::string emptyStr = i18n.tr("media.empty_folder", "Nenhuma faixa encontrada em sdmc:/config/SwitchU/music/\nAdicione arquivos .mp3, .ogg ou .wav no cartão SD.");
+            std::string emptyStr = i18n.tr("media.empty_folder", "Nenhuma faixa encontrada em sdmc:/config/OmniLaunch/music/\nAdicione arquivos .mp3, .ogg ou .wav no cartão SD.");
             ren.drawText(emptyStr, {245.0f, listY + 50.0f}, m_smallFont, nxui::Color(0.70f, 0.75f, 0.85f, 0.85f * alpha), 0.85f);
         }
     } else {

@@ -587,7 +587,7 @@ void GameDetailsScreen::drawCustomContent(nxui::Renderer& ren, const nxui::Rect&
     const std::string publisherNames = join(m_snapshot.publishers);
     const std::string source = onlineMatch
         ? i18n.tr("dialog.details_publishers", "Publishers") + ": "
-            + (publisherNames.empty() ? "â€”" : publisherNames)
+            + (publisherNames.empty() ? "-" : publisherNames)
         : i18n.tr("dialog.details_local", "Local software details");
     ren.drawText(ellipsize(m_smallFont, source, scoreX - main.x - 28.f, 0.76f),
                   {main.x + 20.f, main.y + 51.f}, m_smallFont, secondary, 0.76f);
@@ -671,7 +671,7 @@ void GameDetailsScreen::drawCustomContent(nxui::Renderer& ren, const nxui::Rect&
     const float metadataGap = 14.f;
     const float metadataW = (main.width - 40.f - metadataGap) * 0.5f;
     auto metadata = [&](float x, float y, const std::string& label, const std::string& value) {
-        const std::string text = label + ": " + (value.empty() ? "â€”" : value);
+        const std::string text = label + ": " + (value.empty() ? "-" : value);
         ren.drawText(ellipsize(m_smallFont, text, metadataW, 0.57f), {x, y},
                      m_smallFont, subtle, 0.57f);
     };

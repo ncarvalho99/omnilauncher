@@ -6,6 +6,7 @@
 #include <nxui/core/Types.hpp>
 #include <nxui/core/Font.hpp>
 #include "warawara/MiiFigure.hpp"
+#include "video/VideoPlayer.hpp"
 #include <atomic>
 #include <cstdint>
 #include <deque>
@@ -98,7 +99,9 @@ public:
     void pumpImageSequence(nxui::GpuDevice& gpu, nxui::Renderer& ren);
 
     void clearImage();
-    bool hasAnimatedBackground() const { return m_frames.size() > 1; }
+    bool loadVideo(const std::string& path, bool loop = true);
+    bool isVideoActive() const;
+    bool hasAnimatedBackground() const { return m_frames.size() > 1 || isVideoActive(); }
     const nxui::Texture* currentBackground() const;
     // The frame after the current one, and how far along we are between the two.
     // Together they let the renderer dissolve from one to the next instead of
@@ -170,6 +173,7 @@ private:
     Config m_config;
     std::vector<Shape> m_shapes;
     nxui::Texture m_backgroundImage;
+    switchu::video::VideoPlayer m_videoPlayer;
     // Extra frames beyond the first. A still wallpaper leaves this empty and
     // costs exactly what it did before.
     std::vector<nxui::Texture> m_frames;

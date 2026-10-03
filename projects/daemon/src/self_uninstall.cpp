@@ -78,6 +78,13 @@ StagedRequestResult applyStagedRequest() {
     (void)switchu::removeRecursive(kManagerDirectory);
     (void)switchu::removeRecursive(kManagerNro);
 
+    // Purge legacy SwitchU directories so uninstallation leaves nothing behind.
+    (void)switchu::removeRecursive(kLegacyMenuDirectory);
+    (void)switchu::removeRecursive(kLegacyMenuNro);
+    (void)switchu::removeRecursive(kLegacyManagerDirectory);
+    (void)switchu::removeRecursive(kLegacyManagerNro);
+    (void)switchu::removeRecursive(kLegacyConfigDirectory);
+
     // 4. Close FileLog before deleting the config directory where logs live.
     switchu::FileLog::close();
 

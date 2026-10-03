@@ -131,8 +131,8 @@ void PlazaDialogueEngine::loadBuiltinFallbacks() {
 
     m_genericTips = {
         "Remember to stretch and hydrate during long gaming sessions!",
-        "Organize your favorite titles into custom folders in SwitchU!",
-        "Dark Mode themes in SwitchU help preserve battery life!",
+        "Organize your favorite titles into custom folders in OmniLaunch!",
+        "Dark Mode themes in OmniLaunch help preserve battery life!",
         "Calibrate your Joy-Cons in System Settings if you notice drift!"
     };
 
@@ -232,7 +232,7 @@ SpeechBubbleData PlazaDialogueEngine::getDialogueForMii(
         int idx = randomInt(0, static_cast<int>(m_genericTips.size()) - 1);
         data.text = m_genericTips[idx];
     } else {
-        data.text = "Enjoy your gaming session on SwitchU!";
+        data.text = "Enjoy your gaming session on OmniLaunch!";
     }
     data.yeahCount = randomInt(5, 45);
     return data;

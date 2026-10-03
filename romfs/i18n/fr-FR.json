@@ -107,7 +107,7 @@
     }
   },
   "tutorial": {
-    "header": "Tutoriel SwitchU",
+    "header": "Tutoriel OmniLaunch",
     "accessibility": {
       "title": "Accessibilité vocale",
       "body": "La lecture vocale est disponible pour ce menu. Elle peut lire l'élément sélectionné et les actions disponibles à voix haute.",
@@ -122,8 +122,8 @@
       "body": "Des options d'accessibilité sont disponibles dans Paramètres, puis Accessibilité. Tu peux régler la vitesse de parole, les aides répétées, les annonces d'emplacement et les détails de position."
     },
     "welcome": {
-      "title": "Bienvenue dans SwitchU",
-      "body": "SwitchU remplace le menu HOME par une interface rapide pour lancer tes jeux, homebrews et outils système."
+      "title": "Bienvenue dans OmniLaunch",
+      "body": "OmniLaunch remplace le menu HOME par une interface rapide pour lancer tes jeux, homebrews et outils système."
     },
     "navigation": {
       "title": "Navigation",
@@ -164,7 +164,7 @@
     "mii_editor": "Editeur Mii",
     "settings": "Paramètres",
     "controllers": "Manettes",
-    "theme_shop": "SwitchU",
+    "theme_shop": "OmniLaunch",
     "sleep": "Veille",
     "music": "Musique"
   },
@@ -234,8 +234,8 @@
       "usb30": "USB 3.0",
       "usb30_desc": "Active l'USB 3.0 pour des transferts plus rapides.",
       "battery_lot": "Lot de batterie",
-      "ui_language": "Langue de SwitchU",
-      "ui_language_desc": "Appuyez sur A pour choisir la langue utilisée par SwitchU.",
+      "ui_language": "Langue de OmniLaunch",
+      "ui_language_desc": "Appuyez sur A pour choisir la langue utilisée par OmniLaunch.",
       "default_profile": "Profil par défaut",
       "default_profile_desc": "Lance les jeux avec ce profil lorsque c’est possible.",
       "default_profile_ask": "Demander à chaque fois",
@@ -271,8 +271,8 @@
       "console_nickname_guide": "Saisis un nom pour cette console",
       "console_nickname_desc": "Le nom que voient les autres consoles et applications.",
       "save_logs": "Enregistrer les journaux",
-      "save_logs_desc": "Ferme les journaux actuels pour pouvoir les copier depuis config/SwitchU.",
-      "save_logs_done": "Journaux enregistrés. Copie menu-*.log et daemon-*.log depuis config/SwitchU.",
+      "save_logs_desc": "Ferme les journaux actuels pour pouvoir les copier depuis config/OmniLaunch.",
+      "save_logs_done": "Journaux enregistrés. Copie menu-*.log et daemon-*.log depuis config/OmniLaunch.",
       "save_logs_failed": "Le journal du menu a été enregistré ; le daemon n'a pas répondu.",
       "usb30_restart": "Les changements USB 3.0 prennent effet après un redémarrage.",
       "memory_section": "Sysmodules et mémoire",
@@ -676,7 +676,7 @@
     "error_title": "Erreur de widget",
     "save_error": "La modification du widget n’a pas pu être enregistrée.",
     "no_assets_title": "Aucune image de widget",
-    "no_assets_desc": "Ajoutez des fichiers PNG, JPG, WebP ou GIF dans sdmc:/config/SwitchU/widgets/assets/ ou dans le dossier widgets du thème actif."
+    "no_assets_desc": "Ajoutez des fichiers PNG, JPG, WebP ou GIF dans sdmc:/config/OmniLaunch/widgets/assets/ ou dans le dossier widgets du thème actif."
   },
   "controller_test": {
     "title": "Test des manettes",
@@ -751,7 +751,7 @@
     },
     "rescan": "Réanalyser le dossier",
     "tracklist_count": "Liste des pistes ({} pistes)",
-    "empty_folder": "Aucune piste audio trouvée dans sdmc:/config/SwitchU/music/\nAjoutez des fichiers .mp3, .ogg ou .wav sur la carte SD.",
+    "empty_folder": "Aucune piste audio trouvée dans sdmc:/config/OmniLaunch/music/\nAjoutez des fichiers .mp3, .ogg ou .wav sur la carte SD.",
     "playing": "Lecture",
     "play": "Lire",
     "hint_play_pause": "Lire/Pause",
@@ -788,19 +788,19 @@
     "update_state": "État",
     "update_notes": "Nouveautés",
     "update_unknown": "Pas encore vérifié",
-    "uninstall": "Désinstaller SwitchU",
-    "uninstall_desc": "Supprime définitivement SwitchU et revient au menu HOME Nintendo.",
-    "uninstall_information": "Ceci supprimera définitivement SwitchU de votre console et redémarrera sur le menu HOME Nintendo d'origine.\n\nToutes les données de SwitchU sur la carte SD seront entièrement supprimées, notamment :\n• Tous les paramètres, configurations et journaux\n• Tous les thèmes statiques et animés téléchargés\n• Toutes les illustrations et icônes en cache\n• Les fichiers exécutables de SwitchU et SwitchU Manager\n\nRemarque : La console redémarrera deux fois pour terminer la suppression et lancer le menu HOME d'origine.\n\nPour réutiliser SwitchU ultérieurement, une nouvelle installation manuelle sera nécessaire.",
+    "uninstall": "Désinstaller OmniLaunch",
+    "uninstall_desc": "Supprime définitivement OmniLaunch et revient au menu HOME Nintendo.",
+    "uninstall_information": "Ceci supprimera définitivement OmniLaunch de votre console et redémarrera sur le menu HOME Nintendo d'origine.\n\nToutes les données de OmniLaunch sur la carte SD seront entièrement supprimées, notamment :\n• Tous les paramètres, configurations et journaux\n• Tous les thèmes statiques et animés téléchargés\n• Toutes les illustrations et icônes en cache\n• Les fichiers exécutables de OmniLaunch et OmniLaunch Manager\n\nRemarque : La console redémarrera deux fois pour terminer la suppression et lancer le menu HOME d'origine.\n\nPour réutiliser OmniLaunch ultérieurement, une nouvelle installation manuelle sera nécessaire.",
     "uninstall_continue": "Continuer",
-    "uninstall_confirm_title": "Supprimer définitivement SwitchU ?",
-    "uninstall_confirm": "Cette action est irréversible. Tous les fichiers, thèmes, illustrations et paramètres de SwitchU seront définitivement effacés de votre carte SD.\n\nLa console redémarrera deux fois pour terminer la suppression et lancer le menu HOME d'origine.",
+    "uninstall_confirm_title": "Supprimer définitivement OmniLaunch ?",
+    "uninstall_confirm": "Cette action est irréversible. Tous les fichiers, thèmes, illustrations et paramètres de OmniLaunch seront définitivement effacés de votre carte SD.\n\nLa console redémarrera deux fois pour terminer la suppression et lancer le menu HOME d'origine.",
     "uninstall_confirm_action": "Désinstaller et tout supprimer",
-    "uninstall_progress_title": "Suppression de SwitchU",
+    "uninstall_progress_title": "Suppression de OmniLaunch",
     "uninstall_preparing": "Préparation de la suppression...",
     "uninstall_restarting": "Redémarrage...",
     "uninstall_failed_title": "Impossible de préparer la suppression",
-    "uninstall_failed": "SwitchU n'a pas été modifié. Vérifiez que la carte SD est accessible en écriture et réessayez.",
-    "uninstall_daemon_failed": "SwitchU n'a pas été modifié car la demande de redémarrage a échoué.",
+    "uninstall_failed": "OmniLaunch n'a pas été modifié. Vérifiez que la carte SD est accessible en écriture et réessayez.",
+    "uninstall_daemon_failed": "OmniLaunch n'a pas été modifié car la demande de redémarrage a échoué.",
     "source": {
       "builtin": "Intégré",
       "custom": "Personnalisé",
@@ -987,7 +987,7 @@
     "confirm_search_title": "Confirmer le titre de recherche",
     "confirm_search_title_guide": "Comment ce jeu est appelé ailleurs",
     "update_title": "Mise à jour disponible",
-    "update_body": "Une nouvelle version de SwitchU est disponible.",
+    "update_body": "Une nouvelle version de OmniLaunch est disponible.",
     "update_installed": "Installée",
     "update_new": "Nouvelle",
     "update_later": "Plus tard",
@@ -996,7 +996,7 @@
     "update_applying": "Application de la mise à jour...",
     "update_done": "Mise à jour téléchargée. Redémarrez la console pour l'appliquer. Le premier démarrage peut prendre environ trente secondes.",
     "update_failed": "La mise à jour n'a pas pu être téléchargée.",
-    "update_up_to_date": "SwitchU est à jour.",
+    "update_up_to_date": "OmniLaunch est à jour.",
     "update_check_failed": "Impossible de joindre le serveur de mises à jour.",
     "update_available_short": "Mise à jour disponible",
     "details_cover_loading": "Chargement de la jaquette...",

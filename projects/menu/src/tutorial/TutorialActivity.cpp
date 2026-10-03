@@ -15,7 +15,7 @@
 #ifdef SWITCHU_HOMEBREW
 static constexpr const char* TUTORIAL_ASSETS = "romfs:";
 #else
-static constexpr const char* TUTORIAL_ASSETS = "sdmc:/switch/SwitchU";
+static constexpr const char* TUTORIAL_ASSETS = "sdmc:/switch/OmniLaunch";
 #endif
 
 namespace {
@@ -178,8 +178,8 @@ void TutorialActivity::buildSteps() {
     std::vector<Step> rest = {
         {
             StepKind::Text,
-            i18n.tr("tutorial.welcome.title", "Welcome to SwitchU"),
-            i18n.tr("tutorial.welcome.body", "SwitchU replaces the HOME menu with a fast interface for launching your games, homebrew apps, and system tools."),
+            i18n.tr("tutorial.welcome.title", "Welcome to OmniLaunch"),
+            i18n.tr("tutorial.welcome.body", "OmniLaunch replaces the HOME menu with a fast interface for launching your games, homebrew apps, and system tools."),
             ""
         },
         {
@@ -807,7 +807,7 @@ void TutorialActivity::onRender(nxui::Renderer& ren) {
     const Step& step = m_steps[(size_t)m_stepIndex];
     const std::string visible = step.body.substr(0, std::min(m_visibleChars, step.body.size()));
 
-    const std::string appTitle = nxui::I18n::instance().tr("tutorial.header", "SwitchU Tutorial");
+    const std::string appTitle = nxui::I18n::instance().tr("tutorial.header", "OmniLaunch Tutorial");
     ren.drawText(appTitle, {76.f, 50.f}, &m_fontBody,
                  m_theme.textSecondary.withAlpha(0.82f), 0.92f);
     ren.drawText(step.title, {76.f, 128.f}, &m_fontTitle,

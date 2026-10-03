@@ -1,5 +1,6 @@
 #include "AppletLauncher.hpp"
 #include "core/DebugLog.hpp"
+#include "usb/Mtp.hpp"
 #include <switchu/file_log.hpp>
 #ifdef SWITCHU_MENU
 #include "smi_commands.hpp"
@@ -165,6 +166,7 @@ Result AppletLauncher::prepareApplication(uint64_t titleId, AccountUid uid,
 void AppletLauncher::launchApplication(uint64_t titleId, AccountUid uid,
                                        switchu::smi::LaunchTransitionTrace trace) {
     DebugLog::log("[launcher] tid=%016lX", titleId);
+    switchu::usb::mtpStop();
     Result rc = switchu::menu::smi_cmd::launchApplication(titleId, uid, trace);
     if (R_FAILED(rc)) {
         DebugLog::log("[launcher] FAIL: 0x%X", rc);
@@ -196,6 +198,7 @@ void AppletLauncher::resumeApplication(switchu::smi::LaunchTransitionTrace trace
         DebugLog::log("[launcher] no app suspended!");
         return;
     }
+    switchu::usb::mtpStop();
     const Result rc = switchu::menu::smi_cmd::resumeApplication(trace);
     if (R_FAILED(rc)) {
         DebugLog::log("[launcher] resume enqueue FAIL: 0x%X", rc);

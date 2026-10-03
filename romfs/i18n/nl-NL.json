@@ -107,7 +107,7 @@
     }
   },
   "tutorial": {
-    "header": "SwitchU-tutorial",
+    "header": "OmniLaunch-tutorial",
     "accessibility": {
       "title": "Spraak",
       "body": "Spraak is beschikbaar in dit menu. Het kan het geselecteerde item en beschikbare acties voorlezen.",
@@ -122,7 +122,7 @@
       "body": "Toegankelijkheidsopties staan in Instellingen, daarna Toegankelijkheid. Je kunt snelheid, hints, locatie en positie aanpassen."
     },
     "welcome": {
-      "title": "Welkom bij SwitchU",
+      "title": "Welkom bij OmniLaunch",
       "body": "Deze korte tutorial laat de basisbediening zien."
     },
     "navigation": {
@@ -164,7 +164,7 @@
     "mii_editor": "Mii-editor",
     "settings": "Instellingen",
     "controllers": "Controllers",
-    "theme_shop": "SwitchU",
+    "theme_shop": "OmniLaunch",
     "sleep": "Slaapstand",
     "music": "Muziek"
   },
@@ -234,8 +234,8 @@
       "usb30": "USB 3.0",
       "usb30_desc": "Activeer USB 3.0 voor snellere overdracht.",
       "battery_lot": "Batterijpartij",
-      "ui_language": "SwitchU-taal",
-      "ui_language_desc": "Druk op A om de taal te kiezen die SwitchU gebruikt.",
+      "ui_language": "OmniLaunch-taal",
+      "ui_language_desc": "Druk op A om de taal te kiezen die OmniLaunch gebruikt.",
       "default_profile": "Standaardprofiel",
       "default_profile_desc": "Start games waar mogelijk met dit profiel.",
       "default_profile_ask": "Elke keer vragen",
@@ -271,8 +271,8 @@
       "console_nickname_guide": "Voer een naam in voor deze console",
       "console_nickname_desc": "De naam die andere consoles en apps zien.",
       "save_logs": "Logboeken opslaan om te kopiëren",
-      "save_logs_desc": "Sluit de huidige logboeken zodat ze uit config/SwitchU gekopieerd kunnen worden.",
-      "save_logs_done": "Logboeken opgeslagen. Kopieer menu-*.log en daemon-*.log uit config/SwitchU.",
+      "save_logs_desc": "Sluit de huidige logboeken zodat ze uit config/OmniLaunch gekopieerd kunnen worden.",
+      "save_logs_done": "Logboeken opgeslagen. Kopieer menu-*.log en daemon-*.log uit config/OmniLaunch.",
       "save_logs_failed": "Het menulogboek is opgeslagen; de daemon antwoordde niet.",
       "usb30_restart": "USB 3.0-wijzigingen werken pas na een herstart.",
       "memory_section": "Sysmodules en geheugen",
@@ -676,7 +676,7 @@
     "error_title": "Widgetfout",
     "save_error": "De widgetwijziging kon niet worden opgeslagen.",
     "no_assets_title": "Geen widgetafbeeldingen",
-    "no_assets_desc": "Voeg PNG-, JPG-, WebP- of GIF-bestanden toe aan sdmc:/config/SwitchU/widgets/assets/ of aan de widgetmap van het actieve thema."
+    "no_assets_desc": "Voeg PNG-, JPG-, WebP- of GIF-bestanden toe aan sdmc:/config/OmniLaunch/widgets/assets/ of aan de widgetmap van het actieve thema."
   },
   "controller_test": {
     "title": "Controllertest",
@@ -751,7 +751,7 @@
     },
     "rescan": "Map opnieuw scannen",
     "tracklist_count": "Nummerlijst ({} nummers)",
-    "empty_folder": "Geen audionummers gevonden in sdmc:/config/SwitchU/music/\nVoeg .mp3-, .ogg- of .wav-bestanden toe aan de SD-kaart.",
+    "empty_folder": "Geen audionummers gevonden in sdmc:/config/OmniLaunch/music/\nVoeg .mp3-, .ogg- of .wav-bestanden toe aan de SD-kaart.",
     "playing": "Speelt af",
     "play": "Afspelen",
     "hint_play_pause": "Afspelen/Pauzeren",
@@ -788,19 +788,19 @@
     "update_state": "Status",
     "update_notes": "Wat is er veranderd",
     "update_unknown": "Nog niet gecontroleerd",
-    "uninstall": "SwitchU verwijderen",
-    "uninstall_desc": "Verwijdert SwitchU permanent en keert terug naar het Nintendo HOME-menu.",
-    "uninstall_information": "Hiermee wordt SwitchU permanent van het systeem verwijderd en opnieuw opgestart naar het officiële Nintendo HOME-menu.\n\nAlle SwitchU-gegevens op de SD-kaart worden volledig gewist, inclusief:\n• Alle instellingen, configuraties en logboeken\n• Alle gedownloade statische en geanimeerde thema's\n• Alle gecachte game-artworks en pictogrammen\n• SwitchU-programmabestanden en SwitchU Manager\n\nOpmerking: Het systeem zal twee keer opnieuw opstarten om de verwijdering te voltooien en het originele HOME-menu te laden.\n\nOm SwitchU in de toekomst opnieuw te gebruiken, is een nieuwe handmatige installatie vereist.",
+    "uninstall": "OmniLaunch verwijderen",
+    "uninstall_desc": "Verwijdert OmniLaunch permanent en keert terug naar het Nintendo HOME-menu.",
+    "uninstall_information": "Hiermee wordt OmniLaunch permanent van het systeem verwijderd en opnieuw opgestart naar het officiële Nintendo HOME-menu.\n\nAlle OmniLaunch-gegevens op de SD-kaart worden volledig gewist, inclusief:\n• Alle instellingen, configuraties en logboeken\n• Alle gedownloade statische en geanimeerde thema's\n• Alle gecachte game-artworks en pictogrammen\n• OmniLaunch-programmabestanden en OmniLaunch Manager\n\nOpmerking: Het systeem zal twee keer opnieuw opstarten om de verwijdering te voltooien en het originele HOME-menu te laden.\n\nOm OmniLaunch in de toekomst opnieuw te gebruiken, is een nieuwe handmatige installatie vereist.",
     "uninstall_continue": "Doorgaan",
-    "uninstall_confirm_title": "SwitchU permanent verwijderen?",
-    "uninstall_confirm": "Deze actie kan niet ongedaan worden gemaakt. Alle SwitchU-bestanden, thema's, illustraties en instellingen worden definitief gewist van de SD-kaart.\n\nHet systeem zal twee keer opnieuw opstarten om de verwijdering te voltooien en het originele HOME-menu te laden.",
+    "uninstall_confirm_title": "OmniLaunch permanent verwijderen?",
+    "uninstall_confirm": "Deze actie kan niet ongedaan worden gemaakt. Alle OmniLaunch-bestanden, thema's, illustraties en instellingen worden definitief gewist van de SD-kaart.\n\nHet systeem zal twee keer opnieuw opstarten om de verwijdering te voltooien en het originele HOME-menu te laden.",
     "uninstall_confirm_action": "Verwijderen en alles wissen",
-    "uninstall_progress_title": "SwitchU verwijderen",
+    "uninstall_progress_title": "OmniLaunch verwijderen",
     "uninstall_preparing": "Verwijdering voorbereiden...",
     "uninstall_restarting": "Opnieuw opstarten...",
     "uninstall_failed_title": "Verwijdering kon niet worden voorbereid",
-    "uninstall_failed": "SwitchU is niet gewijzigd. Controleer of de SD-kaart beschrijfbaar is en probeer het opnieuw.",
-    "uninstall_daemon_failed": "SwitchU is niet gewijzigd omdat het verzoek om opnieuw op te starten is mislukt.",
+    "uninstall_failed": "OmniLaunch is niet gewijzigd. Controleer of de SD-kaart beschrijfbaar is en probeer het opnieuw.",
+    "uninstall_daemon_failed": "OmniLaunch is niet gewijzigd omdat het verzoek om opnieuw op te starten is mislukt.",
     "source": {
       "builtin": "Ingebouwd",
       "custom": "Eigen",
@@ -987,7 +987,7 @@
     "confirm_search_title": "Zoektitel bevestigen",
     "confirm_search_title_guide": "Hoe dit spel elders heet",
     "update_title": "Update beschikbaar",
-    "update_body": "Er is een nieuwe versie van SwitchU beschikbaar.",
+    "update_body": "Er is een nieuwe versie van OmniLaunch beschikbaar.",
     "update_installed": "Geïnstalleerd",
     "update_new": "Nieuw",
     "update_later": "Later",
@@ -996,7 +996,7 @@
     "update_applying": "Update toepassen...",
     "update_done": "Update gedownload. Start de console opnieuw op om hem toe te passen. De eerste keer opstarten kan ongeveer een halve minuut duren.",
     "update_failed": "De update kon niet worden gedownload.",
-    "update_up_to_date": "SwitchU is up-to-date.",
+    "update_up_to_date": "OmniLaunch is up-to-date.",
     "update_check_failed": "Kon de updateserver niet bereiken.",
     "update_available_short": "Update beschikbaar",
     "details_cover_loading": "Cover laden...",

@@ -448,6 +448,10 @@ bool WaraWaraBackground::loadImageSequence(nxui::GpuDevice& gpu, nxui::Renderer&
 }
 
 void WaraWaraBackground::pumpImageSequence(nxui::GpuDevice& gpu, nxui::Renderer& ren) {
+    if (m_videoPlayer.isOpened()) {
+        m_videoPlayer.tick(gpu, ren);
+    }
+
     if (!m_frameSequencePending)
         return;
 
@@ -529,6 +533,7 @@ void WaraWaraBackground::clearImage() {
     // Primeiro o leitor: ele escreve numa fila deste objeto, e trocar de tema
     // enquanto ele corre deixaria quadros do tema anterior chegando no novo.
     stopFrameReader();
+    m_videoPlayer.close();
     m_frameSequencePending = false;
     m_backgroundImage = nxui::Texture{};
     m_frames.clear();
@@ -537,10 +542,26 @@ void WaraWaraBackground::clearImage() {
     m_frameIndex = 0;
 }
 
+bool WaraWaraBackground::loadVideo(const std::string& path, bool loop) {
+    clearImage();
+    if (path.empty())
+        return false;
+    return m_videoPlayer.open(path, loop, false);
+}
+
+bool WaraWaraBackground::isVideoActive() const {
+    return m_videoPlayer.isOpened();
+}
+
 // The texture to draw this frame: the sequence when there is one, the still
 // wallpaper otherwise. Everything downstream asks through here so neither path
 // has to know about the other.
 const nxui::Texture* WaraWaraBackground::currentBackground() const {
+    if (m_videoPlayer.isOpened()) {
+        const nxui::Texture* vt = m_videoPlayer.texture();
+        if (vt && vt->valid())
+            return vt;
+    }
     if (!m_frames.empty())
         return &m_frames[(size_t)m_frameIndex];
     return m_backgroundImage.valid() ? &m_backgroundImage : nullptr;
@@ -557,6 +578,8 @@ const nxui::Texture* WaraWaraBackground::currentBackground() const {
 // them looks like the real intermediate frame. Sharp footage would smear, and
 // this would be the wrong trick for it.
 const nxui::Texture* WaraWaraBackground::nextBackground() const {
+    if (m_videoPlayer.isOpened())
+        return nullptr;
     if (m_frames.size() < 2)
         return nullptr;
     return &m_frames[((size_t)m_frameIndex + 1) % m_frames.size()];
@@ -758,7 +781,9 @@ void WaraWaraBackground::onRender(nxui::Renderer& ren) {
     // collapsing the wallpaper at 5%.  A 0.75 power curve gives the first
     // increments a visible but restrained response; zero remains the only
     // value that skips the blur pass.
-    const bool blurred = m_blurStrength > 0.001f && ren.gpu().offscreenReady();
+    // Video wallpapers bypass live blur passes (re-blurring every frame live
+    // wastes 4 full-screen GPU passes, matching upstream sLaunch parity).
+    const bool blurred = !isVideoActive() && m_blurStrength > 0.001f && ren.gpu().offscreenReady();
     if (blurred)
         ren.beginScreenSpaceTarget(nxui::GpuDevice::OFF_SCENE);
 
@@ -781,19 +806,23 @@ void WaraWaraBackground::onRender(nxui::Renderer& ren) {
 
 void WaraWaraBackground::renderLayer(nxui::Renderer& ren, bool intoOffscreen) {
     (void)intoOffscreen;
-    ren.useShader(nxui::ShaderProgram::Gradient);
-    nxui::FsUniforms fs = {};
-    fs.useTexture = 0;
-    fs.param1 = m_time;
-    fs.extra[0] = m_accent.r;  fs.extra[1] = m_accent.g;
-    fs.extra[2] = m_accent.b;  fs.extra[3] = m_accent.a;
-    fs.extra[4] = m_secondary.r;  fs.extra[5] = m_secondary.g;
-    fs.extra[6] = m_secondary.b;  fs.extra[7] = m_secondary.a;
-    fs.extra[8]  = m_shapeColor.r * 2.f;  fs.extra[9]  = m_shapeColor.g * 2.f;
-    fs.extra[10] = m_shapeColor.b * 2.f;  fs.extra[11] = m_shapeColor.a;
-    ren.pushFsUniforms(fs);
-    ren.drawRect(m_rect, nxui::Color::white());
-    ren.flush();
+
+    // Skip procedural gradient pass when an opaque video wallpaper is active
+    if (!isVideoActive() || m_config.imageOpacity < 0.99f) {
+        ren.useShader(nxui::ShaderProgram::Gradient);
+        nxui::FsUniforms fs = {};
+        fs.useTexture = 0;
+        fs.param1 = m_time;
+        fs.extra[0] = m_accent.r;  fs.extra[1] = m_accent.g;
+        fs.extra[2] = m_accent.b;  fs.extra[3] = m_accent.a;
+        fs.extra[4] = m_secondary.r;  fs.extra[5] = m_secondary.g;
+        fs.extra[6] = m_secondary.b;  fs.extra[7] = m_secondary.a;
+        fs.extra[8]  = m_shapeColor.r * 2.f;  fs.extra[9]  = m_shapeColor.g * 2.f;
+        fs.extra[10] = m_shapeColor.b * 2.f;  fs.extra[11] = m_shapeColor.a;
+        ren.pushFsUniforms(fs);
+        ren.drawRect(m_rect, nxui::Color::white());
+        ren.flush();
+    }
     ren.useShader(nxui::ShaderProgram::Basic);
 
     const nxui::Texture* bg = currentBackground();
@@ -815,7 +844,7 @@ void WaraWaraBackground::renderLayer(nxui::Renderer& ren, bool intoOffscreen) {
         }
     }
 
-    {
+    if (!isVideoActive()) {
         const nxui::Renderer::DrawTagScope tag{ren, "bg.shapes"};
         for (const auto& s : m_shapes)
             drawShapeWithSymmetry(ren, s);

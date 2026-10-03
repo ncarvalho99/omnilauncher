@@ -28,7 +28,7 @@ WaraWaraPlazaScreen::WaraWaraPlazaScreen() {
 
 void WaraWaraPlazaScreen::initGpuAssets(nxui::GpuDevice& gpu, nxui::Renderer& ren) {
     if (!m_handCursorTex.valid()) {
-        static constexpr const char* kSdIcon = "sdmc:/switch/SwitchU/icons/pointer_hand.png";
+        static constexpr const char* kSdIcon = "sdmc:/switch/OmniLaunch/icons/pointer_hand.png";
         static constexpr const char* kRomfsIcon = "romfs:/icons/pointer_hand.png";
         if (!m_handCursorTex.loadFromFile(gpu, ren, kSdIcon, 128)) {
             if (!m_handCursorTex.loadFromFile(gpu, ren, kRomfsIcon, 128)) {
@@ -46,7 +46,7 @@ void WaraWaraPlazaScreen::setupCommunities(const std::vector<GameCommunityEntry>
     };
 
     static const FallbackCommunity kFallbacks[] = {
-        {0x0100000000001000ULL, "SwitchU Community", "Latest News & Tips"},
+        {0x0100000000001000ULL, "OmniLaunch Community", "Latest News & Tips"},
         {0x0100000000001001ULL, "Miiverse Plaza", "Drawings & Reactions"},
         {0x0100000000001002ULL, "Nintendo eShop", "Featured Titles"},
         {0x0100000000001003ULL, "Mii Maker", "Create & Customize"},

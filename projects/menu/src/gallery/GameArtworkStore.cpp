@@ -10,7 +10,7 @@
 
 namespace {
 
-constexpr const char* kArtworkRoot = "sdmc:/config/SwitchU/game_art";
+constexpr const char* kArtworkRoot = "sdmc:/config/OmniLaunch/game_art";
 constexpr std::size_t kMaxArtworkBytes = 16 * 1024 * 1024;
 
 std::string titleDirectory(std::uint64_t titleId) {

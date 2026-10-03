@@ -191,6 +191,36 @@ extern "C" void __appInit(void) {
         rc = fsdevMountSdmc();
     }
 
+    // Seamless migration from legacy SwitchU to OmniLaunch directories
+    {
+        std::error_code migEc;
+        if (std::filesystem::exists("sdmc:/config/SwitchU", migEc)) {
+            if (!std::filesystem::exists("sdmc:/config/OmniLaunch", migEc)) {
+                std::filesystem::rename("sdmc:/config/SwitchU", "sdmc:/config/OmniLaunch", migEc);
+            } else {
+                for (const auto& entry : std::filesystem::directory_iterator("sdmc:/config/SwitchU", migEc)) {
+                    const auto target = std::filesystem::path("sdmc:/config/OmniLaunch") / entry.path().filename();
+                    if (!std::filesystem::exists(target, migEc)) {
+                        std::filesystem::rename(entry.path(), target, migEc);
+                    }
+                }
+                std::filesystem::remove_all("sdmc:/config/SwitchU", migEc);
+            }
+        }
+        migEc.clear();
+        if (std::filesystem::exists("sdmc:/switch/SwitchU", migEc)) {
+            if (!std::filesystem::exists("sdmc:/switch/OmniLaunch", migEc)) {
+                std::filesystem::rename("sdmc:/switch/SwitchU", "sdmc:/switch/OmniLaunch", migEc);
+            } else {
+                std::filesystem::remove_all("sdmc:/switch/SwitchU", migEc);
+            }
+        }
+        migEc.clear();
+        if (std::filesystem::exists("sdmc:/switch/SwitchU-Manager", migEc)) {
+            std::filesystem::remove_all("sdmc:/switch/SwitchU-Manager", migEc);
+        }
+    }
+
     switchu::FileLog::open("daemon");
     // Which build this is, in the log of the process itself. The menu prints
     // its own version on the About tab, and for a long time that was the only
@@ -434,7 +464,7 @@ static bool writeAppCatalogFile() {
     std::error_code fsEc;
     std::filesystem::create_directory("sdmc:/config", fsEc);
     fsEc.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", fsEc);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", fsEc);
 
     std::ofstream f(kAppCatalogTmpPath, std::ios::binary | std::ios::trunc);
     if (!f.is_open()) {

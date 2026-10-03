@@ -22,9 +22,9 @@ inline constexpr int kMaxFolderPages = 8;
 
 class FolderStore final {
 public:
-    static constexpr const char* kPath = "sdmc:/config/SwitchU/folders.json";
-    static constexpr const char* kTempPath = "sdmc:/config/SwitchU/folders.tmp";
-    static constexpr const char* kBackupPath = "sdmc:/config/SwitchU/folders.bak";
+    static constexpr const char* kPath = "sdmc:/config/OmniLaunch/folders.json";
+    static constexpr const char* kTempPath = "sdmc:/config/OmniLaunch/folders.tmp";
+    static constexpr const char* kBackupPath = "sdmc:/config/OmniLaunch/folders.bak";
 
     bool load();
     bool save() const;

@@ -31,16 +31,12 @@ SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */
         t.items.push_back(std::move(it));
     };
 
-    info("settings.about.version", "Version", "SwitchU " SWITCHU_VERSION);
-    info("settings.about.based_on", "Based on", "SwitchU " SWITCHU_UPSTREAM_VERSION);
-    info("settings.about.author", "Original author", "PoloNX");
-    info("settings.about.fork_maintainer", "Fork maintained by", "ncarvalho99");
-    info("settings.about.license", "License",
-         i18n.tr("settings.about.license_value", "GPL-2.0"));
-    info("settings.about.source_code", "Source code (fork)",
-         i18n.tr("settings.about.source_code_value", "github.com/ncarvalho99/SwitchU"));
-    info("settings.about.upstream_source", "Source code (upstream)",
-         i18n.tr("settings.about.upstream_source_value", "github.com/PoloNX/SwitchU"));
+    info("settings.about.version", "Version", "OmniLaunch " SWITCHU_VERSION);
+    info("settings.about.based_on", "Based on", "SwitchU + sLaunch");
+    info("settings.about.credits", "Original authors", "PoloNX & etonedemid");
+    info("settings.about.author", "Maintained by", "ncarvalho99");
+    info("settings.about.license", "License", "GPL-3.0");
+    info("settings.about.source_code", "Source code", "github.com/ncarvalho99/omnilauncher");
 
     // Acknowledgements
     {
@@ -53,12 +49,10 @@ SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */
     {
         SettingItem it;
         it.label = i18n.tr("settings.about.acknowledgements_desc",
-                           "Thanks to xortroll for your help with your project uLaunch "
-                           "and for your support and advice during development.");
+                           "Special thanks to PoloNX (SwitchU), etonedemid (sLaunch), "
+                           "and xortroll (uLaunch) for their groundbreaking work.");
         it.type  = ItemType::Info;
         it.infoText = "";
-        // Long enough to run off the panel in all eight translations, and it
-        // did: only the value column was ever fitted to width.
         it.wrapLabel = true;
         t.items.push_back(std::move(it));
     }

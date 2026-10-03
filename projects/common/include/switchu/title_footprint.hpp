@@ -59,8 +59,8 @@ inline std::vector<std::string> sdFootprint(std::uint64_t titleId) {
     }
     // The menu's own per-title caches. Artwork is cosmetic and is rebuilt by a
     // later scan, so leaving it behind only orphans it.
-    candidates.emplace_back(std::string("sdmc:/config/SwitchU/steamgriddb/") + upper);
-    candidates.emplace_back(std::string("sdmc:/config/SwitchU/game_art/") + upper);
+    candidates.emplace_back(std::string("sdmc:/config/OmniLaunch/steamgriddb/") + upper); candidates.emplace_back(std::string("sdmc:/config/SwitchU/steamgriddb/") + upper);
+    candidates.emplace_back(std::string("sdmc:/config/OmniLaunch/game_art/") + upper); candidates.emplace_back(std::string("sdmc:/config/SwitchU/game_art/") + upper);
 
     for (const std::string& path : candidates) {
         struct stat st {};

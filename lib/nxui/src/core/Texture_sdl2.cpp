@@ -169,4 +169,10 @@ bool Texture::loadFromSurface(GpuDevice& gpu, Renderer& ren,
     return loadFromPixels(gpu, ren, tight.data(), w, h);
 }
 
+bool Texture::updatePixels(GpuDevice& /*gpu*/, const void* pixels, uint32_t /*size*/) {
+    if (!m_valid || !m_sdlTex || !pixels)
+        return false;
+    return SDL_UpdateTexture(m_sdlTex, nullptr, pixels, m_width * 4) == 0;
+}
+
 } // namespace nxui

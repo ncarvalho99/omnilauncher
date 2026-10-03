@@ -19,16 +19,16 @@
 namespace switchu::daemon::update {
 namespace {
 
-constexpr const char* kStagedArchive = "sdmc:/config/SwitchU/update/update.zip";
+constexpr const char* kStagedArchive = "sdmc:/config/OmniLaunch/update/update.zip";
 // Written last by the menu, once the archive is complete and verified. Its
 // presence is the whole signal: a partial download leaves no marker and is
 // simply ignored here.
-constexpr const char* kReadyMarker   = "sdmc:/config/SwitchU/update/ready";
-constexpr const char* kAttemptFile   = "sdmc:/config/SwitchU/update/attempts";
+constexpr const char* kReadyMarker   = "sdmc:/config/OmniLaunch/update/ready";
+constexpr const char* kAttemptFile   = "sdmc:/config/OmniLaunch/update/attempts";
 // Left by the menu when it managed to put the archive's daemon on the card
 // before the restart. Its presence means the daemon reading it is already the
 // one out of the archive, so this boot does not have to be redone.
-constexpr const char* kDaemonMarker  = "sdmc:/config/SwitchU/update/daemon";
+constexpr const char* kDaemonMarker  = "sdmc:/config/OmniLaunch/update/daemon";
 constexpr const char* kCardRoot      = "sdmc:/";
 // An update that cannot be applied must not delay every boot forever. After
 // this many tries the staging is cleared and the console starts normally.

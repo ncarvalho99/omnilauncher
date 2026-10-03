@@ -107,7 +107,7 @@
     }
   },
   "tutorial": {
-    "header": "SwitchU Tutorial",
+    "header": "OmniLaunch Tutorial",
     "accessibility": {
       "title": "Voice guidance",
       "body": "Voice guidance is available for this menu. It can read the selected item and the available actions aloud.",
@@ -122,8 +122,8 @@
       "body": "Accessibility options are available in Settings, then Accessibility. You can adjust speech speed, repeated hints, location announcements, and position details."
     },
     "welcome": {
-      "title": "Welcome to SwitchU",
-      "body": "SwitchU replaces the HOME menu with a fast interface for launching your games, homebrew apps, and system tools."
+      "title": "Welcome to OmniLaunch",
+      "body": "OmniLaunch replaces the HOME menu with a fast interface for launching your games, homebrew apps, and system tools."
     },
     "navigation": {
       "title": "Navigation",
@@ -164,7 +164,7 @@
     "mii_editor": "Mii Editor",
     "settings": "Settings",
     "controllers": "Controllers",
-    "theme_shop": "SwitchU",
+    "theme_shop": "OmniLaunch",
     "sleep": "Sleep",
     "music": "Music"
   },
@@ -234,8 +234,8 @@
       "usb30": "USB 3.0",
       "usb30_desc": "Enable USB 3.0 for faster transfer speeds.",
       "battery_lot": "Battery Lot",
-      "ui_language": "SwitchU Language",
-      "ui_language_desc": "Press A to choose the language used by SwitchU.",
+      "ui_language": "OmniLaunch Language",
+      "ui_language_desc": "Press A to choose the language used by OmniLaunch.",
       "default_profile": "Default Profile",
       "default_profile_desc": "Launch games with this profile when possible.",
       "default_profile_ask": "Ask each time",
@@ -277,8 +277,8 @@
       "console_nickname_guide": "Enter a name for this console",
       "console_nickname_desc": "The name other consoles and apps see.",
       "save_logs": "Save logs for copying",
-      "save_logs_desc": "Closes the current logs so they can be copied from config/SwitchU.",
-      "save_logs_done": "Logs saved. Copy menu-*.log and daemon-*.log from config/SwitchU.",
+      "save_logs_desc": "Closes the current logs so they can be copied from config/OmniLaunch.",
+      "save_logs_done": "Logs saved. Copy menu-*.log and daemon-*.log from config/OmniLaunch.",
       "save_logs_failed": "The menu log was saved; the daemon did not answer.",
       "usb30_restart": "USB 3.0 changes take effect after a restart.",
       "memory_section": "Sysmodules and Memory",
@@ -688,7 +688,7 @@
     "error_title": "Widget error",
     "save_error": "The widget change could not be saved.",
     "no_assets_title": "No widget images",
-    "no_assets_desc": "Add PNG, JPG, WebP or GIF files to sdmc:/config/SwitchU/widgets/assets/ or to the active theme's widgets folder."
+    "no_assets_desc": "Add PNG, JPG, WebP or GIF files to sdmc:/config/OmniLaunch/widgets/assets/ or to the active theme's widgets folder."
   },
   "controller_test": {
     "title": "Controller Test",
@@ -764,7 +764,7 @@
     "rescan": "Rescan Folder",
     "tracklist_count": "Track List ({} tracks)",
     "tracklist_hint": "A: Play  •  X: Delete",
-    "empty_folder": "No audio tracks found in sdmc:/config/SwitchU/music/\nAdd .mp3, .ogg, or .wav files to your SD card.",
+    "empty_folder": "No audio tracks found in sdmc:/config/OmniLaunch/music/\nAdd .mp3, .ogg, or .wav files to your SD card.",
     "playing": "Playing",
     "play": "Play",
     "hint_play_pause": "Play/Pause",
@@ -803,19 +803,19 @@
     "update_state": "Update",
     "update_notes": "What changed",
     "update_unknown": "Not checked yet",
-    "uninstall": "Uninstall SwitchU",
-    "uninstall_desc": "Permanently delete SwitchU and return to the Nintendo HOME Menu.",
-    "uninstall_information": "This permanently removes SwitchU from your console and restarts into the stock Nintendo HOME Menu.\n\nAll SwitchU data on your SD card will be completely deleted, including:\n• All settings, configurations, and logs\n• All downloaded static and animated themes\n• All cached game artwork and icons\n• SwitchU menu binaries and SwitchU Manager\n\nNote: The console will reboot two times to completely remove SwitchU and load the original HOME Menu.\n\nTo use SwitchU again in the future, a fresh manual installation will be required.",
+    "uninstall": "Uninstall OmniLaunch",
+    "uninstall_desc": "Permanently delete OmniLaunch and return to the Nintendo HOME Menu.",
+    "uninstall_information": "This permanently removes OmniLaunch from your console and restarts into the stock Nintendo HOME Menu.\n\nAll OmniLaunch data on your SD card will be completely deleted, including:\n• All settings, configurations, and logs\n• All downloaded static and animated themes\n• All cached game artwork and icons\n• OmniLaunch menu binaries and OmniLaunch Manager\n\nNote: The console will reboot two times to completely remove OmniLaunch and load the original HOME Menu.\n\nTo use OmniLaunch again in the future, a fresh manual installation will be required.",
     "uninstall_continue": "Continue",
-    "uninstall_confirm_title": "Permanently Delete SwitchU?",
-    "uninstall_confirm": "This action cannot be undone. All SwitchU files, themes, artwork, and settings will be permanently erased from your SD card.\n\nThe console will reboot two times to completely remove SwitchU and load the original HOME Menu.",
+    "uninstall_confirm_title": "Permanently Delete OmniLaunch?",
+    "uninstall_confirm": "This action cannot be undone. All OmniLaunch files, themes, artwork, and settings will be permanently erased from your SD card.\n\nThe console will reboot two times to completely remove OmniLaunch and load the original HOME Menu.",
     "uninstall_confirm_action": "Uninstall and delete everything",
-    "uninstall_progress_title": "Removing SwitchU",
+    "uninstall_progress_title": "Removing OmniLaunch",
     "uninstall_preparing": "Preparing removal...",
     "uninstall_restarting": "Restarting...",
     "uninstall_failed_title": "Removal could not be prepared",
-    "uninstall_failed": "SwitchU was not changed. Check that the SD card is writable and try again.",
-    "uninstall_daemon_failed": "SwitchU was not changed because the restart request failed.",
+    "uninstall_failed": "OmniLaunch was not changed. Check that the SD card is writable and try again.",
+    "uninstall_daemon_failed": "OmniLaunch was not changed because the restart request failed.",
     "source": {
       "builtin": "Built-in",
       "custom": "Custom",
@@ -849,7 +849,7 @@
       "no_results": "No songs found for this search.",
       "no_results_hint": "Press Search (or X) to try different keywords.",
       "installed_title": "Installed Music Library",
-      "installed_subtitle": "Your local songs saved in sdmc:/config/SwitchU/music/",
+      "installed_subtitle": "Your local songs saved in sdmc:/config/OmniLaunch/music/",
       "results_title": "YouTube Search Results",
       "results_subtitle": "Online songs found for: ",
       "download": "Download",
@@ -877,7 +877,7 @@
       "duration": "Duration: ",
       "size": "Size: ",
       "video_id": "Video ID: ",
-      "status_downloaded": "Status: Saved in sdmc:/config/SwitchU/music/",
+      "status_downloaded": "Status: Saved in sdmc:/config/OmniLaunch/music/",
       "status_ready": "Status: Ready to download (.mp3)",
       "status_ready_play": "Status: Ready to play or delete"
     },
@@ -1050,7 +1050,7 @@
     "confirm_search_title": "Confirm search title",
     "confirm_search_title_guide": "What this game is called elsewhere",
     "update_title": "Update available",
-    "update_body": "A new version of SwitchU is available.",
+    "update_body": "A new version of OmniLaunch is available.",
     "update_installed": "Installed",
     "update_new": "New",
     "update_later": "Later",
@@ -1059,7 +1059,7 @@
     "update_applying": "Applying update...",
     "update_done": "Update downloaded. Restart the console to apply it. The first boot may take around half a minute.",
     "update_failed": "The update could not be downloaded.",
-    "update_up_to_date": "SwitchU is up to date.",
+    "update_up_to_date": "OmniLaunch is up to date.",
     "update_check_failed": "Could not reach the update server.",
     "update_available_short": "Update available",
     "details_cover_loading": "Loading cover...",

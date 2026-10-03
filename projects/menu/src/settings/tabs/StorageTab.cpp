@@ -68,7 +68,7 @@ bool queryStorageSize(NcmStorageId storageId, uint64_t& total, uint64_t& freeSpa
 // only changes when it is installed, updated or deleted.
 constexpr uint32_t kSizeCacheMagic   = 0x5355415A;  // 'SUAZ'
 constexpr uint32_t kSizeCacheVersion = 1;
-constexpr const char* kSizeCachePath = "sdmc:/config/SwitchU/appsize.bin";
+constexpr const char* kSizeCachePath = "sdmc:/config/OmniLaunch/appsize.bin";
 
 std::unordered_map<uint64_t, uint64_t>& applicationSizeCache() {
     static std::unordered_map<uint64_t, uint64_t> cache;
@@ -99,7 +99,7 @@ void saveApplicationSizeCache() {
     std::error_code ec;
     std::filesystem::create_directory("sdmc:/config", ec);
     ec.clear();
-    std::filesystem::create_directory("sdmc:/config/SwitchU", ec);
+    std::filesystem::create_directory("sdmc:/config/OmniLaunch", ec);
 
     std::ofstream f(kSizeCachePath, std::ios::binary | std::ios::trunc);
     if (!f.is_open())

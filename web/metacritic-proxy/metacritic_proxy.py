@@ -134,7 +134,7 @@ def _client_keys() -> tuple[bytes, ...]:
 
 
 def _client_authorized(request: FastApiRequest) -> bool:
-    presented = request.headers.get(CLIENT_KEY_HEADER, "").strip().encode()
+    presented = (request.headers.get("x-switchu-key") or request.headers.get("x-omnilaunch-key") or "").strip().encode()
     if not presented or len(presented) > 256:
         return False
     matched = False

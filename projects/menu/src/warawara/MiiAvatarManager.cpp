@@ -188,7 +188,7 @@ void MiiAvatarManager::loadBundledGuests(nxui::GpuDevice& gpu, nxui::Renderer& r
             loaded = tex->loadFromFile(gpu, ren, fallbackPath, 96);
         }
         if (!loaded) {
-            std::string sdPath = std::string("sdmc:/switch/SwitchU/avatars/") + g.filename;
+            std::string sdPath = std::string("sdmc:/switch/OmniLaunch/avatars/") + g.filename;
             loaded = tex->loadFromFile(gpu, ren, sdPath, 96);
         }
 

@@ -10,7 +10,7 @@ namespace switchu {
 
 class FileLog {
 public:
-    static constexpr const char* LOG_DIR = "sdmc:/config/SwitchU";
+    static constexpr const char* LOG_DIR = "sdmc:/config/OmniLaunch";
     static constexpr const char* LOG_EXTENSION = ".log";
     static constexpr size_t MAX_LOG_FILES = 5;
     static constexpr size_t MAX_ARCHIVED_LOGS = MAX_LOG_FILES - 1;

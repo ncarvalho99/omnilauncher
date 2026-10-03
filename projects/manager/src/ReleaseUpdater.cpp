@@ -26,10 +26,12 @@ constexpr const char* kLatestReleaseUrl =
     "https://api.github.com/repos/ncarvalho99/SwitchU/releases/latest";
 constexpr const char* kOmniLauncherReleaseUrl =
     "https://api.github.com/repos/ncarvalho99/omnilauncher/releases/latest";
-constexpr const char* kWorkRoot = "sdmc:/config/SwitchU/update";
-constexpr const char* kArchivePath = "sdmc:/config/SwitchU/update/SwitchU-update.zip";
-constexpr const char* kArchivePartPath = "sdmc:/config/SwitchU/update/SwitchU-update.zip.part";
-constexpr const char* kStagingRoot = "sdmc:/config/SwitchU/update/staging";
+constexpr const char* kOmniLaunchReleaseUrl =
+    "https://api.github.com/repos/ncarvalho99/omnilaunch/releases/latest";
+constexpr const char* kWorkRoot = "sdmc:/config/OmniLaunch/update";
+constexpr const char* kArchivePath = "sdmc:/config/OmniLaunch/update/OmniLaunch-update.zip";
+constexpr const char* kArchivePartPath = "sdmc:/config/OmniLaunch/update/OmniLaunch-update.zip.part";
+constexpr const char* kStagingRoot = "sdmc:/config/OmniLaunch/update/staging";
 constexpr std::uint64_t kMaxArchiveBytes = 256ULL * 1024ULL * 1024ULL;
 constexpr std::uint64_t kMaxExtractedBytes = 512ULL * 1024ULL * 1024ULL;
 
@@ -127,7 +129,7 @@ void configureCurl(CURL* curl, const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 12L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 180L);
     curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "SwitchU-Manager/" SWITCHU_VERSION);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "OmniLaunch-Manager/" SWITCHU_VERSION);
 }
 
 size_t appendResponse(char* data, size_t size, size_t count, void* user) {
@@ -268,8 +270,8 @@ std::string safeRelativePath(std::string raw) {
         if (part == ".." || part == ".") return {};
     }
     const bool daemon = raw.rfind("atmosphere/contents/0100000000001000/", 0) == 0;
-    const bool menu = raw.rfind("switch/SwitchU/", 0) == 0;
-    const bool manager = raw.rfind("switch/SwitchU-Manager/", 0) == 0;
+    const bool menu = raw.rfind("switch/OmniLaunch/", 0) == 0 || raw.rfind("switch/SwitchU/", 0) == 0;
+    const bool manager = raw.rfind("switch/OmniLaunch-Manager/", 0) == 0 || raw.rfind("switch/SwitchU-Manager/", 0) == 0;
     return daemon || menu || manager ? raw : std::string();
 }
 
@@ -329,8 +331,8 @@ std::vector<std::string> extractArchive(std::atomic<float>& progress,
             }
             files.push_back(relative);
             hasDaemon |= relative == "atmosphere/contents/0100000000001000/exefs.nsp";
-            hasMenuMain |= relative == "switch/SwitchU/bin/menu/main";
-            hasMenuNpdm |= relative == "switch/SwitchU/bin/menu/main.npdm";
+            hasMenuMain |= (relative == "switch/OmniLaunch/bin/menu/main" || relative == "switch/SwitchU/bin/menu/main");
+            hasMenuNpdm |= (relative == "switch/OmniLaunch/bin/menu/main.npdm" || relative == "switch/SwitchU/bin/menu/main.npdm");
         }
         rc = unzGoToNextFile(archive);
         ++processedEntries;
@@ -501,13 +503,23 @@ ReleaseInfo ReleaseUpdater::checkLatest() {
     std::string response;
     bool usingOmni = false;
     try {
-        response = getTextLocked(kOmniLauncherReleaseUrl);
+        response = getTextLocked(kOmniLaunchReleaseUrl);
         const auto checkJson = nlohmann::json::parse(response);
         if (checkJson.is_object() && !checkJson.value("draft", true) && !checkJson.value("prerelease", true) && checkJson.contains("tag_name")) {
             usingOmni = true;
         }
-    } catch (...) {
-        // Fall back to SwitchU repository
+    } catch (...) {}
+
+    if (!usingOmni) {
+        try {
+            response = getTextLocked(kOmniLauncherReleaseUrl);
+            const auto checkJson = nlohmann::json::parse(response);
+            if (checkJson.is_object() && !checkJson.value("draft", true) && !checkJson.value("prerelease", true) && checkJson.contains("tag_name")) {
+                usingOmni = true;
+            }
+        } catch (...) {
+            // Fall back to SwitchU repository
+        }
     }
 
     if (!usingOmni) {
@@ -527,8 +539,8 @@ ReleaseInfo ReleaseUpdater::checkLatest() {
             const std::string normalized = lower(name);
             if (!endsWith(normalized, ".zip")) continue;
             int score = 0;
-            if (normalized == "switchu.zip") score += 100;
-            if (normalized.find("switchu") != std::string::npos) score += 20;
+            if (normalized == "omnilaunch.zip" || normalized == "omnilauncher.zip" || normalized == "switchu.zip") score += 100;
+            if (normalized.find("omnilaunch") != std::string::npos || normalized.find("switchu") != std::string::npos) score += 20;
             if (normalized.find("source") != std::string::npos) score -= 50;
             if (score <= bestScore) continue;
             bestScore = score;
