@@ -286,8 +286,7 @@ void SteamGridDbBackdrop::drawSet(nxui::Renderer& renderer,
         // hero, the paged grid keeps it as a faint wash. Upstream 2.6.5 added a
         // user-facing opacity slider, so the ceiling is scaled by it rather than
         // replaced -- otherwise the slider would also undo the per-layout tuning.
-        const float maxHeroAlpha = (m_layoutMode == AppLayoutMode::DynamicLine || m_layoutMode == AppLayoutMode::Deck || m_layoutMode == AppLayoutMode::Cover || m_layoutMode == AppLayoutMode::List) ? 0.60f : 0.16f;
-        const float heroAlpha = maxHeroAlpha * m_artworkOpacityScale;
+        const float heroAlpha = std::clamp(m_artworkOpacityScale, 0.f, 1.f);
         renderer.pushClipRect(screen);
         renderer.drawTexture(&set.hero, fillRect(set.hero, screen),
                              nxui::Color::white().withAlpha(alpha * heroAlpha));

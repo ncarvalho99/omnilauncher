@@ -1698,12 +1698,12 @@ void IconGrid::drawFolderQuad3D(nxui::Renderer& ren,
         if (icon && icon->valid()) {
             ren.drawQuad3D(icon, cellQuad, tint, topAlpha, bottomAlpha, isReflection, strips);
         } else {
-            const float variation = 0.85f + 0.05f * static_cast<float>((i + row) % 3);
+            const float variation = 0.88f + 0.04f * static_cast<float>((i + row) % 3);
             const nxui::Color cellCol{
-                accent.r * variation * tint.r,
-                accent.g * variation * tint.g,
-                accent.b * variation * tint.b,
-                0.80f * tint.a
+                0.16f * variation * tint.r,
+                0.18f * variation * tint.g,
+                0.22f * variation * tint.b,
+                0.82f * tint.a
             };
             ren.drawQuad3D(nullptr, cellQuad, cellCol, topAlpha, bottomAlpha, isReflection, strips);
         }
@@ -1902,14 +1902,6 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
 
         nxui::Texture* art = icon->texture();
         const bool isFolder = (icon->entryKind() == GridEntryKind::Folder);
-        nxui::Color faceBlankCol = blankCol;
-        if (isFolder) {
-            const nxui::Color accent = switchu::folders::colorForIndex(icon->folderColorIndex());
-            faceBlankCol = nxui::Color(accent.r * 0.40f + blankCol.r * 0.60f,
-                                       accent.g * 0.40f + blankCol.g * 0.60f,
-                                       accent.b * 0.40f + blankCol.b * 0.60f,
-                                       blankCol.a);
-        }
         const bool showingFront = flowMidZ(front) <= flowMidZ(back);
         const bool showingBack  = flowMidZ(back)  <= flowMidZ(front);
 
@@ -1919,7 +1911,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
                     // A case is a solid object: the bare case is drawn first and
                     // the artwork is printed on top of it, so a title with no
                     // art is a blank case rather than a hole.
-                    ren.drawQuad3D(nullptr, front, isFolder ? faceBlankCol : blankCol, 1.f, 1.f, false, kFlowStripsSide);
+                    ren.drawQuad3D(nullptr, front, blankCol, 1.f, 1.f, false, kFlowStripsSide);
                     if (showingFront) {
                         if (coverTex) {
                             ren.drawQuad3D(coverTex, front, artTint, 1.f, 1.f, false, kFlowStripsFront);
@@ -1972,7 +1964,7 @@ void IconGrid::renderFlow(nxui::Renderer& ren) {
             const nxui::Vec3* src = f.which == 0 ? front
                                    : f.which == 1 ? back
                                    : f.which == 2 ? faceL : faceR;
-            const nxui::Color col = f.which == 0 ? (isFolder ? faceBlankCol : blankCol)
+            const nxui::Color col = f.which == 0 ? blankCol
                                    : f.which == 1 ? backCol : sideCol;
             mirror(src, m);
             ren.drawQuad3D(nullptr, m, col, reflTop, 0.f, true, kFlowStripsRefl);
@@ -2197,14 +2189,6 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
 
         nxui::Texture* art = icon->texture();
         const bool isFolder = (icon->entryKind() == GridEntryKind::Folder);
-        nxui::Color faceBlankCol = blankCol;
-        if (isFolder) {
-            const nxui::Color accent = switchu::folders::colorForIndex(icon->folderColorIndex());
-            faceBlankCol = nxui::Color(accent.r * 0.40f + blankCol.r * 0.60f,
-                                       accent.g * 0.40f + blankCol.g * 0.60f,
-                                       accent.b * 0.40f + blankCol.b * 0.60f,
-                                       blankCol.a);
-        }
 
         // 1:1 square icon inset centered on front face when 2:3 vertical cover is not present.
         const float iconHalf = halfW * 0.88f;
@@ -2223,7 +2207,7 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
 
         // 1. Draw floor reflection
         const float reflTop = 0.32f * alpha;
-        ren.drawQuad3D(nullptr, refl, faceBlankCol, reflTop, 0.f, true, 8);
+        ren.drawQuad3D(nullptr, refl, blankCol, reflTop, 0.f, true, 8);
         if (coverTex) {
             ren.drawQuad3D(coverTex, refl, artTint, reflTop, 0.f, true, 8);
         } else if (isFolder) {
@@ -2234,7 +2218,7 @@ void IconGrid::renderShelf(nxui::Renderer& ren) {
         }
 
         // 2. Draw card face
-        ren.drawQuad3D(nullptr, quad, faceBlankCol, 1.f, 1.f, false, 8);
+        ren.drawQuad3D(nullptr, quad, blankCol, 1.f, 1.f, false, 8);
         if (coverTex) {
             ren.drawQuad3D(coverTex, quad, artTint, 1.f, 1.f, false, 8);
         } else if (isFolder) {
@@ -2458,17 +2442,9 @@ void IconGrid::renderDeck(nxui::Renderer& ren) {
         }
 
         const bool isFolder = (icon->entryKind() == GridEntryKind::Folder);
-        nxui::Color faceBlankCol = blankCol;
-        if (isFolder) {
-            const nxui::Color accent = switchu::folders::colorForIndex(icon->folderColorIndex());
-            faceBlankCol = nxui::Color(accent.r * 0.40f + blankCol.r * 0.60f,
-                                       accent.g * 0.40f + blankCol.g * 0.60f,
-                                       accent.b * 0.40f + blankCol.b * 0.60f,
-                                       blankCol.a);
-        }
 
         // Dark card chassis / backplate
-        ren.drawQuad3D(nullptr, quad, faceBlankCol);
+        ren.drawQuad3D(nullptr, quad, blankCol);
 
         if (hasCover && coverTex) {
             // Full 2:3 vertical cover art
@@ -2694,14 +2670,6 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
         const nxui::Color blankCol{blankLit, blankLit, blankLit, alpha};
 
         const bool isFolder = (icon->entryKind() == GridEntryKind::Folder);
-        nxui::Color faceBlankCol = blankCol;
-        if (isFolder) {
-            const nxui::Color accent = switchu::folders::colorForIndex(icon->folderColorIndex());
-            faceBlankCol = nxui::Color(accent.r * 0.40f + blankCol.r * 0.60f,
-                                       accent.g * 0.40f + blankCol.g * 0.60f,
-                                       accent.b * 0.40f + blankCol.b * 0.60f,
-                                       blankCol.a);
-        }
 
         // Floor reflection (fading downwards)
         const float floorY = y - halfH - 0.03f;
@@ -2739,7 +2707,7 @@ void IconGrid::renderCover(nxui::Renderer& ren) {
         }
 
         // Card chassis / plate
-        ren.drawQuad3D(nullptr, quad, faceBlankCol);
+        ren.drawQuad3D(nullptr, quad, blankCol);
 
         // Artwork
         if (hasCover && coverTex) {

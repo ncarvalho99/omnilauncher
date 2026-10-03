@@ -97,7 +97,24 @@ public:
     void onDynamicPagesChange(BoolCb cb) { m_dynamicPagesCb = std::move(cb); }
     using LayoutModeCb = std::function<void(AppLayoutMode)>;
     void onLayoutModeChange(LayoutModeCb cb) { m_layoutModeCb = std::move(cb); }
-    void setLayoutModeState(AppLayoutMode mode) { m_layoutMode = mode; }
+    void setLayoutModeState(AppLayoutMode mode) {
+        m_layoutMode = mode;
+        const int val = mode == AppLayoutMode::Metro ? 8
+                      : mode == AppLayoutMode::List  ? 7
+                      : mode == AppLayoutMode::Xmb   ? 6
+                      : mode == AppLayoutMode::Cover ? 5
+                      : mode == AppLayoutMode::Deck  ? 4
+                      : mode == AppLayoutMode::Shelf ? 3
+                      : mode == AppLayoutMode::Flow  ? 2
+                      : mode == AppLayoutMode::DynamicLine ? 1 : 0;
+        for (auto& tab : m_tabs) {
+            for (auto& item : tab.items) {
+                if (item.type == ItemType::Selector && item.options.size() == 9) {
+                    item.intVal = val;
+                }
+            }
+        }
+    }
     AppLayoutMode layoutModeState() const { return m_layoutMode; }
     void onNextTrack(VoidCb cb)          { m_nextTrackCb = std::move(cb); }
     void onThemeShopApply(StringCb cb)   { m_themeShopApplyCb = std::move(cb); }

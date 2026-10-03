@@ -546,7 +546,8 @@ void WiiUMenuApp::wireFocusCallback() {
             } else
 #endif
             m_titlePill->setText(icon->title());
-            m_titlePill->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
+            const bool showTitle = (m_openFolderId != 0) || (m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
+            m_titlePill->setVisible(showTitle);
         } else if (cur) {
             refreshGameArtworkBackdrop(0);
             if (m_editMode)

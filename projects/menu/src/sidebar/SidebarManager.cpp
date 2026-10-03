@@ -89,7 +89,7 @@ void SidebarManager::build(nxui::GpuDevice& gpu, nxui::Renderer& ren,
         ctrl->setRect({rightX, startY + 0.f * (btnSize + gap), btnSize, btnSize});
         m_rightButtons.push_back(std::move(ctrl));
 
-        auto sleep = makeBtn(&m_icons[3], "sidebar.sleep", "Sleep", actions.onSleep);
+        auto sleep = makeBtn(&m_icons[3], "sidebar.power", "Power Options", actions.onSleep);
         sleep->setRect({rightX, startY + 1.f * (btnSize + gap), btnSize, btnSize});
         m_rightButtons.push_back(std::move(sleep));
 

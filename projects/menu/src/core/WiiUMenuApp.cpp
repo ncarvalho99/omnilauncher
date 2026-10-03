@@ -2732,6 +2732,7 @@ void WiiUMenuApp::updateGridXmbContext() {
             m_themeShopReturnFocus = focusManager().current();
             m_navigator.navigate(switchu::navigation::Route::ThemeShop);
             if (m_settings && m_settings->isActive()) m_settings->hide();
+            m_themeShop->setLayoutModeState(m_appLayoutMode);
             m_themeShop->show();
             focusManager().setFocus(m_themeShop.get());
         }
@@ -3200,7 +3201,8 @@ void WiiUMenuApp::applyDisplayModel(GridModel model, std::uint64_t focusId, bool
     if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    const bool hidePill = (m_openFolderId == 0) && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro);
+    if (m_titlePill && hidePill) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
     applyMetroPowerButton(isMetro);
@@ -4881,7 +4883,8 @@ void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
     if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    const bool hidePill = (m_openFolderId == 0) && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro);
+    if (m_titlePill && hidePill) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
     applyMetroPowerButton(isMetro);
@@ -4959,6 +4962,7 @@ void WiiUMenuApp::openCapturedFolder() {
         m_folderHeaderLabel->setTextColor(m_theme.textPrimary);
     }
     m_grid->setRect({kGridRectX, 148.f, kGridRectW, 470.f});
+    if (m_titlePill) m_titlePill->setTargetY(620.f, true);
     applyDisplayModel(buildOpenFolderModel(m_openFolderId), m_folderOpenFocusTitleId, false);
     m_folderOpenFocusTitleId = 0;
     syncPageIndicator();
@@ -5018,6 +5022,12 @@ void WiiUMenuApp::closeFolder(bool preserveEditMode) {
     if (m_pageIndicator)
         m_pageIndicator->clearActiveColor();
     m_grid->setRect({kGridRectX, kGridRectY, kGridRectW, kGridRectH});
+    if (m_titlePill) {
+        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
+                                : (m_appLayoutMode == AppLayoutMode::Cover) ? 545.f
+                                : 630.f;
+        m_titlePill->setTargetY(targetPillY, false);
+    }
     applyDisplayModel(buildRootFolderModel(), folderTitleId(oldId), false);
     syncPageIndicator();
     if (preserveEditMode) {
@@ -6013,6 +6023,7 @@ void WiiUMenuApp::buildGrid() {
         // backdrop, glass, content, and cursor command-build costs so the
         // remaining Theme Shop opening spike can be measured safely.
         m_themeShop->requestRenderDiagnostics(8);
+        m_themeShop->setLayoutModeState(m_appLayoutMode);
         m_themeShop->show();
         focusManager().setFocus(m_themeShop.get());
     };
@@ -6187,7 +6198,8 @@ void WiiUMenuApp::buildGrid() {
     if (m_leftSidebar)   m_leftSidebar->setVisible(!isMetro);
     if (m_rightSidebar)  m_rightSidebar->setVisible(!isMetro);
     if (m_pageIndicator) m_pageIndicator->setVisible(m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && !isMetro);
-    if (m_titlePill && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro)) m_titlePill->setVisible(false);
+    const bool hidePill = (m_openFolderId == 0) && (m_appLayoutMode == AppLayoutMode::Xmb || m_appLayoutMode == AppLayoutMode::List || isMetro);
+    if (m_titlePill && hidePill) m_titlePill->setVisible(false);
     if (m_screenSwapButton) m_screenSwapButton->setMetroStyle(isMetro);
     if (m_mediaCenterButton) m_mediaCenterButton->setMetroStyle(isMetro);
     applyMetroPowerButton(isMetro);
@@ -6863,7 +6875,8 @@ void WiiUMenuApp::finalizeRefresh() {
         focusManager().setFocus(currentIcon);
         if (currentIcon->tag() == "glossy_icon") {
             auto* icon = static_cast<GlossyIcon*>(currentIcon);
-            if (icon->titleId() != 0 && m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro) {
+            const bool showTitle = (m_openFolderId != 0) || (m_appLayoutMode != AppLayoutMode::Xmb && m_appLayoutMode != AppLayoutMode::List && m_appLayoutMode != AppLayoutMode::Metro);
+            if (icon->titleId() != 0 && showTitle) {
                 m_titlePill->setText(icon->title());
                 m_titlePill->setVisible(true);
             } else {
@@ -7299,7 +7312,8 @@ void WiiUMenuApp::onUpdate(float dt) {
         openCapturedFolder();
 
     if (m_titlePill) {
-        const float targetPillY = (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
+        const float targetPillY = (m_openFolderId != 0) ? 620.f
+                                : (m_appLayoutMode == AppLayoutMode::Deck) ? 275.f
                                 : (m_appLayoutMode == AppLayoutMode::Cover) ? 545.f
                                 : 630.f;
         m_titlePill->setTargetY(targetPillY);

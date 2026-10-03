@@ -1793,7 +1793,8 @@ void WiiUMenuApp::updateCursor() {
 
     auto* cur = focusManager().current();
     if (cur) {
-        if (m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro)) {
+        const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
+        if (isGameInCustomView && m_grid && (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro)) {
             m_cursor->setVisible(false);
             return;
         }

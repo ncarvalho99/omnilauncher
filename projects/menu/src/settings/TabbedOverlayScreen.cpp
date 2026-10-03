@@ -887,22 +887,27 @@ void TabbedOverlayScreen::drawDropdown(nxui::Renderer& ren, const nxui::Rect& pa
     nxui::Rect pop = { dx, fy, w, h };
 
     float a = opacity * open;
-    nxui::Color bg = m_theme->mode == nxui::ThemeMode::Dark
-        ? nxui::Color::lerp(m_theme->panelBase, nxui::Color(0.055f, 0.060f, 0.075f, 1.f), 0.36f).withAlpha(0.94f * a)
-        : nxui::Color::lerp(m_theme->panelBase, nxui::Color(0.98f, 0.985f, 1.f, 1.f), 0.30f).withAlpha(0.96f * a);
     float radius = 15.f;
 
     nxui::Rect contact = pop;
     contact.y += 6.f;
-    ren.drawRoundedRect(contact.expanded(3.f), nxui::Color::black().withAlpha(0.12f * a), radius + 3.f);
-    ren.drawRoundedRect(pop.expanded(1.f), m_theme->panelHighlight.withAlpha(0.08f * a), radius + 1.f);
-    ren.drawRoundedRect(pop, bg, radius);
+    ren.drawRoundedRect(contact.expanded(3.f), nxui::Color::black().withAlpha(0.16f * a), radius + 3.f);
+
+    const auto& tuning = settings::debug::settingsGlassTuning();
+    nxui::LiquidGlassSettings savedGlass = ren.liquidGlassSettings();
+    auto& glass = ren.liquidGlassSettings();
+    glass.blurIntensity = std::max(0.0f, tuning.shaderBlurIntensity);
+    ren.drawLiquidGlass(kSettingsBackdropCacheTarget, pop, radius,
+                        m_theme->panelBase.withAlpha(0.52f * a), a,
+                        std::clamp(tuning.shade, 0.0f, 1.0f));
+    ren.liquidGlassSettings() = savedGlass;
+
     ren.drawRoundedRectOutline(pop,
-                               m_theme->panelBorder.withAlpha(0.70f * a),
-                               radius, 1.4f);
-    ren.drawRoundedRectOutline(pop.shrunk(2.f),
-                               m_theme->panelHighlight.withAlpha(0.10f * a),
-                               std::max(0.f, radius - 2.f), 1.f);
+                               m_theme->panelBorder.withAlpha(0.75f * a),
+                               radius, 1.5f);
+    ren.drawRoundedRectOutline(pop.shrunk(1.5f),
+                               m_theme->panelHighlight.withAlpha(0.22f * a),
+                               std::max(0.f, radius - 1.5f), 1.f);
 
     nxui::Rect listClip = pop.shrunk(6.f);
     ren.pushClipRect(listClip);
