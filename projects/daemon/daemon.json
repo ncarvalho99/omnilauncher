@@ -1,5 +1,5 @@
 {
-    "name": "SwitchU-Daemon",
+    "name": "OmniLaunch-Daemon",
     "program_id": "0x0100000000001000",
     "program_id_range_min": "0x0100000000001000",
     "program_id_range_max": "0x0100000000001000",

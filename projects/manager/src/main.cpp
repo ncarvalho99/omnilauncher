@@ -28,7 +28,7 @@ extern "C" void userAppExit(void) {
 
 int main(int, char**) {
     switchu::FileLog::open("manager");
-    switchu::FileLog::log("[main] SwitchU Manager starting");
+    switchu::FileLog::log("[main] OmniLaunch Manager starting");
 
     SDL_Init(0);
     TTF_Init();

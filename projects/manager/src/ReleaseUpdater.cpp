@@ -348,7 +348,7 @@ std::vector<std::string> extractArchive(std::atomic<float>& progress,
     if (rc != UNZ_END_OF_LIST_OF_FILE)
         throw std::runtime_error("ZIP directory is corrupted");
     if (!hasDaemon || !hasMenuMain || !hasMenuNpdm)
-        throw std::runtime_error("Release archive does not contain a complete SwitchU installation");
+        throw std::runtime_error("Release archive does not contain a complete OmniLaunch installation");
     progress.store(progressBase + progressSpan);
     return files;
 }
@@ -552,7 +552,7 @@ ReleaseInfo ReleaseUpdater::checkLatest() {
         }
     }
     if (release.version.empty() || release.downloadUrl.empty())
-        throw std::runtime_error("Latest GitHub release has no SwitchU ZIP asset");
+        throw std::runtime_error("Latest GitHub release has no OmniLaunch ZIP asset");
     if (release.downloadSize > kMaxArchiveBytes)
         throw std::runtime_error("GitHub release archive exceeds the safety limit");
     release.updateAvailable = isNewerVersion(release.version, kCurrentVersion);

@@ -1349,8 +1349,6 @@ void WiiUMenuApp::showGameContextMenu(GlossyIcon* icon) {
             : (sizeIndex == 1 ? switchu::widgets::WidgetSize{2, 1}
                               : switchu::widgets::WidgetSize{1, 1});
         m_gameSizes[titleId] = requested;
-        if (requested == switchu::widgets::WidgetSize{1, 1})
-            m_gameArtwork.erase(titleId);
         normalizeWidgetPlacements();
         m_layoutDirty = true;
         saveMenuLayout();
@@ -1358,6 +1356,10 @@ void WiiUMenuApp::showGameContextMenu(GlossyIcon* icon) {
         m_navigator.resetToHome();
         if (m_openFolderId == 0)
             applyDisplayModel(buildRootFolderModel(), titleId, false);
+        if (requested == switchu::widgets::WidgetSize{1, 1}) {
+            app().gpu().waitIdle();
+            m_gameArtwork.erase(titleId);
+        }
     });
     m_gameOptions->onCloseSoftware([this]() { m_launcher.terminateApplication(); });
     m_gameOptions->onDeleteSoftware([this, titleId, title]() {

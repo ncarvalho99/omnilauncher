@@ -193,17 +193,25 @@ extern "C" void __appInit(void) {
 
     // Seamless migration from legacy SwitchU to OmniLaunch directories
     {
+        auto mergeDir = [](const std::filesystem::path& src, const std::filesystem::path& dst, auto& self) -> void {
+            std::error_code ec;
+            std::filesystem::create_directories(dst, ec);
+            for (const auto& item : std::filesystem::directory_iterator(src, ec)) {
+                const auto target = dst / item.path().filename();
+                if (item.is_directory()) {
+                    self(item.path(), target, self);
+                } else if (!std::filesystem::exists(target, ec)) {
+                    std::filesystem::rename(item.path(), target, ec);
+                }
+            }
+        };
+
         std::error_code migEc;
         if (std::filesystem::exists("sdmc:/config/SwitchU", migEc)) {
             if (!std::filesystem::exists("sdmc:/config/OmniLaunch", migEc)) {
                 std::filesystem::rename("sdmc:/config/SwitchU", "sdmc:/config/OmniLaunch", migEc);
             } else {
-                for (const auto& entry : std::filesystem::directory_iterator("sdmc:/config/SwitchU", migEc)) {
-                    const auto target = std::filesystem::path("sdmc:/config/OmniLaunch") / entry.path().filename();
-                    if (!std::filesystem::exists(target, migEc)) {
-                        std::filesystem::rename(entry.path(), target, migEc);
-                    }
-                }
+                mergeDir("sdmc:/config/SwitchU", "sdmc:/config/OmniLaunch", mergeDir);
                 std::filesystem::remove_all("sdmc:/config/SwitchU", migEc);
             }
         }
@@ -212,6 +220,7 @@ extern "C" void __appInit(void) {
             if (!std::filesystem::exists("sdmc:/switch/OmniLaunch", migEc)) {
                 std::filesystem::rename("sdmc:/switch/SwitchU", "sdmc:/switch/OmniLaunch", migEc);
             } else {
+                mergeDir("sdmc:/switch/SwitchU", "sdmc:/switch/OmniLaunch", mergeDir);
                 std::filesystem::remove_all("sdmc:/switch/SwitchU", migEc);
             }
         }

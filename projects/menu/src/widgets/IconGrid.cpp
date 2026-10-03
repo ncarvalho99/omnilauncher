@@ -74,7 +74,7 @@ std::string resolveFlowCoverPath(std::uint64_t titleId) {
         if (stat(p3.c_str(), &st) == 0 && S_ISREG(st.st_mode)) { found = std::move(p3); break; }
     }
 
-    {
+    if (!found.empty()) {
         std::lock_guard<std::mutex> lock(s_coverPathMutex);
         s_coverPathCache[titleId] = found;
     }
@@ -180,6 +180,10 @@ void IconGrid::clearFlowCovers() {
     }
     m_flowCovers.clear();
     m_pendingCoverDecodes.clear();
+    {
+        std::lock_guard<std::mutex> lock(s_coverPathMutex);
+        s_coverPathCache.clear();
+    }
 }
 
 void IconGrid::preloadFlowCoversAround(int centerIdx) {

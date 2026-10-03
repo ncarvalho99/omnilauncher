@@ -2118,6 +2118,8 @@ void WiiUMenuApp::composeRootPending(std::vector<PendingApp>& apps) {
         byId.emplace(item.titleId, std::move(item));
     }
     for (const auto& widget : m_widgetStore.all()) {
+        if (switchu::widgets::supportedSizes(widget.type, AppLayoutMode::Grid).empty())
+            continue;
         PendingApp item;
         item.id = "widget:" + std::to_string(widget.id);
         item.title = widgetTypeLabel(widget.type);
@@ -2311,6 +2313,8 @@ GridModel WiiUMenuApp::buildRootFolderModel() {
         entries.emplace(entry.titleId, std::move(entry));
     }
     for (const auto& widget : m_widgetStore.all()) {
+        if (switchu::widgets::supportedSizes(widget.type, AppLayoutMode::Grid).empty())
+            continue;
         AppEntry entry;
         entry.id = "widget:" + std::to_string(widget.id);
         entry.title = widgetTypeLabel(widget.type);
