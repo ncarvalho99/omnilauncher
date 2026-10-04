@@ -21,6 +21,39 @@ void deviceDebug(void* userData, const char* context, DkResult result, const cha
         GpuDevice::debugSink()(buf);
 }
 
+// Written BEFORE the create call, through the sink that flushes to the SD card.
+// A failed deko3d MemBlock create does not return in a release libdeko3d: it
+// aborts with 0x367 (module 359, DkResult_Fail from nvMapCreate or the GPU
+// address-space map), so a log written after the call is never written.
+//
+// Coverage: the boot pools, the image allocator and its chunks, the oversized
+// upload staging block and the frame-dump buffers. Image allocations under
+// 1 MiB are NOT traced (too many), so the last [gpu-alloc] line is the last
+// TRACED attempt: a crash with no newer line points at a small allocation or at
+// something that is not an allocation.
+//
+// procHeadroomKB is TotalMemorySize - UsedMemorySize: headroom of the process
+// memory reservation, not free bytes inside the malloc heap (see
+// allocImageMemory). -1 means svcGetInfo failed.
+constexpr uint32_t kTraceMinBytes = 1u * 1024u * 1024u;
+
+void traceAlloc(const char* what, uint32_t size, uint64_t imageUsed = 0,
+                uint64_t imageBudget = 0, size_t chunks = 0) {
+    if (!GpuDevice::debugSink())
+        return;
+    u64 total = 0, used = 0;
+    const bool ok =
+        R_SUCCEEDED(svcGetInfo(&total, InfoType_TotalMemorySize, CUR_PROCESS_HANDLE, 0)) &&
+        R_SUCCEEDED(svcGetInfo(&used, InfoType_UsedMemorySize, CUR_PROCESS_HANDLE, 0));
+    char buf[256];
+    std::snprintf(buf, sizeof(buf),
+                  "[gpu-alloc] %s size=%u image=%llu/%llu poolChunks=%zu procHeadroomKB=%lld",
+                  what, size, (unsigned long long)imageUsed, (unsigned long long)imageBudget,
+                  chunks,
+                  ok ? (long long)((total > used ? total - used : 0) / 1024) : -1LL);
+    GpuDevice::debugSink()(buf);
+}
+
 }  // namespace
 
 GpuDevice::DebugSink GpuDevice::s_debugSink = nullptr;
@@ -54,6 +87,7 @@ bool GpuDevice::initialize() {
     // figure recorded so far has to be re-read in that light.
     constexpr uint32_t frameDumpSize = FB_WIDTH * FB_HEIGHT * 4u;
     for (int i = 0; i < 2; ++i) {
+        traceAlloc("frame-dump", frameDumpSize);
         m_frameDumpBuffers[i] = dk::MemBlockMaker{m_dev, frameDumpSize}
             .setFlags(DkMemBlockFlags_CpuUncached | DkMemBlockFlags_GpuCached)
             .create();
@@ -73,6 +107,7 @@ bool GpuDevice::initialize() {
     for (int i = 0; i < UPLOAD_SLOT_COUNT; ++i) {
         m_uploadInFlight[i] = false;
         m_uploadCopyCount[i] = 0;
+        traceAlloc("upload-slot", UPLOAD_STAGING_SIZE);
         if (!m_uploadCmdPool[i].create(
                 m_dev, UPLOAD_CMD_BUF_SIZE,
                 DkMemBlockFlags_CpuUncached | DkMemBlockFlags_GpuCached) ||
@@ -100,6 +135,7 @@ bool GpuDevice::initialize() {
     dataSize += MAX_TEXTURES * sizeof(DkImageDescriptor) + DK_IMAGE_DESCRIPTOR_ALIGNMENT;
     dataSize += MAX_SAMPLERS * sizeof(DkSamplerDescriptor) + DK_SAMPLER_DESCRIPTOR_ALIGNMENT;
     dataSize = (dataSize + kGpuAlign - 1) & ~(kGpuAlign - 1);
+    traceAlloc("data-pool", dataSize);
     m_dataPool.create(m_dev, dataSize, DkMemBlockFlags_CpuUncached | DkMemBlockFlags_GpuCached);
 
     for (int i = 0; i < NUM_FB; ++i) {
@@ -181,6 +217,7 @@ void GpuDevice::createOffscreenTargets() {
         totalOff = (totalOff + a - 1) & ~(a - 1);
         totalOff += layouts[i].getSize();
     }
+    traceAlloc("offscreen-pool", totalOff);
     m_offPool.create(m_dev, totalOff, DkMemBlockFlags_GpuCached | DkMemBlockFlags_Image);
 
     uint32_t off = 0;
@@ -440,6 +477,8 @@ dk::UniqueMemBlock GpuDevice::allocImageMemory(uint32_t size) {
     // space. The image budget bounds our allocations; the checked deko3d
     // allocation below is the authoritative availability test.
 
+    if (size >= kTraceMinBytes)
+        traceAlloc("image", size, m_imageMemUsed, s_imageBudget, m_imageChunks.size());
     auto blk = dk::MemBlockMaker{m_dev, size}
         .setFlags(DkMemBlockFlags_GpuCached | DkMemBlockFlags_Image)
         .create();
@@ -486,9 +525,12 @@ GpuDevice::ImageAlloc GpuDevice::allocImageFromPool(uint32_t size, uint32_t alig
     // Allocate a new chunk
     uint32_t chunkSize = std::max(kImageChunkSize, size);
     chunkSize = (chunkSize + kGpuAlign - 1) & ~(kGpuAlign - 1);
+    traceAlloc("pool-chunk", chunkSize, m_imageMemUsed, s_imageBudget, m_imageChunks.size());
     auto blk = dk::MemBlockMaker{m_dev, chunkSize}
         .setFlags(DkMemBlockFlags_GpuCached | DkMemBlockFlags_Image)
         .create();
+    if (!blk)
+        return {};   // callers already treat an invalid ImageAlloc as "no memory"
     m_imageChunks.push_back({std::move(blk), chunkSize, size});
     m_imageMemUsed += size;
     m_poolMemUsed  += size;
@@ -496,6 +538,12 @@ GpuDevice::ImageAlloc GpuDevice::allocImageFromPool(uint32_t size, uint32_t alig
 }
 
 void GpuDevice::resetImagePool() {
+    // The chunks back images that the frame in flight, or an upload still in
+    // the queue, may be reading or writing. Freeing them first is the same
+    // hazard as destroying a Texture. waitIdle() does not submit the command
+    // list being recorded, so call this only at a frame boundary, when no
+    // recorded draw references a pool image. (No caller exists today.)
+    waitIdle();
     m_imageChunks.clear();
     // Only subtract pool memory; individual allocations remain tracked.
     if (m_poolMemUsed <= m_imageMemUsed)
@@ -506,7 +554,8 @@ void GpuDevice::resetImagePool() {
 }
 
 bool GpuDevice::uploadTexture(dk::Image& dst, const void* pixels, uint32_t size,
-                              uint32_t w, uint32_t h, uint64_t expectedBytes)
+                              uint32_t w, uint32_t h, uint64_t expectedBytes,
+                              bool reuploadsLiveImage)
 {
     // deko3d does not report a bad upload, it calls svcBreak: a crash report
     // resolving to dk::detail::RaiseError under ImageLayout::calcLevelOffset is
@@ -564,6 +613,7 @@ bool GpuDevice::uploadTexture(dk::Image& dst, const void* pixels, uint32_t size,
         srcGpu = m_uploadStagingPool[slot].gpuAddr(offset);
     } else {
         const uint32_t allocSize = (size + kGpuAlign - 1) & ~(kGpuAlign - 1);
+        traceAlloc("upload-staging", allocSize, m_imageMemUsed, s_imageBudget, m_imageChunks.size());
         m_uploadTempStaging[slot] = dk::MemBlockMaker{m_dev, allocSize}
             .setFlags(DkMemBlockFlags_CpuUncached | DkMemBlockFlags_GpuCached)
             .create();
@@ -579,6 +629,9 @@ bool GpuDevice::uploadTexture(dk::Image& dst, const void* pixels, uint32_t size,
     }
 
     std::memcpy(srcCpu, pixels, size);
+
+    if (reuploadsLiveImage)
+        m_uploadCmdbuf[slot].barrier(DkBarrier_Full, 0);
 
     dk::ImageView view{dst};
     m_uploadCmdbuf[slot].copyBufferToImage(

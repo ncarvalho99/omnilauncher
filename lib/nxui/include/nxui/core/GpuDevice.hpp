@@ -271,8 +271,12 @@ public:
     // Source bytes are copied before return. GPU completion is asynchronous;
     // beginFrame/endFrame submit batches before their drawing commands, and
     // waitIdle flushes any pending batch before waiting.
+    // reuploadsLiveImage: dst is already registered and the frame in flight may
+    // be sampling it (video wallpaper). A full barrier is queued before the copy
+    // so the write cannot overtake that read; first-time uploads skip it.
     bool uploadTexture(dk::Image& dst, const void* pixels, uint32_t size,
-                       uint32_t width, uint32_t height, uint64_t expectedBytes = 0);
+                       uint32_t width, uint32_t height, uint64_t expectedBytes = 0,
+                       bool reuploadsLiveImage = false);
 
     // Two classes of offscreen target, because the two users want opposite
     // things. The icon and sidebar glass recapture the scene every single
