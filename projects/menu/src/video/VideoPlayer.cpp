@@ -183,6 +183,16 @@ bool VideoPlayer::open(const std::string& path, bool loop, bool audio) {
         return false;
     }
 
+    // Only H.264 is validated on the console. A VP9 .webm wallpaper (stored
+    // under an .mp4 name by the store installer) aborted the menu inside
+    // deko3d a few seconds after boot, every boot, until the theme was reset.
+    if (stream->codecpar->codec_id != AV_CODEC_ID_H264) {
+        DebugLog::log("[video] rejected theme codec id=%d (only H.264 supported)",
+                      static_cast<int>(stream->codecpar->codec_id));
+        close();
+        return false;
+    }
+
     const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
     if (!codec) {
         DebugLog::log("[video] codec decoder not found");

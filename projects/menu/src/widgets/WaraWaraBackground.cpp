@@ -783,7 +783,11 @@ void WaraWaraBackground::onRender(nxui::Renderer& ren) {
     // value that skips the blur pass.
     // Video wallpapers bypass live blur passes (re-blurring every frame live
     // wastes 4 full-screen GPU passes, matching upstream sLaunch parity).
-    const bool blurred = !isVideoActive() && m_blurStrength > 0.001f && ren.gpu().offscreenReady();
+    // A video wallpaper is blurred too, but only from a clearly intentional
+    // strength: the blur path draws at half resolution, and the 0.05 default
+    // would otherwise soften every video for nobody's benefit.
+    const float blurThreshold = isVideoActive() ? 0.06f : 0.001f;
+    const bool blurred = m_blurStrength > blurThreshold && ren.gpu().offscreenReady();
     if (blurred)
         ren.beginScreenSpaceTarget(nxui::GpuDevice::OFF_SCENE);
 

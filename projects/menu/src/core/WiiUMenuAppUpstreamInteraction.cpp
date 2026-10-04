@@ -1808,7 +1808,9 @@ void WiiUMenuApp::updateCursor() {
         const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
         if (isGameInCustomView && m_grid &&
             (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro || m_grid->isMetro() ||
-             m_appLayoutMode == AppLayoutMode::List || m_appLayoutMode == AppLayoutMode::Xmb)) {
+             m_appLayoutMode == AppLayoutMode::List)) {
+            // Metro and List draw their own highlight. XMB does not: it relies
+            // on the shared cursor (xmbFocus below), so it must stay visible.
             m_cursor->setVisible(false);
             return;
         }
