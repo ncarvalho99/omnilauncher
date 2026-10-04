@@ -147,6 +147,9 @@ bool Texture::loadImageData(GpuDevice& gpu, Renderer& ren,
     if (!gpu.uploadTexture(m_image, data, (uint32_t)dataSize, w, h, dataSize)) {
         std::printf("[Texture] uploadTexture FAILED (%dx%d)\n", w, h);
         // Half a texture is worse than none: it can still be bound and drawn.
+        // The descriptor slot taken from the previous image was cleared above
+        // (m_slot = -1); give it back, or it leaks and still points at m_mem.
+        if (oldSlot >= 0) ren.releaseTextureSlot(oldSlot);
         m_valid = false;
         return false;
     }

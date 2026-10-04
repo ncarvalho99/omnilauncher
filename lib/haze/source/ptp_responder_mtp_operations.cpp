@@ -60,6 +60,7 @@ namespace haze {
                         R_TRY(db.Add(PtpPropertyGetSetFlag_Get));
                         R_TRY(db.Add<u128>(0));
                     }
+                    break;
                 case PtpObjectPropertyCode_ObjectSize:
                     {
                         R_TRY(db.Add(PtpDataTypeCode_U64));
@@ -365,9 +366,12 @@ namespace haze {
         R_TRY(dp.Finalize());
 
         /* Ensure we can actually process the new name. */
-        const bool is_empty         = m_buffers->filename_string_buffer[0] == '\x00';
-        const bool contains_slashes = std::strchr(m_buffers->filename_string_buffer, '/') != nullptr;
-        R_UNLESS(!is_empty && !contains_slashes, haze::ResultInvalidPropertyValue());
+        const char *const new_name  = m_buffers->filename_string_buffer;
+        const bool is_empty         = new_name[0] == '\x00';
+        const bool contains_slashes = std::strchr(new_name, '/') != nullptr || std::strchr(new_name, '\\') != nullptr;
+        /* "." and ".." are path components, not names: accepting them lets a host walk out of the directory. */
+        const bool is_dot_name      = std::strcmp(new_name, ".") == 0 || std::strcmp(new_name, "..") == 0;
+        R_UNLESS(!is_empty && !contains_slashes && !is_dot_name, haze::ResultInvalidPropertyValue());
 
         /* Add a new object in the database with the new name. */
         PtpObject *newobj;

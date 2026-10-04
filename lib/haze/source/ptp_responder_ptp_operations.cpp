@@ -382,6 +382,17 @@ namespace haze {
         R_TRY(dp.ReadString(m_buffers->keywords_string_buffer));
         R_TRY(dp.Finalize());
 
+        /* The host chooses this name and it is appended to a path: refuse anything that is not a single plain */
+        /* file name, otherwise "..", "a/b" or "x\y" write outside the directory the host asked for. */
+        {
+            const char *const name = m_buffers->filename_string_buffer;
+            const bool bad = name[0] == '\x00'
+                          || std::strcmp(name, ".") == 0 || std::strcmp(name, "..") == 0
+                          || std::strchr(name, '/') != nullptr || std::strchr(name, '\\') != nullptr
+                          || std::strchr(name, ':') != nullptr;
+            R_UNLESS(!bad, haze::ResultInvalidPropertyValue());
+        }
+
         /* Rewrite requests for creating in storage directories. */
         if (parent_object == PtpGetObjectHandles_RootParent) {
             parent_object = storage_id;

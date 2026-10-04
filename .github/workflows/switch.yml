@@ -105,10 +105,19 @@ jobs:
         shell: bash
         env:
           SWITCHU_CLIENT_KEY: ${{ secrets.SWITCHU_CLIENT_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           KEY_FLAG=""
           if [ -z "$SWITCHU_CLIENT_KEY" ]; then
-            KEY_FLAG="--allow_no_client_key=y"
+            # Fork pull requests get no secrets and only need to compile. Any
+            # other build (push, release, manual) without the key would ship a
+            # client the servers reject, so it must fail instead of succeeding.
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              KEY_FLAG="--allow_no_client_key=y"
+            else
+              echo "SWITCHU_CLIENT_KEY secret is missing; refusing to build without the official client key" >&2
+              exit 1
+            fi
           fi
           if [ "${{ matrix.variant }}" = "homebrew" ]; then
             xmake f --yes -p cross -m "${{ matrix.mode }}" -a aarch64 --toolchain=devkita64 --homebrew=y $KEY_FLAG -vD --root

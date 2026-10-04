@@ -897,6 +897,7 @@ std::vector<ThemePreset> ThemePreset::loadInstalledPackages() {
                     preset.name = stem;
                     preset.source = ThemePresetSource::InstalledPackage;
                     preset.installPath = entry.path().parent_path().string();
+                    preset.looseVideo = true;
                     preset.background.videoPath = fpath;
                     preset.background.shapeCount = 0;
                     preset.background.opacity = 0.0f;

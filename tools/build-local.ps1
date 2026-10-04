@@ -196,7 +196,7 @@ $started = Get-Date
 # its project cache survives on the bind mount, so discarding package state at
 # every --rm run would make later builds incorrectly think dependencies exist.
 $ErrorActionPreference = 'Continue'
-& $docker run --rm -v "${repo}:/src" -v switchu-xmake:/root/.xmake -e "SWITCHU_CLIENT_KEY=$($env:SWITCHU_CLIENT_KEY)" `
+& $docker run --rm -v "${repo}:/src" -v switchu-xmake:/root/.xmake -e SWITCHU_CLIENT_KEY `
     $buildImage bash /src/tools/build-inside.sh $Mode $Variant $terminationQueueTestMode $preflightMatrixTestMode $preflightEdgeTestMode $resumeFailureTestMode |
     Tee-Object -FilePath $log
 $rc = $LASTEXITCODE

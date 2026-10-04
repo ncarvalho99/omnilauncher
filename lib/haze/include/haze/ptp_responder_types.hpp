@@ -20,9 +20,9 @@
 namespace haze {
 
     constexpr UsbCommsInterfaceInfo MtpInterfaceInfo = {
-        .bInterfaceClass    = 0xFF,
-        .bInterfaceSubClass = 0xFF,
-        .bInterfaceProtocol = 0x00,
+        .bInterfaceClass    = 0x06,
+        .bInterfaceSubClass = 0x01,
+        .bInterfaceProtocol = 0x01,
     };
 
     /* This is a VID:PID recognized by libmtp. */
@@ -38,7 +38,7 @@ namespace haze {
     constexpr auto MtpDeviceModel          = "Nintendo Switch";
 
     enum StorageId : u32 {
-        StorageId_SdmcFs = 0x00010001,
+        StorageId_SdmcFs = 0xffffffffu - 1,
     };
 
     constexpr PtpOperationCode SupportedOperationCodes[] = {

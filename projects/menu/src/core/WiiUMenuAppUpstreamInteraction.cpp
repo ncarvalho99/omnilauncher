@@ -1828,7 +1828,9 @@ void WiiUMenuApp::updateCursor() {
         // than from whatever rect the widget was last left with by another
         // layout. Reading the stale rect is what drew the selection frame
         // across the whole screen instead of around the focused item.
-        const bool xmbFocus = m_grid && (m_grid->isXmb() || isListLayout())
+        // With a folder open the grid runs in plain Grid mode even while the
+        // app layout is List, so read the layout the grid is actually in.
+        const bool xmbFocus = m_grid && (m_grid->isXmb() || (isListLayout() && m_openFolderId == 0))
                            && cur->tag() == "glossy_icon";
         nxui::Rect fr = (movingLineFocus || xmbFocus)
             ? m_grid->focusedDisplayRect()

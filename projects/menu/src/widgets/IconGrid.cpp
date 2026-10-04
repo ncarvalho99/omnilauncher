@@ -3394,7 +3394,9 @@ void IconGrid::renderList(nxui::Renderer& ren) {
     if (m_allIcons.empty()) return;
     ren.pushClipRect(m_rect);
 
-    const int focusedIndex = focusedGlobalIndex();
+    // Same rule Metro uses: while a HUD/sidebar button holds focus the hero
+    // card must not keep presenting the last game as the selection.
+    const int focusedIndex = m_metroFocused ? focusedGlobalIndex() : -1;
     nxui::Font* fontNormal = m_listContext.fontNormal ? m_listContext.fontNormal : m_xmbContext.fontNormal;
     nxui::Font* fontSmall = m_listContext.fontSmall ? m_listContext.fontSmall : m_xmbContext.fontSmall;
 
@@ -3630,7 +3632,7 @@ void IconGrid::renderList(nxui::Renderer& ren) {
         // game is selected". m_metroFocused is the flag the app clears when
         // focus leaves the tiles; without it the row stayed lit next to the
         // shared cursor on the HUD button (two selections on screen).
-        const bool isSelected = (m_metroFocused && focusedIndex >= 0 && i == focusedIndex);
+        const bool isSelected = (focusedIndex >= 0 && i == focusedIndex);
         const float prox = std::max(0.0f, 1.0f - absD * 0.45f);
         const float zoom = 0.90f + 0.18f * prox;
         const float alpha = std::clamp((0.35f + 0.65f * prox) * edgeFade, 0.f, 1.f);

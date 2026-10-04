@@ -183,6 +183,12 @@ void appendUniquePath(std::vector<std::string>& paths, std::string path) {
         return;
     if (startsWith(path, "https://") || startsWith(path, "http://"))
         return;
+    // Every manifest field that names a file ends up here, and the result is
+    // joined onto the install directory and written. Only the recursive
+    // collector used to reject "..", so "cover": "../../switch/x.nro" in a
+    // remote manifest could write outside the theme folder.
+    if (!isSafeRelativePath(path))
+        return;
     if (std::find(paths.begin(), paths.end(), path) != paths.end())
         return;
     paths.push_back(std::move(path));
@@ -269,6 +275,19 @@ bool replaceDirectoryFromStaging(const std::string& destination,
                                  const std::string& staging,
                                  std::string& error) {
     const std::string previous = destination + ".previous";
+    // A crash or power loss between the two renames below leaves the only good
+    // copy in "<dir>.previous" and nothing at "<dir>". Discovery ignores the
+    // ".previous" name and the next install used to delete it first, so the
+    // player lost the theme for good. Put it back before clearing anything.
+    if (pathExists(previous) && !pathExists(destination)) {
+        std::string recoverError;
+        if (renameDirectory(previous, destination, recoverError)) {
+            DebugLog::log("[themeshop] recovered interrupted install: %s", destination.c_str());
+        } else {
+            error = "could not recover the previous installation: " + recoverError;
+            return false;
+        }
+    }
     if (!removeDirectoryRecursive(previous) && pathExists(previous)) {
         error = "could not clear the previous installation";
         return false;
@@ -978,14 +997,28 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
         return result;
     }
 
-    if (pathExists(result.destinationPath))
-        removeDirectoryRecursive(result.destinationPath);
-    if (!ensureDirectoryRecursive(result.destinationPath))
-        throw std::runtime_error("Failed to prepare destination: " + result.destinationPath);
+    // Legacy file-by-file install. It used to delete the installed theme first
+    // and download after, so any network error, cancel, full card or power loss
+    // left the player with no theme at all (and a half-written folder whose
+    // theme.json was already there looked like a valid one). Download into a
+    // staging folder and swap it in only when every file arrived.
+    const std::string legacyStaging = result.destinationPath + ".installing";
+    removeDirectoryRecursive(legacyStaging);
+    if (!ensureDirectoryRecursive(legacyStaging))
+        throw std::runtime_error("Failed to prepare destination: " + legacyStaging);
+    const auto discardLegacyStaging = [&]() { removeDirectoryRecursive(legacyStaging); };
 
-    std::vector<RemoteFile> files = listThemeFiles(catalogUrl, themePath, manifestPath, entry);
-    if (files.empty())
+    std::vector<RemoteFile> files;
+    try {
+        files = listThemeFiles(catalogUrl, themePath, manifestPath, entry);
+    } catch (...) {
+        discardLegacyStaging();
+        throw;
+    }
+    if (files.empty()) {
+        discardLegacyStaging();
         throw std::runtime_error("Theme package contains no downloadable files");
+    }
 
     DebugLog::log("[themeshop] package file list: id=%s count=%zu root=%s",
                   entry.id.c_str(),
@@ -1003,8 +1036,30 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
                        progress);
         }
 
-        const std::string body = themeshop::http::getText(file.downloadUrl);
-        writeFileBinary(joinPath(result.destinationPath, file.relativePath), body);
+        try {
+            if (!isSafeRelativePath(file.relativePath))
+                throw std::runtime_error("Refusing unsafe file path in theme package: " + file.relativePath);
+            const std::string body = themeshop::http::getText(file.downloadUrl);
+            writeFileBinary(joinPath(legacyStaging, file.relativePath), body);
+        } catch (...) {
+            discardLegacyStaging();
+            throw;
+        }
+    }
+
+    std::string legacyValidationError;
+    if (!hasAllDeclaredFrames(legacyStaging, legacyValidationError)) {
+        discardLegacyStaging();
+        DebugLog::log("[themeshop] package rejected before replacement: %s",
+                      legacyValidationError.c_str());
+        throw std::runtime_error("Theme package is incomplete.");
+    }
+
+    std::string legacyReplaceError;
+    if (!replaceDirectoryFromStaging(result.destinationPath, legacyStaging, legacyReplaceError)) {
+        discardLegacyStaging();
+        DebugLog::log("[themeshop] installation replacement failed: %s", legacyReplaceError.c_str());
+        throw std::runtime_error("Theme package could not be installed.");
     }
 
     if (onProgress) {

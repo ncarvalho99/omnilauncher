@@ -2618,7 +2618,8 @@ void WiiUMenuApp::deletePreset(const std::string& presetId) {
     // A loose video file sitting directly in themes/ is registered with the
     // themes directory itself as installPath. Removing that recursively would
     // wipe every other installed theme, so such a preset owns only its file.
-    const bool looseVideo = idToDelete.rfind("video:", 0) == 0;
+    // Decided by discovery, never by the id: a manifest can name its own id.
+    const bool looseVideo = preset->looseVideo;
     const std::string looseVideoFile = looseVideo ? preset->background.videoPath : std::string();
     if (looseVideo) installPath.clear();
     bool deletingActive = (activeId == idToDelete);

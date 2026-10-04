@@ -49,7 +49,9 @@ namespace haze {
 
         /* Ensure the requested offset and size are within range. */
         R_UNLESS(offset + size > offset, haze::ResultInvalidArgument());
-        R_UNLESS(static_cast<u64>(file_size) <= offset + size, haze::ResultInvalidArgument());
+        /* The range must lie inside the file: the old comparison was inverted, rejecting valid reads and */
+        /* accepting reads past EOF that promise more bytes in the data header than are ever sent. */
+        R_UNLESS(offset + size <= static_cast<u64>(file_size), haze::ResultInvalidArgument());
 
         /* Send the header and data size. */
         R_TRY(db.AddDataHeader(m_request_header, size));
@@ -97,7 +99,9 @@ namespace haze {
         R_TRY(rdp.Finalize());
 
         /* Check if we know about the object. If we don't, it's an error. */
-        auto * const obj = m_object_database.GetObjectById(m_send_object_id);
+        /* Use the object the host named: m_send_object_id is cleared by SendObject and, when set, is a */
+        /* different object than the one this request addresses. */
+        auto * const obj = m_object_database.GetObjectById(object_id);
         R_UNLESS(obj != nullptr, haze::ResultInvalidObjectId());
 
         /* Lock the object as a file. */

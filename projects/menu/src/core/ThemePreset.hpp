@@ -97,6 +97,10 @@ struct ThemePreset {
     // deixava a trilha anterior tocando.
     std::vector<std::string> music;
     std::string     installPath;
+    // Set only by discovery for a video file sitting directly in a themes
+    // directory (installPath is then that shared directory, not a folder this
+    // theme owns). Never read from a manifest: deletion trusts it.
+    bool            looseVideo = false;
 
     nxui::Theme toTheme() const;
 
