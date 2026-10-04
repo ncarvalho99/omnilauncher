@@ -884,6 +884,11 @@ bool WiiUMenuApp::moveFocusedIcon(nxui::FocusDirection dir) {
 #if 1
 void WiiUMenuApp::wireFocusCallback() {
     focusManager().onFocusChanged([this](nxui::Widget*, nxui::Widget* cur) {
+        // Before the overlay early-return below: focus landing on a game tile
+        // while an overlay still reports active (hide() ordering) must not
+        // leave the Metro highlight switched off for the selected tile.
+        if (m_grid && cur && cur->tag() == "glossy_icon")
+            m_grid->setMetroFocused(true);
         updateCursor();
         announceFocusedWidget(cur);
 

@@ -379,8 +379,15 @@ ThemeCatalogClient::Snapshot ThemeCatalogClient::loadCatalog(const std::string& 
             entry.installedBytes = it->get<std::uint64_t>();
 
         // For OmniLaunch, prefer hardware-accelerated MP4 video theme packages when available:
-        if (auto it = item.find("packageVideo"); it != item.end() && it->is_string()) {
+        // The video's size fields replace the ZIP's; when the catalogue omits
+        // them the size is unknown (0 = not verified) rather than the ZIP's,
+        // which would make a valid video fail the download size check. An
+        // empty packageVideo never overwrites a usable package.
+        if (auto it = item.find("packageVideo");
+            it != item.end() && it->is_string() && !it->get<std::string>().empty()) {
             entry.package = it->get<std::string>();
+            entry.packageBytes = 0;
+            entry.installedBytes = 0;
             if (auto pb = item.find("packageVideoBytes"); pb != item.end() && pb->is_number_unsigned())
                 entry.packageBytes = pb->get<std::uint64_t>();
             if (auto ib = item.find("installedVideoBytes"); ib != item.end() && ib->is_number_unsigned())

@@ -1,5 +1,6 @@
 #include "WaraWaraBackground.hpp"
 #include "core/DebugLog.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -781,27 +782,34 @@ void WaraWaraBackground::onRender(nxui::Renderer& ren) {
     // collapsing the wallpaper at 5%.  A 0.75 power curve gives the first
     // increments a visible but restrained response; zero remains the only
     // value that skips the blur pass.
-    // Video wallpapers bypass live blur passes (re-blurring every frame live
-    // wastes 4 full-screen GPU passes, matching upstream sLaunch parity).
-    // A video wallpaper is blurred too, but only from a clearly intentional
-    // strength: the blur path draws at half resolution, and the 0.05 default
-    // would otherwise soften every video for nobody's benefit.
-    const float blurThreshold = isVideoActive() ? 0.06f : 0.001f;
-    const bool blurred = m_blurStrength > blurThreshold && ren.gpu().offscreenReady();
+    // Video wallpapers are blurred by the same path as stills; zero remains the
+    // only value that skips it.
+    const bool blurred = m_blurStrength > 0.001f && ren.gpu().offscreenReady();
     if (blurred)
         ren.beginScreenSpaceTarget(nxui::GpuDevice::OFF_SCENE);
 
     renderLayer(ren, blurred);
 
     if (blurred) {
-        // One pass at radius 1 is barely a smudge and four is a wash; the
-        // slider moves the radius and adds passes only as it gets wide, since
-        // passes cost a fullscreen pair each and radius alone does not.
-        const float response = std::pow(m_blurStrength, 0.75f);
-        const float radius = 1.15f + response * 4.85f;
-        const int   passes = 1 + (int)(response * 2.99f);
+        // Linear slider -> linear blur width. The blur shader's 9-tap kernel
+        // has sigma ~= 1.8 x the tap spacing (`radius`), and applyBlurBetween()
+        // keeps each pass at spacing <= 2.5 and buys the rest with extra
+        // passes, so total sigma stays ~1.8 x radius. In half-resolution texels
+        // (2 screen px each): 5% -> sigma ~1.1 (a faint softening), 10% -> ~1.8,
+        // 50% -> ~7 (3 passes), 100% -> ~13.5 (9 passes, 18 draws -- under the
+        // 36 the previous curve spent at its maximum).
+        //
+        // Passes and per-pass spacing are chosen here (spacing <= 2.5, which
+        // applyBlurBetween leaves untouched) so the total width stays
+        // continuous: total = spacing * sqrt(passes). Handing it one wide pass
+        // instead would let it re-quantize the pass count and flatten whole
+        // stretches of the slider into identical blur.
+        const float total = 0.25f + 7.25f * m_blurStrength;
+        constexpr float kMaxSpacing = 2.5f;
+        const int passes = std::max(1, static_cast<int>(std::ceil((total / kMaxSpacing) * (total / kMaxSpacing))));
+        const float spacing = total / std::sqrt(static_cast<float>(passes));
         ren.applyBlurBetween(nxui::GpuDevice::OFF_SCENE, nxui::GpuDevice::OFF_BG_BLUR,
-                             radius, passes);
+                             spacing, passes);
         ren.drawOffscreen(nxui::GpuDevice::OFF_SCENE, m_rect,
                           nxui::Color::white().withAlpha(m_opacity));
         ren.flush();

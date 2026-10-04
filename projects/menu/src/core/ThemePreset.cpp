@@ -304,7 +304,8 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
     readJsonAliases(j, {"count", "shapeCount", "shape_count", "shapesCount", "shapes_count"}, background.shapeCount);
     readJsonAliases(j, {"gridColumns", "grid_columns", "columns"}, background.gridColumns);
     readJsonAliases(j, {"gridRows", "grid_rows", "rows"}, background.gridRows);
-    readJsonAliases(j, {"imageOpacity", "image_opacity"}, background.imageOpacity);
+    bool imageOpacityExplicit =
+        readJsonAliases(j, {"imageOpacity", "image_opacity"}, background.imageOpacity);
     readJsonAliases(j, {"opacity", "shapeOpacity", "shape_opacity"}, background.opacity);
     readJsonAliases(j, {"wobble", "drift"}, background.wobble);
     readJsonAliases(j, {"rotationSpeed", "rotation_speed", "spin", "spinSpeed", "spin_speed"}, background.rotationSpeed);
@@ -340,7 +341,8 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
                             background.imageFrames.push_back(v.get<std::string>());
                 }
                 readJsonAliases(*imageIt, {"fps", "rate"}, background.imageFps);
-                readJsonAliases(*imageIt, {"opacity", "alpha"}, background.imageOpacity);
+                if (readJsonAliases(*imageIt, {"opacity", "alpha"}, background.imageOpacity))
+                    imageOpacityExplicit = true;
                 readJsonAliases(*imageIt, {"cover", "fill"}, background.imageCover);
 
                 std::string fit;
@@ -379,7 +381,7 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
     // A video wallpaper is drawn through imageOpacity; a manifest that names a
     // video but never sets an opacity (direct-MP4 store themes) would render
     // fully transparent over the blank gradient.
-    if (!background.videoPath.empty() && background.imageOpacity <= 0.f)
+    if (!background.videoPath.empty() && !imageOpacityExplicit)
         background.imageOpacity = 1.f;
     background.opacity = std::clamp(background.opacity, 0.f, 1.f);
     background.cornerRoundness = std::clamp(background.cornerRoundness, 0.f, 1.f);

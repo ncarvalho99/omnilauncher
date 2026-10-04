@@ -806,20 +806,42 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
                 });
         } catch (...) {
             std::remove(archivePath.c_str());
+            removeDirectoryRecursive(stagingPath);
             throw;
         }
         if (downloaded == 0) {
             std::remove(archivePath.c_str());
+            removeDirectoryRecursive(stagingPath);
             throw std::runtime_error("Theme package download was empty");
         }
         if (expectedBytes > 0 && downloaded != expectedBytes) {
             std::remove(archivePath.c_str());
+            removeDirectoryRecursive(stagingPath);
             DebugLog::log("[themeshop] package size mismatch: expected=%llu received=%llu",
                           (unsigned long long)expectedBytes,
                           (unsigned long long)downloaded);
             throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
                                              "Theme package could not be unpacked."));
         }
+
+        // A direct video is installed by a rename, not unpacked, so it needs
+        // no extraction headroom. Decided from the catalogue path alone, with
+        // the extension compared case-insensitively and any query string
+        // ignored; a short or odd name simply is not a video (no unsigned
+        // underflow on size() - N).
+        const bool isDirectVideo = [&]() {
+            std::string p = entry.package;
+            const auto q = p.find_first_of("?#");
+            if (q != std::string::npos)
+                p.resize(q);
+            for (char& c : p)
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            const auto endsWith = [&](const char* ext) {
+                const std::size_t n = std::strlen(ext);
+                return p.size() > n && p.compare(p.size() - n, n, ext) == 0;
+            };
+            return endsWith(".mp4") || endsWith(".mkv") || endsWith(".webm");
+        }();
 
         // Antes de escrever coisa alguma. Um cartao cheio deixava a extracao ir
         // ate o fim do espaco e falhar no primeiro arquivo que nao coubesse --
@@ -830,7 +852,7 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
         // O quanto o pacote ocupa depois de aberto nao esta escrito nele, entao
         // e estimado: os quadros comprimem cerca de 2.2x no zip, e 2.5 mais uma
         // margem cobre isso sem recusar instalacao que caberia.
-        {
+        if (!isDirectVideo) {
             const std::uint64_t livre = sdFreeBytes();
             const std::uint64_t preciso = downloaded * 5 / 2 + 32ull * 1024ull * 1024ull;
             if (livre > 0 && livre < preciso) {
@@ -848,17 +870,39 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
             }
         }
 
-        const bool isDirectVideo = (archivePath.size() > 4 &&
-            (entry.package.rfind(".mp4") == entry.package.size() - 4 ||
-             entry.package.rfind(".mkv") == entry.package.size() - 4 ||
-             entry.package.rfind(".webm") == entry.package.size() - 5));
-
         if (isDirectVideo) {
             if (onProgress)
                 onProgress(i18n.tr("themeshop.transfer.finishing", "Finishing"), 0.85f);
 
-            ensureDirectoryRecursive(stagingPath + "/media");
-            std::rename(archivePath.c_str(), (stagingPath + "/media/video.mp4").c_str());
+            // Fail closed, before the known-good theme is replaced: the file
+            // must look like an MP4/QuickTime ("ftyp" at offset 4) or a
+            // Matroska/WebM (EBML magic) container, and every step below must
+            // succeed. The player additionally refuses non-H.264 streams.
+            const auto failInstall = [&](const char* why) {
+                std::remove(archivePath.c_str());
+                removeDirectoryRecursive(stagingPath);
+                DebugLog::log("[themeshop] direct video install rejected: %s", why);
+                throw std::runtime_error(i18n.tr("themeshop.transfer.unpack_failed",
+                                                 "Theme package could not be unpacked."));
+            };
+            {
+                unsigned char head[12] = {};
+                std::size_t got = 0;
+                if (std::FILE* f = std::fopen(archivePath.c_str(), "rb")) {
+                    got = std::fread(head, 1, sizeof(head), f);
+                    std::fclose(f);
+                }
+                const bool mp4 = got >= 12 && std::memcmp(head + 4, "ftyp", 4) == 0;
+                const bool mkv = got >= 4 && head[0] == 0x1A && head[1] == 0x45 &&
+                                 head[2] == 0xDF && head[3] == 0xA3;
+                if (!mp4 && !mkv)
+                    failInstall("downloaded file is not a video container");
+            }
+
+            if (!ensureDirectoryRecursive(stagingPath + "/media"))
+                failInstall("cannot create media directory");
+            if (std::rename(archivePath.c_str(), (stagingPath + "/media/video.mp4").c_str()) != 0)
+                failInstall("cannot move video into place");
 
             nlohmann::json manifest;
             manifest["id"] = entry.id;
@@ -875,6 +919,8 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
             std::ofstream mOut(stagingPath + "/theme.json");
             mOut << manifest.dump(2);
             mOut.close();
+            if (!mOut)
+                failInstall("cannot write theme.json");
 
             if (!entry.cover.empty()) {
                 ensureDirectoryRecursive(stagingPath + "/media/screenshots");
