@@ -59,7 +59,14 @@ public:
     bool isOpened() const { return m_opened; }
     const std::string& path() const { return m_path; }
 
+    // Path of the last video that open() refused or that the decoder gave up
+    // on. Survives close() so a caller can avoid re-opening the same broken
+    // file on every theme apply; cleared by the next successful open().
+    const std::string& failedPath() const { return m_failedPath; }
+    void clearFailedPath() { m_failedPath.clear(); }
+
 private:
+    bool openInternal(const std::string& path, bool loop, bool audio);
     void decodeLoop();
     void doSeek(double seconds);
     void clockSet(double seconds);
@@ -91,8 +98,21 @@ private:
 
     SwsContext* m_sws = nullptr;
 
+    // Two buffers, not three: the process has ~13 MB of headroom and a third
+    // 1280x720 RGBA buffer is 3.6 MB. The handoff is made safe by m_frameMutex:
+    // m_readyBuf is the last published buffer, m_readingBuf the one tick() is
+    // copying to the GPU right now. The worker only ever writes the buffer that
+    // is neither (the one it did not just publish) and, before writing, waits
+    // for tick() to finish with it.
     FrameBuffer m_buf[2];
     std::atomic<int> m_readyBuf{-1};
+    std::mutex m_frameMutex;
+    int m_readingBuf = -1;
+
+    // Set by the worker when it gives up (too many consecutive decode errors);
+    // tick() then closes the player on the render thread.
+    std::atomic<bool> m_failed{false};
+    std::string m_failedPath;
 
     // Thread control
     std::atomic<bool> m_stop{false};

@@ -2149,6 +2149,11 @@ void WiiUMenuApp::activateThemePreset(ThemePreset* preset, bool applyBundledSoun
                   applyBundledSound ? 1 : 0,
                   safeLogPath(preset->soundPreset));
 
+    // Switching theme forgets which video was refused, so a clip that has been
+    // replaced on the SD gets another chance when its theme is applied again.
+    if (m_background && m_activePresetName != (preset->id.empty() ? preset->name : preset->id))
+        m_background->forgetFailedVideo();
+
     m_activePresetName = preset->id.empty() ? preset->name : preset->id;
     m_activeColors = preset->colors;
     m_activeMode = preset->mode;
@@ -2318,7 +2323,13 @@ void WiiUMenuApp::applyThemeResources(const ThemePreset& preset) {
         ? resolveThemeAssetPath(preset, preset.background.videoPath)
         : (switchu::video::isVideoPath(backgroundImagePath) ? backgroundImagePath : std::string());
     const bool videoExists = !backgroundVideoPath.empty() && pathExists(backgroundVideoPath);
-    const bool wantsVideo = videoExists;
+    // A clip the player already refused or gave up on is not wanted again: it
+    // used to be re-opened (and re-rejected) on every theme apply.
+    const bool videoKnownBad = videoExists && m_background &&
+        m_background->failedVideoPath() == backgroundVideoPath;
+    if (videoKnownBad)
+        DebugLog::log("[theme-apply] video skipped, previously failed: %s", safeLogPath(backgroundVideoPath));
+    const bool wantsVideo = videoExists && !videoKnownBad;
     const bool isVideoLoaded = m_background && m_background->isVideoActive();
 
     const bool imageExists = !backgroundImagePath.empty() && pathExists(backgroundImagePath);

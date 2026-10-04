@@ -32,6 +32,35 @@ bool isVideoPath(const std::string& path) {
 
 namespace {
 
+// A decoder that fails this many times in a row without producing a frame is
+// treated as dead. One count per failed receive or rejected packet; a corrupt
+// region that recovers at the next keyframe resets the count as soon as a frame
+// comes out. With nothing left to feed, the worker re-polls every 2 ms, so a
+// stream that is dead at its end is given up after about a quarter of a second.
+constexpr int kMaxConsecutiveDecodeErrors = 120;
+
+// A frame later than this behind the playback clock is dropped without being
+// converted (software decode falling behind would otherwise never catch up).
+// At most kMaxConsecutiveLateDrops in a row, so the picture still advances.
+constexpr double kLateDropSeconds = 0.25;
+constexpr int kMaxConsecutiveLateDrops = 3;
+
+// First real video stream. av_find_best_stream may pick cover art stored as an
+// attached picture (mjpeg/png), which the codec gate then rejects even though
+// the file has a perfectly good H.264 track.
+int pickVideoStream(AVFormatContext* fmt) {
+    int first = -1;
+    for (unsigned i = 0; i < fmt->nb_streams; ++i) {
+        const AVStream* s = fmt->streams[i];
+        if (s->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+        if (s->disposition & AV_DISPOSITION_ATTACHED_PIC) continue;
+        if (s->disposition & AV_DISPOSITION_DEFAULT) return static_cast<int>(i);
+        if (first < 0) first = static_cast<int>(i);
+    }
+    if (first >= 0) return first;
+    return av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+}
+
 // Single definition of "a wallpaper this console can play", shared by open()
 // and by probeWallpaper() so the Theme Shop can refuse a clip before applying.
 // Returns nullptr when acceptable, otherwise a short log-safe reason.
@@ -55,6 +84,19 @@ const char* wallpaperStreamRejection(const AVStream* stream) {
     if (stream->codecpar->codec_id != AV_CODEC_ID_H264) {
         std::snprintf(buf, sizeof(buf), "codec id=%d (only H.264 supported)",
                       static_cast<int>(stream->codecpar->codec_id));
+        return buf;
+    }
+    // The codec id alone is not enough: High 10 and 4:2:2 / 4:4:4 H.264 pass it
+    // but the hardware decoder only handles 8-bit 4:2:0. The pixel format is
+    // known after find_stream_info; if it is not, fall back to the profile.
+    const int fmt = stream->codecpar->format;
+    const int profile = stream->codecpar->profile & 0xFF;   // drop CONSTRAINED/INTRA flags
+    const bool known = fmt != AV_PIX_FMT_NONE;
+    const bool is420x8 = fmt == AV_PIX_FMT_YUV420P || fmt == AV_PIX_FMT_YUVJ420P;
+    const bool highProfile = profile == 110 || profile == 122 || profile == 244 || profile == 44;
+    if ((known && !is420x8) || (!known && highProfile)) {
+        std::snprintf(buf, sizeof(buf), "pixel format %d profile %d (need 8-bit 4:2:0)",
+                      fmt, stream->codecpar->profile);
         return buf;
     }
     if (srcW <= 0 || srcH <= 0 || srcW > 1920 || srcH > 1080 ||
@@ -82,7 +124,7 @@ bool probeWallpaper(const std::string& path, std::string& reason) {
     if (avformat_find_stream_info(fmt, nullptr) < 0) {
         reason = "the file is not a readable video";
     } else {
-        const int idx = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        const int idx = pickVideoStream(fmt);
         if (idx < 0) {
             reason = "the file has no video stream";
         } else if (const char* why = wallpaperStreamRejection(fmt->streams[idx])) {
@@ -198,7 +240,20 @@ void VideoPlayer::decodeTrampoline(void* self) {
 #endif
 
 bool VideoPlayer::open(const std::string& path, bool loop, bool audio) {
+    // A file refused here is remembered so the app does not re-probe it on
+    // every theme apply; a successful open of anything clears the memory.
+    if (openInternal(path, loop, audio)) {
+        m_failedPath.clear();
+        return true;
+    }
+    if (!path.empty())
+        m_failedPath = path;
+    return false;
+}
+
+bool VideoPlayer::openInternal(const std::string& path, bool loop, bool audio) {
     close();
+    m_failed.store(false);
     if (path.empty()) return false;
 
     m_path = path;
@@ -222,7 +277,7 @@ bool VideoPlayer::open(const std::string& path, bool loop, bool audio) {
         return false;
     }
 
-    m_streamIdx = av_find_best_stream(m_fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    m_streamIdx = pickVideoStream(m_fmt);
     if (m_streamIdx < 0) {
         DebugLog::log("[video] no video stream found");
         close();
@@ -368,6 +423,15 @@ void VideoPlayer::close() {
         b.width = b.height = 0;
     }
     m_readyBuf.store(-1);
+    m_readingBuf = -1;
+
+    // The worker has joined, so nothing refills the buffers. Release the GPU
+    // texture too: it used to stay allocated (3.6 MB of the image budget) after
+    // switching to a still theme, and a later video of the same size would show
+    // this stale last frame until its first decoded frame arrived. Assigning an
+    // empty Texture goes through retireGpuResources(), which waits for the GPU
+    // before freeing the image and its descriptor slot.
+    m_texture = nxui::Texture{};
 
     m_opened = false;
     m_width = m_height = 0;
@@ -378,17 +442,36 @@ void VideoPlayer::close() {
 void VideoPlayer::tick(nxui::GpuDevice& gpu, nxui::Renderer& ren) {
     if (!m_opened) return;
 
-    int b = m_readyBuf.exchange(-1, std::memory_order_acq_rel);
-    if (b < 0) return;
+    // The worker gave up (see decodeLoop). Stop here, on the render thread, so
+    // the texture is released under the GPU-idle wait, and remember the file.
+    if (m_failed.load(std::memory_order_acquire)) {
+        const std::string failed = m_path;
+        close();
+        m_failedPath = failed;
+        return;
+    }
+
+    // Claim the ready buffer. m_readingBuf tells the worker not to overwrite it
+    // while the upload below (which can wait on the GPU) is still copying it.
+    int b;
+    {
+        std::lock_guard<std::mutex> lk(m_frameMutex);
+        b = m_readyBuf.exchange(-1, std::memory_order_acq_rel);
+        if (b < 0) return;
+        m_readingBuf = b;
+    }
 
     const auto& frame = m_buf[b];
-    if (frame.rgba.empty() || frame.width <= 0 || frame.height <= 0) return;
-
-    if (!m_texture.valid() || m_texture.width() != frame.width || m_texture.height() != frame.height) {
-        m_texture.loadFromPixels(gpu, ren, frame.rgba.data(), frame.width, frame.height);
-    } else {
-        m_texture.updatePixels(gpu, frame.rgba.data(), static_cast<uint32_t>(frame.rgba.size()));
+    if (!frame.rgba.empty() && frame.width > 0 && frame.height > 0) {
+        if (!m_texture.valid() || m_texture.width() != frame.width || m_texture.height() != frame.height) {
+            m_texture.loadFromPixels(gpu, ren, frame.rgba.data(), frame.width, frame.height);
+        } else {
+            m_texture.updatePixels(gpu, frame.rgba.data(), static_cast<uint32_t>(frame.rgba.size()));
+        }
     }
+
+    std::lock_guard<std::mutex> lk(m_frameMutex);
+    m_readingBuf = -1;
 }
 
 void VideoPlayer::decodeLoop() {
@@ -405,6 +488,11 @@ void VideoPlayer::decodeLoop() {
     bool decEof = false;
     bool drainSent = false;
     bool haveFrame = false;
+    bool gaveUp = false;
+    int decodeErrors = 0;
+    int transferErrors = 0;
+    int convertErrors = 0;
+    int lateDrops = 0;
     double framePts = 0.0;
     int writeBuf = 0;
 
@@ -447,6 +535,7 @@ void VideoPlayer::decodeLoop() {
         while (!haveFrame && !decEof && !m_stop.load() && !m_seekReq.load()) {
             const int r = avcodec_receive_frame(m_dec, decFrame);
             if (r == 0) {
+                decodeErrors = 0;
                 framePts = (decFrame->best_effort_timestamp != AV_NOPTS_VALUE)
                                ? static_cast<double>(decFrame->best_effort_timestamp - vstart) * vtb
                                : clockNow();
@@ -462,15 +551,33 @@ void VideoPlayer::decodeLoop() {
                 break;
             }
             if (r != AVERROR(EAGAIN)) {
-                break;
+                // A real decode error. It used to `break` here and leave decEof
+                // unset, so a corrupt stream froze the wallpaper on its last
+                // frame with the worker polling forever. Count it, keep feeding
+                // packets (the decoder usually recovers at the next keyframe),
+                // and give up when it never does.
+                if (++decodeErrors >= kMaxConsecutiveDecodeErrors) {
+                    gaveUp = true;
+                    break;
+                }
             }
 
             // Decoder needs more input packets
             if (!vq.empty()) {
                 AVPacket* front = vq.front();
                 vq.pop_front();
-                avcodec_send_packet(m_dec, front);
+                const int sr = avcodec_send_packet(m_dec, front);
+                if (sr == AVERROR(EAGAIN)) {
+                    // Not consumed: the decoder wants its output read first.
+                    // Keep the packet; dropping it here lost a frame of data.
+                    vq.push_front(front);
+                    break;
+                }
                 av_packet_free(&front);
+                if (sr < 0 && sr != AVERROR_EOF && ++decodeErrors >= kMaxConsecutiveDecodeErrors) {
+                    gaveUp = true;
+                    break;
+                }
             } else if (readEof && !drainSent) {
                 avcodec_send_packet(m_dec, nullptr);
                 drainSent = true;
@@ -479,36 +586,110 @@ void VideoPlayer::decodeLoop() {
             }
         }
 
+        if (gaveUp) {
+            DebugLog::log("[video] decoder gave up after %d consecutive errors, closing wallpaper",
+                          decodeErrors);
+            m_failed.store(true, std::memory_order_release);
+            break;
+        }
+
         // Frame processing and timing
         if (haveFrame) {
             // Transfer from hardware if needed
             AVFrame* f = decFrame;
+            bool convertible = true;
 #if defined(SWITCHU_HAS_NVTEGRA)
             if (decFrame->format == AV_PIX_FMT_NVTEGRA) {
                 swFrame->format = AV_PIX_FMT_NV12;
                 if (av_hwframe_transfer_data(swFrame, decFrame, 0) == 0) {
                     f = swFrame;
+                    transferErrors = 0;
+                } else {
+                    // The hardware frame is opaque to swscale: converting it
+                    // reads garbage. Skip this frame instead.
+                    convertible = false;
+                    // Its own counter: every successful receive resets
+                    // decodeErrors, so a transfer that fails every time would
+                    // otherwise stay at 1 and never give up.
+                    if (++transferErrors >= kMaxConsecutiveDecodeErrors) {
+                        DebugLog::log("[video] hardware frame transfer kept failing, closing wallpaper");
+                        m_failed.store(true, std::memory_order_release);
+                        av_frame_unref(swFrame);
+                        av_frame_unref(decFrame);
+                        break;
+                    }
                 }
             }
 #endif
 
-            // Colorspace convert into RGBA buffer ahead of presentation time
-            auto& b = m_buf[writeBuf];
-            m_sws = sws_getCachedContext(m_sws,
-                                         f->width, f->height, static_cast<AVPixelFormat>(f->format),
-                                         m_width, m_height, AV_PIX_FMT_RGBA,
-                                         SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-
-            if (m_sws) {
-                uint8_t* dstData[4] = { b.rgba.data(), nullptr, nullptr, nullptr };
-                int dstLinesize[4] = { m_width * 4, 0, 0, 0 };
-                sws_scale(m_sws, f->data, f->linesize, 0, f->height, dstData, dstLinesize);
-                b.width = m_width;
-                b.height = m_height;
+            // A frame already far behind the playback clock is not worth
+            // converting: dropping it lets a slow decoder catch up instead of
+            // playing everything late forever. Bounded, so it never starves.
+            if (convertible && clockNow() - framePts > kLateDropSeconds &&
+                lateDrops < kMaxConsecutiveLateDrops) {
+                ++lateDrops;
+                convertible = false;
+            } else {
+                lateDrops = 0;
             }
 
+            // Colorspace convert into RGBA buffer ahead of presentation time.
+            // tick() may still be uploading this very buffer from two frames
+            // ago (the upload can wait on the GPU); wait until it is done.
+            auto& b = m_buf[writeBuf];
+            while (!m_stop.load(std::memory_order_relaxed)) {
+                {
+                    std::lock_guard<std::mutex> lk(m_frameMutex);
+                    if (m_readingBuf != writeBuf) break;
+                }
+#if defined(__SWITCH__)
+                svcSleepThread(500'000);
+#else
+                std::this_thread::sleep_for(std::chrono::microseconds(500));
+#endif
+            }
+            if (m_stop.load(std::memory_order_relaxed)) {
+                av_frame_unref(swFrame);
+                av_frame_unref(decFrame);
+                break;
+            }
+            if (convertible)
+                m_sws = sws_getCachedContext(m_sws,
+                                             f->width, f->height, static_cast<AVPixelFormat>(f->format),
+                                             m_width, m_height, AV_PIX_FMT_RGBA,
+                                             SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+
+            bool converted = false;
+            if (convertible && m_sws) {
+                uint8_t* dstData[4] = { b.rgba.data(), nullptr, nullptr, nullptr };
+                int dstLinesize[4] = { m_width * 4, 0, 0, 0 };
+                // sws_scale returns the number of output rows written; anything
+                // short of the full picture is a failed conversion, not a frame.
+                const int rows = sws_scale(m_sws, f->data, f->linesize, 0, f->height,
+                                           dstData, dstLinesize);
+                if (rows == m_height) {
+                    b.width = m_width;
+                    b.height = m_height;
+                    converted = true;
+                    convertErrors = 0;
+                }
+            }
+            if (convertible && !converted && ++convertErrors >= kMaxConsecutiveDecodeErrors) {
+                DebugLog::log("[video] colour conversion kept failing, closing wallpaper");
+                m_failed.store(true, std::memory_order_release);
+                av_frame_unref(swFrame);
+                av_frame_unref(decFrame);
+                break;
+            }
+
+            av_frame_unref(swFrame);
             av_frame_unref(decFrame);
             haveFrame = false;
+
+            // Nothing new to show (dropped late, hardware transfer failed or
+            // swscale could not be created): do not publish the stale buffer.
+            if (!converted)
+                continue;
 
             // Precision sleep until presentation timestamp
             while (clockNow() < framePts - 0.003 && !m_stop.load(std::memory_order_relaxed)) {

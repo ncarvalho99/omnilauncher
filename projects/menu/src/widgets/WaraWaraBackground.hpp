@@ -101,6 +101,9 @@ public:
     void clearImage();
     bool loadVideo(const std::string& path, bool loop = true);
     bool isVideoActive() const;
+    // The video that was refused or abandoned by the decoder; empty if none.
+    const std::string& failedVideoPath() const { return m_videoPlayer.failedPath(); }
+    void forgetFailedVideo() { m_videoPlayer.clearFailedPath(); }
     bool hasAnimatedBackground() const { return m_frames.size() > 1 || isVideoActive(); }
     const nxui::Texture* currentBackground() const;
     // The frame after the current one, and how far along we are between the two.
