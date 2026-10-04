@@ -820,9 +820,14 @@ nxui::Rect IconGrid::focusedDisplayRect() const {
         return xmbItemRect(m_xmbItem);
     }
     if (m_layoutMode == AppLayoutMode::List) {
-        const int focused = focusedGlobalIndex();
-        if (focused >= 0)
-            return listIconRect(focused);
+        // The list scrolls under a fixed selection slot: the focused row always
+        // comes to rest at kListCenterY. Use that resting slot, not the row's
+        // current animated position, so the ring does not chase a moving row.
+        // renderList() draws the selected row at 1.08x, so frame that height.
+        if (focusedGlobalIndex() >= 0) {
+            const float h = kListRowHeight * 1.08f;
+            return {kListLeft, kListCenterY - h * 0.5f, kListWidth, h};
+        }
     }
     if (m_layoutMode == AppLayoutMode::Metro) {
         const int focused = focusedGlobalIndex();
@@ -3620,7 +3625,12 @@ void IconGrid::renderList(nxui::Renderer& ren) {
             edgeFade = std::clamp((630.f - rowCenterY) / 70.f, 0.f, 1.f);
         }
 
-        const bool isSelected = (focusedIndex >= 0 && i == focusedIndex);
+        // The grid keeps its own focus on the last game after the HUD takes
+        // focus, so focusedIndex alone says "a game is remembered", not "the
+        // game is selected". m_metroFocused is the flag the app clears when
+        // focus leaves the tiles; without it the row stayed lit next to the
+        // shared cursor on the HUD button (two selections on screen).
+        const bool isSelected = (m_metroFocused && focusedIndex >= 0 && i == focusedIndex);
         const float prox = std::max(0.0f, 1.0f - absD * 0.45f);
         const float zoom = 0.90f + 0.18f * prox;
         const float alpha = std::clamp((0.35f + 0.65f * prox) * edgeFade, 0.f, 1.f);
@@ -3628,17 +3638,11 @@ void IconGrid::renderList(nxui::Renderer& ren) {
         const float rowH = kListRowHeight * zoom;
         const nxui::Rect rowRect{kListLeft, rowCenterY - rowH * 0.5f, kListWidth, rowH};
 
-        // Selection highlight / glowing pill
-        if (isSelected) {
-            ren.drawFrostedInset(rowRect.expanded(4.f),
-                                 nxui::Color(0.10f, 0.45f, 0.88f, 0.42f * alpha),
-                                 nxui::Color(0.35f, 0.75f, 1.0f, 0.85f * alpha),
-                                 nxui::Color(1.f, 1.f, 1.f, 0.30f * alpha),
-                                 12.f);
-            // Left cursor bar (Niagara cursor indicator)
-            ren.drawRoundedRect({rowRect.x - 2.f, rowCenterY - 14.f, 4.f, 28.f},
-                                nxui::Color(0.25f, 0.85f, 1.0f, 0.95f * alpha), 2.f);
-        } else if (prox > 0.6f) {
+        // The selection frame is the shared SelectionCursor, the same ring
+        // every other view uses (updateCursor() frames this row through
+        // focusedDisplayRect()). Drawing a second, differently styled pill
+        // here is what made the List highlight look unlike the default one.
+        if (!isSelected && prox > 0.6f) {
             ren.drawRoundedRect(rowRect, nxui::Color(1.f, 1.f, 1.f, 0.05f * prox * edgeFade), 10.f);
         }
 

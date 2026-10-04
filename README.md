@@ -65,14 +65,33 @@ Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the 
 9. **List (Niagara):** High-speed vertical carousel with dynamic cursor easing, proximity pill highlighting, and a dedicated hero detail card displaying synopsis, play records, publisher, and size badges.
 
 ### Hardware NVDEC Video Wallpapers
-- Supports native video playback (`.mp4`, `.mkv`, `.webm`, `.mov`) directly as animated theme wallpapers using the Tegra X1 **NVDEC hardware video accelerator** (`nvtegra` via FFmpeg).
-- Operates on a dedicated Horizon OS worker thread with zero frame-drops or UI stutter.
-- Includes a resolution and rate guard: safely blocks clips exceeding 1080p60 to protect hardware performance.
+- Plays video directly as an animated theme wallpaper using the Tegra X1 **NVDEC hardware video accelerator** (`nvtegra` via FFmpeg).
+- Decodes on a dedicated Horizon OS worker thread, so the UI stays responsive.
+- Includes a safety guard that refuses unsupported clips before they reach the GPU (see the requirements below).
+
+#### Video wallpaper requirements
+
+| Requirement | Limit |
+| --- | --- |
+| Video codec | **H.264 (AVC) only** |
+| Container | **`.mp4`** (recommended). `.mkv`, `.mov` and `.webm` files are only accepted when the stream inside is H.264 |
+| Resolution | **1920x1080 or smaller** (the picture is scaled to 1280x720) |
+| Frame rate | **60 fps or lower** (a stream with an unknown frame rate is refused) |
+
+**Videos outside these limits are not accepted.** OmniLaunch refuses them and the video is not shown; the refusal is written to the menu log (`[video] rejected ...`). Do not try to get around the guard: VP9, AV1 and HEVC streams, 4K clips and anything above 60 fps are not supported by the console's video path and can crash the menu. A wallpaper that crashes the menu at start-up can keep doing so on every boot until that theme is removed (see the manual-install guide below).
+
+Large files are slow to read from the SD card. A 1280x720, 30 fps H.264 clip of 10-60 seconds is the safest choice.
+
+To convert a clip with [FFmpeg](https://ffmpeg.org/):
+
+```
+ffmpeg -i input.mkv -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p -vf "scale=1280:720" -r 30 -movflags +faststart video.mp4
+```
 
 ### Integrated USB MTP File Transfer
 - Built-in background USB MTP responder (adapted from Atmosphère's `haze` and sLaunch).
 - Plug the console directly into Windows, macOS, or Linux (KDE Dolphin / GNOME Files) to drag and drop files directly onto the microSD card without rebooting into payload mode or removing the card.
-- Native Linux / KDE Solid compatibility via Vendor-Specific class declaration (`0xFF`).
+- On KDE, open the console from Dolphin's sidebar (**Devices**). The Plasma "Disks & Devices" popup's **Open in File Manager** button can show `Malformed URL mtp:udi=...`; that is a known KDE `kio-extras` bug that also affects phones and is not specific to OmniLaunch.
 
 ### Full SteamGridDB Artwork Integration & Game Dossier
 - Automatic and manual SteamGridDB artwork search for all installed titles and homebrew applications.
@@ -201,6 +220,75 @@ Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the 
    - `switch/OmniLaunch-Manager/OmniLaunch-Manager.nro`
 3. If upgrading from **SwitchU**, you do not need to do anything: on first boot, OmniLaunch will automatically detect and migrate your existing `config/SwitchU/` and `switch/SwitchU/` data to `config/OmniLaunch/` with all settings, themes, and saves intact.
 4. Reboot your console.
+
+---
+
+## Installing Themes Manually
+
+You do not need the in-app Theme Store to use a theme. OmniLaunch reads every theme folder it finds in:
+
+```
+sdmc:/config/OmniLaunch/themes/
+```
+
+On the SD card that is `config/OmniLaunch/themes/` (the legacy `switchu/themes/` and `slaunch/themes/` folders are also scanned).
+
+### Option A: a theme package (a folder with `theme.json`)
+
+1. Extract the theme so it becomes one folder directly inside `config/OmniLaunch/themes/`:
+
+   ```
+   config/OmniLaunch/themes/my-theme/
+   ├── theme.json            <- required
+   └── media/
+       └── video.mp4         <- optional wallpaper (see Video wallpaper requirements)
+   ```
+
+2. `theme.json` must sit at the top of that folder, not inside a second nested folder. If it ends up in `my-theme/my-theme/theme.json`, move it up one level.
+3. Keep the folder name short, lowercase, with no spaces; it becomes the theme id.
+
+A minimal video theme looks like this:
+
+```json
+{
+  "id": "my-theme",
+  "name": "My Theme",
+  "author": "you",
+  "version": "1.0.0",
+  "theme": {
+    "mode": "dark",
+    "background": {
+      "video": "media/video.mp4",
+      "count": 1,
+      "opacity": 0.0,
+      "imageOpacity": 1.0
+    }
+  }
+}
+```
+
+`video` is a path relative to the theme folder. Other keys (colours, shapes, image, audio) are optional.
+
+### Option B: a single video file
+
+Create a folder and drop one video in it. OmniLaunch builds the theme for you, using the folder name:
+
+```
+config/OmniLaunch/themes/my-video/my-video.mp4
+```
+
+### Applying the theme
+
+1. Power the console off and on, or reopen the menu, so the theme list is rescanned.
+2. Open **Theme Shop → Installed** and select the theme to apply it.
+
+### Removing a theme
+
+Delete its folder from `config/OmniLaunch/themes/`. If the menu keeps closing right after boot because of a wallpaper, remove that folder (or set `"themePreset"` in `config/OmniLaunch/config.json` back to a built-in theme) and reboot.
+
+### Before you copy a video
+
+Check it against the **Video wallpaper requirements** above: H.264 only, 1920x1080 or smaller, 60 fps or lower. Anything else is refused and must not be forced onto the console.
 
 ---
 

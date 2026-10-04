@@ -2615,6 +2615,12 @@ void WiiUMenuApp::deletePreset(const std::string& presetId) {
     std::string installPath = preset->installPath;
     std::string soundPreset = preset->soundPreset;
     ThemePresetSource source = preset->source;
+    // A loose video file sitting directly in themes/ is registered with the
+    // themes directory itself as installPath. Removing that recursively would
+    // wipe every other installed theme, so such a preset owns only its file.
+    const bool looseVideo = idToDelete.rfind("video:", 0) == 0;
+    const std::string looseVideoFile = looseVideo ? preset->background.videoPath : std::string();
+    if (looseVideo) installPath.clear();
     bool deletingActive = (activeId == idToDelete);
 
     m_allPresets.erase(
@@ -2629,7 +2635,14 @@ void WiiUMenuApp::deletePreset(const std::string& presetId) {
         userPresets.end());
     ThemePreset::saveUserPresets(userPresets);
 
-    if (source == ThemePresetSource::InstalledPackage && !installPath.empty()) {
+    if (source == ThemePresetSource::InstalledPackage && !looseVideoFile.empty()) {
+        if (std::remove(looseVideoFile.c_str()) == 0) {
+            DebugLog::log("[theme] removed loose video %s", looseVideoFile.c_str());
+            switchu::commitSdCard("theme removed");
+        } else {
+            DebugLog::log("[theme] could not remove loose video %s", looseVideoFile.c_str());
+        }
+    } else if (source == ThemePresetSource::InstalledPackage && !installPath.empty()) {
         // The result is checked now. It was discarded before, which is why a
         // failure to delete looked exactly like a success from the player's
         // side: the theme left the list either way.

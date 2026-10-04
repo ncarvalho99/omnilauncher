@@ -1812,10 +1812,12 @@ void WiiUMenuApp::updateCursor() {
     if (cur) {
         const bool isGameInCustomView = (cur->tag() == "glossy_icon" && m_openFolderId == 0);
         if (isGameInCustomView && m_grid &&
-            (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro || m_grid->isMetro() ||
-             m_appLayoutMode == AppLayoutMode::List)) {
-            // Metro and List draw their own highlight. XMB does not: it relies
-            // on the shared cursor (xmbFocus below), so it must stay visible.
+            (m_grid->is3D() || m_appLayoutMode == AppLayoutMode::Metro || m_grid->isMetro())) {
+            // Metro and the 3D views draw their own highlight. XMB and List do
+            // not: they rely on the shared cursor (xmbFocus below), so it must
+            // stay visible. List used to draw a private pill next to the
+            // cursor, which stayed lit on the game after focus moved to a HUD
+            // button and did not match the default selection style.
             m_cursor->setVisible(false);
             return;
         }
