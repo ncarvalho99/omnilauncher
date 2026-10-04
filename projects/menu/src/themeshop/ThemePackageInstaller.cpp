@@ -869,6 +869,7 @@ ThemePackageInstaller::Result ThemePackageInstaller::run(const std::string& cata
             manifest["theme"]["background"]["video"] = "media/video.mp4";
             manifest["theme"]["background"]["count"] = 1;
             manifest["theme"]["background"]["opacity"] = 0.0;
+            manifest["theme"]["background"]["imageOpacity"] = 1.0;
             manifest["theme"]["audio"]["preset"] = "wiiu";
 
             std::ofstream mOut(stagingPath + "/theme.json");

@@ -376,6 +376,11 @@ void readThemeBackgroundFromObject(const nlohmann::json& j, ThemeBackgroundConfi
     background.speedMax = std::max(background.speedMin, background.speedMax);
     background.wobble = std::max(0.f, background.wobble);
     background.imageOpacity = std::clamp(background.imageOpacity, 0.f, 1.f);
+    // A video wallpaper is drawn through imageOpacity; a manifest that names a
+    // video but never sets an opacity (direct-MP4 store themes) would render
+    // fully transparent over the blank gradient.
+    if (!background.videoPath.empty() && background.imageOpacity <= 0.f)
+        background.imageOpacity = 1.f;
     background.opacity = std::clamp(background.opacity, 0.f, 1.f);
     background.cornerRoundness = std::clamp(background.cornerRoundness, 0.f, 1.f);
 }
