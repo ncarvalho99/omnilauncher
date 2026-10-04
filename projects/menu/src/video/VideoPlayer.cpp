@@ -11,6 +11,7 @@ extern "C" {
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 
@@ -27,6 +28,73 @@ bool isVideoPath(const std::string& path) {
     const std::string l4 = toLower(ext4);
     const std::string l5 = toLower(ext5);
     return (l4 == ".mp4" || l4 == ".mkv" || l4 == ".mov" || l4 == ".avi" || l5 == ".webm");
+}
+
+namespace {
+
+// Single definition of "a wallpaper this console can play", shared by open()
+// and by probeWallpaper() so the Theme Shop can refuse a clip before applying.
+// Returns nullptr when acceptable, otherwise a short log-safe reason.
+const char* wallpaperStreamRejection(const AVStream* stream) {
+    // Fail closed before allocating decoder/GPU buffers: a 4K or >60 fps
+    // wallpaper stalls the UI even when the output is downscaled to 720p.
+    // 60000/1001 is below 60; inspect both advertised rates because either
+    // container field can understate the source rate. Unknown rates are unsafe.
+    static thread_local char buf[160];
+    const int srcW = stream->codecpar->width;
+    const int srcH = stream->codecpar->height;
+    const auto rate = [](AVRational r) -> double {
+        return (r.num > 0 && r.den > 0) ? av_q2d(r) : 0.0;
+    };
+    const double avgFps = rate(stream->avg_frame_rate);
+    const double nominalFps = rate(stream->r_frame_rate);
+
+    // Only H.264 is validated on the console. A VP9 .webm wallpaper (stored
+    // under an .mp4 name by the store installer) aborted the menu inside
+    // deko3d a few seconds after boot, every boot, until the theme was reset.
+    if (stream->codecpar->codec_id != AV_CODEC_ID_H264) {
+        std::snprintf(buf, sizeof(buf), "codec id=%d (only H.264 supported)",
+                      static_cast<int>(stream->codecpar->codec_id));
+        return buf;
+    }
+    if (srcW <= 0 || srcH <= 0 || srcW > 1920 || srcH > 1080 ||
+        (avgFps <= 0.0 && nominalFps <= 0.0) ||
+        avgFps > 60.01 || nominalFps > 60.01) {
+        std::snprintf(buf, sizeof(buf),
+                      "source %dx%d avg=%.2f nominal=%.2f (max 1920x1080 at 60 fps)",
+                      srcW, srcH, avgFps, nominalFps);
+        return buf;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+bool probeWallpaper(const std::string& path, std::string& reason) {
+    reason.clear();
+    AVFormatContext* fmt = nullptr;
+    const std::string url = "file:" + path;
+    if (avformat_open_input(&fmt, url.c_str(), nullptr, nullptr) < 0) {
+        reason = "the file could not be opened";
+        return false;
+    }
+    bool ok = false;
+    if (avformat_find_stream_info(fmt, nullptr) < 0) {
+        reason = "the file is not a readable video";
+    } else {
+        const int idx = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        if (idx < 0) {
+            reason = "the file has no video stream";
+        } else if (const char* why = wallpaperStreamRejection(fmt->streams[idx])) {
+            reason = why;
+        } else {
+            ok = true;
+        }
+    }
+    avformat_close_input(&fmt);
+    if (!ok)
+        DebugLog::log("[video] probe rejected %s: %s", path.c_str(), reason.c_str());
+    return ok;
 }
 
 VideoPlayer::VideoPlayer() = default;
@@ -163,32 +231,8 @@ bool VideoPlayer::open(const std::string& path, bool loop, bool audio) {
 
     const AVStream* stream = m_fmt->streams[m_streamIdx];
 
-    // Fail closed before allocating decoder/GPU buffers: a 4K or >60 fps
-    // wallpaper stalls the UI even when the output is downscaled to 720p.
-    // 60000/1001 is below 60; inspect both advertised rates because either
-    // container field can understate the source rate. Unknown rates are unsafe.
-    const int srcW = stream->codecpar->width;
-    const int srcH = stream->codecpar->height;
-    const auto rate = [](AVRational r) -> double {
-        return (r.num > 0 && r.den > 0) ? av_q2d(r) : 0.0;
-    };
-    const double avgFps = rate(stream->avg_frame_rate);
-    const double nominalFps = rate(stream->r_frame_rate);
-    if (srcW <= 0 || srcH <= 0 || srcW > 1920 || srcH > 1080 ||
-        (avgFps <= 0.0 && nominalFps <= 0.0) ||
-        avgFps > 60.01 || nominalFps > 60.01) {
-        DebugLog::log("[video] rejected theme source %dx%d avg=%.2f nominal=%.2f (max 1920x1080 at 60 fps)",
-                      srcW, srcH, avgFps, nominalFps);
-        close();
-        return false;
-    }
-
-    // Only H.264 is validated on the console. A VP9 .webm wallpaper (stored
-    // under an .mp4 name by the store installer) aborted the menu inside
-    // deko3d a few seconds after boot, every boot, until the theme was reset.
-    if (stream->codecpar->codec_id != AV_CODEC_ID_H264) {
-        DebugLog::log("[video] rejected theme codec id=%d (only H.264 supported)",
-                      static_cast<int>(stream->codecpar->codec_id));
+    if (const char* why = wallpaperStreamRejection(stream)) {
+        DebugLog::log("[video] rejected theme %s", why);
         close();
         return false;
     }

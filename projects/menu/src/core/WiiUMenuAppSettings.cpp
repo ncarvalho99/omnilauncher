@@ -1496,6 +1496,15 @@ void WiiUMenuApp::createThemeShop() {
             return;
         }
 
+        // Refuse before touching any state: applying first and failing to load
+        // the video left the purple fallback up while the UI said "applied".
+        std::string rejectReason;
+        if (!themeWallpaperPlayable(*preset, rejectReason)) {
+            DebugLog::log("[theme-apply] refused preset=%s: %s", presetId.c_str(), rejectReason.c_str());
+            showThemeRejectedDialog(*preset, rejectReason);
+            return;
+        }
+
         activateThemePreset(preset, true);
     });
     m_themeShop->onThemeShopDelete([this](const std::string& presetId) {
@@ -2036,7 +2045,13 @@ void WiiUMenuApp::syncThemePackageTransfer() {
         std::string successMessage;
         if (installMode) {
             ThemePreset* preset = findPresetPtr("package:" + themeId);
-            if (preset) {
+            std::string rejectReason;
+            if (preset && !themeWallpaperPlayable(*preset, rejectReason)) {
+                DebugLog::log("[theme-apply] auto-apply refused id=%s: %s", themeId.c_str(), rejectReason.c_str());
+                refreshThemeShopState();
+                showThemeRejectedDialog(*preset, rejectReason);
+                successMessage = i18n.tr("themeshop.transfer.installed", "Theme installed.");
+            } else if (preset) {
                 m_forceThemeResourceReload = !preset->fonts.regularPath.empty()
                     || !preset->fonts.smallPath.empty()
                     || !preset->background.imagePath.empty();
@@ -2165,6 +2180,34 @@ void WiiUMenuApp::activateThemePreset(ThemePreset* preset, bool applyBundledSoun
         m_themeShop->requestRenderDiagnostics(6);
     m_audio.playSfx(Sfx::ThemeToggle);
     DebugLog::log("[theme-apply] complete preset=%s", presetRef.c_str());
+}
+
+bool WiiUMenuApp::themeWallpaperPlayable(const ThemePreset& preset, std::string& reason) const {
+    reason.clear();
+    // Same path resolution as applyThemeResources().
+    const std::string imagePath = resolveThemeAssetPath(preset, preset.background.imagePath);
+    const std::string videoPath = !preset.background.videoPath.empty()
+        ? resolveThemeAssetPath(preset, preset.background.videoPath)
+        : (switchu::video::isVideoPath(imagePath) ? imagePath : std::string());
+    if (videoPath.empty() || !pathExists(videoPath))
+        return true;   // no video wallpaper: nothing to reject
+    return switchu::video::probeWallpaper(videoPath, reason);
+}
+
+void WiiUMenuApp::showThemeRejectedDialog(const ThemePreset& preset, const std::string& reason) {
+    if (!m_dialog) return;
+    auto& i18n = nxui::I18n::instance();
+    const std::string name = preset.name.empty() ? preset.id : preset.name;
+    m_dialogReturnFocus = focusManager().current();
+    m_dialog->show(
+        i18n.tr("themeshop.unsupported.title", "Theme not supported"),
+        name + "\n" +
+        i18n.tr("themeshop.unsupported.body",
+                "This theme's video wallpaper cannot be played on this console, so it was not applied. "
+                "Supported: H.264, up to 1920x1080 at 60 fps.") +
+        "\n(" + reason + ")",
+        {{ i18n.tr("button.ok", "OK"), {}, true }});
+    focusManager().setFocus(m_dialog.get());
 }
 
 // Troca a trilha pela do tema. Fica separado de changeSoundPreset porque as

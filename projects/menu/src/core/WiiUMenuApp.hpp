@@ -452,6 +452,10 @@ private:
     void startThemePackageTransfer(const ThemeCatalogClient::Entry& entry, bool installMode);
     void syncThemePackageTransfer();
     void activateThemePreset(ThemePreset* preset, bool applyBundledSound);
+    // False when the preset's video wallpaper cannot be played on this console
+    // (codec, resolution, frame rate, unreadable file). `reason` is human-readable.
+    bool themeWallpaperPlayable(const ThemePreset& preset, std::string& reason) const;
+    void showThemeRejectedDialog(const ThemePreset& preset, const std::string& reason);
     std::string resolveSoundPresetId(const std::string& preset) const;
     void loadSoundPreset(const std::string& preset);
     void changeSoundPreset(const std::string& preset);

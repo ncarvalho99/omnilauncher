@@ -27,6 +27,10 @@ namespace switchu::video {
 
 bool isVideoPath(const std::string& path);
 
+// Cheap header-only check (no decoder, no GPU) of whether open() would accept
+// this wallpaper. On false, `reason` holds a short human-readable cause.
+bool probeWallpaper(const std::string& path, std::string& reason);
+
 class VideoPlayer {
 public:
     VideoPlayer();
