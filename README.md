@@ -78,7 +78,7 @@ Cycle between 8 distinct layout modes dynamically on **Minus (−)** or via the 
 | Resolution | **1920x1080 or smaller** (the picture is scaled to 1280x720) |
 | Frame rate | **60 fps or lower** (a stream with an unknown frame rate is refused) |
 
-**Videos outside these limits are not accepted.** OmniLaunch refuses them and the video is not shown; the refusal is written to the menu log (`[video] rejected ...`). Do not try to get around the guard: VP9, AV1 and HEVC streams, 4K clips and anything above 60 fps are not supported by the console's video path and can crash the menu. A wallpaper that crashes the menu at start-up can keep doing so on every boot until that theme is removed (see the manual-install guide below).
+**Videos outside these limits are not accepted.** OmniLaunch refuses them and the video is not shown; the refusal is written to the menu log (`[video] rejected ...`). Do not try to get around the guard: VP9, AV1 and HEVC streams, 4K clips and anything above 60 fps are not supported by the console's video path and can crash the menu. If the menu fails repeatedly during start-up, the boot guard is designed to retry with the built-in theme, without deleting your files (see the manual-install guide below). Hardware verification of this recovery is still pending.
 
 Large files are slow to read from the SD card. A 1280x720, 30 fps H.264 clip of 10-60 seconds is the safest choice.
 
@@ -284,7 +284,7 @@ config/OmniLaunch/themes/my-video/my-video.mp4
 
 ### Removing a theme
 
-Delete its folder from `config/OmniLaunch/themes/`. If the menu keeps closing right after boot because of a wallpaper, remove that folder (or set `"themePreset"` in `config/OmniLaunch/config.json` back to a built-in theme) and reboot.
+From **Theme Shop → Installed**, select and delete the unwanted theme. If the menu closes repeatedly at start-up, the daemon is designed to enter **Safe mode** after three start-up failures. Safe mode uses the built-in theme without video wallpaper or music and shows a notice with a **Stay in safe mode** or **Leave safe mode (restart)** choice. Remove or replace the bad theme while still in safe mode; leaving safe mode immediately without doing so may recreate the crash. After two further start-up failures in safe mode, the daemon is designed to disable its qlaunch override and reboot to the stock HOME Menu. These transitions have passed host tests but **have not yet been verified on a console**. If recovery fails, power off and use a PC to change `"themePreset"` in `config/OmniLaunch/config.json` to `"Default Dark"`, or disable the launcher through its Manager when available. Do not remove unrelated folders or bootloader files.
 
 ### Before you copy a video
 
