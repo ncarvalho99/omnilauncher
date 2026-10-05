@@ -2339,10 +2339,16 @@ static void guardHealthTick() {
 
 #ifdef SWITCHU_BOOT_GUARD_TEST
 static void guardTestTick() {
-    if (g_guardRun.active && !g_guardRun.healthy &&
+    std::error_code ec;
+    const bool crashInSafeMode = std::filesystem::exists("sdmc:/config/OmniLaunch/test_crash_safe.flag", ec);
+    const bool shouldCrash = (g_guard.stage == switchu::boot_guard::Stage::Normal) ||
+                             (crashInSafeMode && g_guard.stage == switchu::boot_guard::Stage::Safe);
+    if (shouldCrash &&
+        g_guardRun.active && !g_guardRun.healthy &&
         guardNowMs() - g_guardTestStartMs >= kBootGuardTestKillAfterMs &&
         daemon::menu_la::hasHolder()) {
-        switchu::FileLog::log("[guard-test] forcing a start-up crash (terminate without MenuClosing)");
+        switchu::FileLog::log("[guard-test] forcing a start-up crash (terminate without MenuClosing, stage=%s)",
+                              switchu::boot_guard::stageName(g_guard.stage));
         daemon::menu_la::terminate();
         switchu::FileLog::log("[main] menu exited (guard-test)");
         if (guardOnMenuExit())
