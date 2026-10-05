@@ -12,6 +12,8 @@
 #include "ecs.hpp"
 #include "update_apply.hpp"
 #include "self_uninstall.hpp"
+#include "boot_guard_store.hpp"
+#include <switchu/boot_guard.hpp>
 #include "menu_launcher.hpp"
 #include "mem_probe.hpp"
 #include "library_applet_runner.hpp"
@@ -297,7 +299,21 @@ constexpr int kViewPollIntervalTicks = 200; // 2 seconds
 constexpr int kViewPollAttempts      = 6;   // observe settling without a storm
 static int  g_menuRelaunchCooldown = 0;
 static int  g_menuFastExitCount = 0;
-static s32      g_lastRecordCount = 0;
+
+// Start-up crash-loop guard (switchu/boot_guard.hpp). g_guard mirrors
+// config/OmniLaunch/boot_guard.state; g_guardRun tracks the menu process that
+// is running now. Both are touched only from the main loop thread.
+static switchu::boot_guard::State g_guard{};
+static switchu::boot_guard::Run   g_guardRun{};
+static uint32_t g_guardSeenSerial = 0;
+static bool     g_guardNoticeSent = false;
+static uint64_t guardNowMs() {
+    return armTicksToNs(armGetSystemTick()) / 1000000ULL;
+}
+static void guardPersist(const char* why) {
+    if (!switchu::daemon::guard_store::save(g_guard))
+        switchu::FileLog::log("[guard] state save FAIL (%s); counters stay in memory", why);
+}static s32      g_lastRecordCount = 0;
 static uint64_t g_lastRecordTids[1024] = {};
 static uint32_t g_lastViewFlags[1024]  = {};
 
@@ -663,6 +679,14 @@ static smi::SystemStatus buildSystemStatus(
     st.app_running = daemon::app::isRunning();
     st.transition_origin_tick = originTick;
     st.transition_reason = reason;
+    if (g_guard.stage == switchu::boot_guard::Stage::Safe) {
+        st.boot_flags |= smi::kStatusFlagSafeMode;
+        // Only a menu launch consumes the notice (a status query does not), and it
+        // is repeated until a safe-mode run has proven healthy, so a menu that dies
+        // before showing it does not swallow the explanation.
+        if (!g_guardNoticeSent && reason != smi::MenuTransitionReason::Unknown)
+            st.boot_flags |= smi::kStatusFlagSafeModeNotice;
+    }
     return st;
 }
 
@@ -990,6 +1014,11 @@ static void startPowerSequence(const char* source, smi::SystemMessage action) {
     }
     cancelViewPolling(source);
     takeForegroundFromRunningApp(source);
+    // Powering off or rebooting within seconds of a menu start is not a start-up
+    // failure; clear the marker now, while writes are still allowed. This is
+    // committed by the power sequence just below.
+    if (switchu::boot_guard::onCleanExit(g_guard))
+        guardPersist("power-action");
     g_powerSequenceStarted.store(true);
 
     // The corruption is intermittent — roughly one reboot in three or four —
@@ -1802,6 +1831,19 @@ static void handleMenuCommand() {
         startPowerSequence("smi-self-uninstall", smi::SystemMessage::Reboot);
         break;
 
+    case smi::SystemMessage::LeaveSafeMode:
+        if (reader.remaining() != 0) {
+            switchu::FileLog::log("[guard] rejected LeaveSafeMode with unexpected payload=%zu",
+                                  reader.remaining());
+            break;
+        }
+        // The player's explicit choice. Reboot into a normal start so every
+        // component (theme loaders, audio) comes up from the saved config.
+        g_guard = switchu::boot_guard::onLeaveSafeMode();
+        guardPersist("leave-safe-mode");
+        switchu::FileLog::log("[guard] player left safe mode; rebooting into a normal start");
+        startPowerSequence("smi-leave-safe-mode", smi::SystemMessage::Reboot);
+        break;
     case smi::SystemMessage::RequestForeground:
         appletRequestToGetForeground();
         break;
@@ -1894,16 +1936,11 @@ static void handleMenuCommand() {
         const auto args = reader.pop<smi::MenuReadyArgs>();
         switchu::FileLog::log("[smi] menu ready");
         logMenuReadyTrace(args, commandReceiveTick);
-        if (g_menuFastExitCount != 0 || g_menuRelaunchCooldown != 0) {
-            switchu::FileLog::log(
-                "[main] healthy menu reset fast-exit guard count=%d cooldown=%d",
-                g_menuFastExitCount, g_menuRelaunchCooldown);
-        }
-        // A menu that completed initialization is not part of a startup crash
-        // loop. Normal title handoffs must not accumulate forever and delay a
-        // later launch-failure recovery by the five-second crash-loop guard.
-        g_menuFastExitCount = 0;
-        g_menuRelaunchCooldown = 0;
+        // MenuReady only says the activity object exists. The observed crash
+        // loop reached it every time and died ~3 s after the first frame, so
+        // clearing the guard here let every crash slip past it. Health is
+        // decided in guardPoll(): first frame submitted and still alive
+        // kHealthyAfterFirstFrameMs later.
         g_batteryRefreshPending.store(true);
         break;
     }
@@ -1911,12 +1948,14 @@ static void handleMenuCommand() {
     case smi::SystemMessage::MenuClosing:
         g_lastMenuClosingTrace = reader.pop<smi::MenuClosingArgs>();
         g_lastMenuClosingReceiveTick = commandReceiveTick;
+        g_guardRun.onClosing();
         switchu::FileLog::log("[smi] menu closing");
         break;
 
     case smi::SystemMessage::MenuFirstFrame: {
         const auto args = reader.pop<smi::MenuFirstFrameArgs>();
         logMenuFirstFrameTrace(args, commandReceiveTick);
+        g_guardRun.onFirstFrame(guardNowMs());
         break;
     }
 
@@ -2179,6 +2218,141 @@ static void routeFinishedApplication(const char* source) {
     }
 }
 
+// ---- Start-up crash-loop guard -------------------------------------------------
+// Runs once per main-loop iteration. See switchu/boot_guard.hpp for the policy
+// and the evidence behind its thresholds.
+#ifdef SWITCHU_BOOT_GUARD_TEST
+// Forces every menu start to look like a start-up crash: the daemon terminates
+// the menu kBootGuardTestKillAfterMs after launch, without letting it send
+// MenuClosing. Test builds only; never present in a release.
+constexpr uint64_t kBootGuardTestKillAfterMs = 2500;
+static uint64_t g_guardTestStartMs = 0;
+#endif
+
+// Called when the daemon, not the menu, decides the menu is not coming back.
+// Disables the override (reversible rename, nothing deleted) and reboots so
+// Atmosphere starts the stock qlaunch.
+//
+// If the override cannot be disabled the daemon must NOT stop: it is the only
+// UI the console has. It keeps retrying safe mode on a long cooldown instead,
+// which bounds the loop to one attempt per kGuardRetryTicks rather than ending
+// the console with a blank screen.
+constexpr int kGuardRetryTicks = 3000;   // 30 s at the 10 ms main-loop tick
+static void guardFallBackToStock(const char* why) {
+    using namespace switchu::boot_guard;
+    switchu::FileLog::log("[guard] %s: handing the console back to stock qlaunch", why);
+    g_guard.stage = Stage::Stock;
+    g_guard.inFlight = false;
+    guardPersist("stock-fallback");
+    if (switchu::daemon::guard_store::disableOverride()) {
+        g_guard = afterStockFallback();
+        guardPersist("after-stock-fallback");
+        // The same sequence every other reboot uses: it stops and joins the
+        // control-cache writer and commits the card before asking for power, which
+        // a bare requestPowerStateChange() would skip. It only returns on failure.
+        startPowerSequence("guard-stock-fallback", smi::SystemMessage::Reboot);
+        switchu::FileLog::log("[guard] reboot request failed; staying in safe mode");
+    } else {
+        switchu::FileLog::log("[guard] override could not be disabled; retrying safe mode slowly");
+        g_guard = State{};
+        g_guard.stage = Stage::Safe;
+        g_guard.safeFastExits = kSafeExitsBeforeStock - 1;
+        guardPersist("stock-fallback-failed");
+    }
+    g_menuRelaunchCooldown = kGuardRetryTicks;
+}
+static void guardPoll() {
+    using namespace switchu::boot_guard;
+
+    // A new menu process started since the last look.
+    const uint32_t serial = daemon::menu_la::startSerial();
+    if (serial != g_guardSeenSerial) {
+        g_guardSeenSerial = serial;
+        g_guardRun.begin();
+        if (onLaunch(g_guard))
+            guardPersist("launch");
+#ifdef SWITCHU_BOOT_GUARD_TEST
+        g_guardTestStartMs = guardNowMs();
+#endif
+    }
+
+}
+
+// Called when a menu process has ended. Returns true for a start-up failure.
+static bool guardOnMenuExit() {
+    using namespace switchu::boot_guard;
+    if (daemon::menu_la::closingSeenAtExit())
+        g_guardRun.onClosing();
+    if (g_guardRun.endIsStartupFailure()) {
+        const Verdict v = onStartupFailure(g_guard);
+        g_guardRun.end();
+        switchu::FileLog::log("[guard] start-up failure: stage=%s fast=%u safe_fast=%u",
+                              stageName(g_guard.stage), g_guard.fastExits,
+                              g_guard.safeFastExits);
+        guardPersist("failure");
+        if (v == Verdict::FallBackToStock)
+            guardFallBackToStock("menu keeps failing in safe mode");
+        return true;
+    }
+    {
+        if (g_guardRun.active)
+            switchu::FileLog::log("[guard] menu exit not counted (%s)",
+                                  g_guardRun.healthy ? "healthy run" : "closed cleanly");
+        g_guardRun.end();
+        if (onCleanExit(g_guard))
+            guardPersist("clean-exit");
+    }
+    return false;
+}
+
+// A launch that never produced a process (create/start failed) is a start-up
+// failure too. Without this the idle path retried every 10 ms forever.
+static void guardOnLaunchFailure(Result rc) {
+    using namespace switchu::boot_guard;
+    const Verdict v = onStartupFailure(g_guard);
+    switchu::FileLog::log("[guard] launch failed rc=0x%X: stage=%s fast=%u safe_fast=%u",
+                          rc, stageName(g_guard.stage), g_guard.fastExits, g_guard.safeFastExits);
+    guardPersist("launch-failure");
+    if (v == Verdict::FallBackToStock)
+        guardFallBackToStock("menu cannot be launched in safe mode");
+    else
+        g_menuRelaunchCooldown = 500;
+}
+// Health is judged only after the finished check in the same iteration: a menu
+// that died on the 10 s boundary must be counted as a failure, not pardoned.
+static void guardHealthTick() {
+    using namespace switchu::boot_guard;
+    if (g_guardRun.healthyDue(guardNowMs())) {
+        g_guardRun.markHealthy();
+        if (onHealthy(g_guard)) {
+            switchu::FileLog::log("[guard] menu healthy; counters cleared (stage=%s)",
+                                  stageName(g_guard.stage));
+            guardPersist("healthy");
+        }
+        if (g_guard.stage == Stage::Safe)
+            g_guardNoticeSent = true;
+        g_menuFastExitCount = 0;
+        g_menuRelaunchCooldown = 0;
+    }
+
+}
+
+#ifdef SWITCHU_BOOT_GUARD_TEST
+static void guardTestTick() {
+    if (g_guardRun.active && !g_guardRun.healthy &&
+        guardNowMs() - g_guardTestStartMs >= kBootGuardTestKillAfterMs &&
+        daemon::menu_la::hasHolder()) {
+        switchu::FileLog::log("[guard-test] forcing a start-up crash (terminate without MenuClosing)");
+        daemon::menu_la::terminate();
+        switchu::FileLog::log("[main] menu exited (guard-test)");
+        if (guardOnMenuExit())
+            ++g_menuFastExitCount;
+    }
+}
+#else
+static void guardTestTick() {}
+#endif
+
 static void mainLoop() {
     handleGeneralChannel();
     handleAppletMessages();
@@ -2277,17 +2451,22 @@ static void mainLoop() {
     if (g_menuRelaunchCooldown > 0)
         --g_menuRelaunchCooldown;
 
+    guardPoll();
+    guardTestTick();
+
     if (daemon::menu_la::checkFinished()) {
         switchu::FileLog::log("[main] menu exited (reason=%d)",
             (int)daemon::menu_la::exitReason());
-        ++g_menuFastExitCount;
-        if (g_menuFastExitCount >= 3) {
+        if (guardOnMenuExit())
+            ++g_menuFastExitCount;
+        if (g_menuFastExitCount >= 3 && g_menuRelaunchCooldown < 500) {
             g_menuRelaunchCooldown = 500;
             switchu::FileLog::log("[main] menu fast-exit guard active count=%d cooldown=%d",
                                   g_menuFastExitCount, g_menuRelaunchCooldown);
         }
         didWork = true;
     }
+    guardHealthTick();
 
     if (daemon::app::pollTerminate()) {
         routeFinishedApplication("terminate");
@@ -2305,10 +2484,12 @@ static void mainLoop() {
         !daemon::app::isRunning() && !daemon::menu_la::hasHolder() &&
         !g_foregroundAppletActive) {
         switchu::FileLog::log("[main] no app/menu active; relaunching menu");
-        daemon::menu_la::launch(
+        const Result idleRc = daemon::menu_la::launch(
             smi::MenuStartMode::MainMenu,
             buildSystemStatus(smi::MenuTransitionReason::IdleRecovery,
                               armGetSystemTick()));
+        if (R_FAILED(idleRc))
+            guardOnLaunchFailure(idleRc);
     }
 }
 
@@ -2672,8 +2853,23 @@ int main(int argc, char* argv[]) {
     if (R_FAILED(rc))
         switchu::FileLog::log("[daemon] event manager failed: 0x%X (non-fatal)", rc);
 
-    switchu::FileLog::log("[daemon] launching menu...");
-    rc = daemon::menu_la::launch(
+    {
+        using namespace switchu::boot_guard;
+        g_guard = switchu::daemon::guard_store::load();
+        Verdict bootVerdict = Verdict::Relaunch;
+        const bool hadMarker = g_guard.inFlight;
+        const bool stockPending = g_guard.stage == Stage::Stock;
+        g_guard = onDaemonBoot(g_guard, &bootVerdict);
+        switchu::FileLog::log("[guard] boot: stage=%s fast=%u safe_fast=%u previous-run-unfinished=%d",
+                              stageName(g_guard.stage), g_guard.fastExits,
+                              g_guard.safeFastExits, hadMarker ? 1 : 0);
+        if (hadMarker)
+            guardPersist("boot-unfinished-run");
+        if (stockPending || bootVerdict == Verdict::FallBackToStock)
+            guardFallBackToStock(stockPending ? "stock fallback was pending"
+                                              : "previous runs failed in safe mode");
+    }
+    switchu::FileLog::log("[daemon] launching menu...");    rc = daemon::menu_la::launch(
         smi::MenuStartMode::StartupBoot,
         buildSystemStatus(smi::MenuTransitionReason::StartupBoot, daemonMainTick));
     if (R_FAILED(rc))

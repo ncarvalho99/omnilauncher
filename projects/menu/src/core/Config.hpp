@@ -226,13 +226,47 @@ struct AppConfig {
 
     std::string themePreset = "Default Dark";
 
+    // Safe mode (the daemon's boot guard asked for it after repeated start-up
+    // crashes). The overrides below live in memory for this run only: built-in
+    // theme and sound preset, no music. enterSafeMode() remembers what the
+    // player had chosen, and save() writes THAT back unless the player changed
+    // the value during the run, so safe mode never rewrites config.json on its
+    // own. Nothing is deleted.
+    void enterSafeMode() {
+        if (m_safe) return;
+        m_safe = true;
+        m_savedTheme = themePreset;
+        m_savedSound = soundPreset;
+        m_savedMusic = musicEnabled;
+        m_savedCustomBgm = customBgmEnabled;
+        themePreset = kSafeTheme;
+        soundPreset = "wiiu";
+        musicEnabled = false;
+        customBgmEnabled = false;
+    }
+    bool safeMode() const { return m_safe; }
+
     bool load();
 
     bool save() const;
 
+    static constexpr const char* kSafeTheme = "Default Dark";
     static constexpr const char* kConfigDir  = "sdmc:/config/OmniLaunch";
     static constexpr const char* kConfigPath = "sdmc:/config/OmniLaunch/config.json";
     // The copy that was current before the last save. Read only when
     // config.json is missing or does not parse.
     static constexpr const char* kBackupPath = "sdmc:/config/OmniLaunch/config.json.bak";
+
+private:
+    bool m_safe = false;
+    std::string m_savedTheme;
+    std::string m_savedSound;
+    bool m_savedMusic = true;
+    bool m_savedCustomBgm = false;
+    // A field the player changed away from its safe-mode override stays theirs for
+    // the rest of the run, even if they later set it back to the override value.
+    mutable bool m_touchedTheme = false;
+    mutable bool m_touchedSound = false;
+    mutable bool m_touchedMusic = false;
+    mutable bool m_touchedBgm = false;
 };

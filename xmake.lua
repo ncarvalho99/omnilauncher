@@ -65,6 +65,12 @@ option("resume_failure_test")
     set_description("Enable deterministic suspended-application resume failure diagnostics")
 option_end()
 
+option("boot_guard_test")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Force every menu start to look like a start-up crash (boot guard test)")
+option_end()
+
 target("nxui")
     set_kind("static")
     set_default(false)
@@ -460,6 +466,14 @@ target("switchu-daemon")
         "ATMOSPHERE_ARCH_ARM_V8A",
         "_GNU_SOURCE"
     )
+    if has_config("boot_guard_test") then
+        -- A crash injector that can drive the console into stock qlaunch must never
+        -- be linkable into something that could be distributed.
+        if is_mode("release") then
+            raise("boot_guard_test is a debug-only diagnostic; refusing a release build")
+        end
+        add_defines("SWITCHU_BOOT_GUARD_TEST")
+    end
     if has_config("termination_queue_test") then
         add_defines("SWITCHU_TERMINATION_QUEUE_TEST")
     end

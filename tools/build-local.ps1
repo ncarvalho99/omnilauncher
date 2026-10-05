@@ -14,6 +14,7 @@ param(
     [switch] $PreflightMatrixTest,
     [switch] $PreflightEdgeTest,
     [switch] $ResumeFailureTest,
+    [switch] $BootGuardTest,
     [switch] $SkipConsoleDeploy
 )
 
@@ -22,6 +23,7 @@ $terminationQueueTestMode = if ($TerminationQueueTest) { 'on' } else { 'off' }
 $preflightMatrixTestMode = if ($PreflightMatrixTest) { 'on' } else { 'off' }
 $preflightEdgeTestMode = if ($PreflightEdgeTest) { 'on' } else { 'off' }
 $resumeFailureTestMode = if ($ResumeFailureTest) { 'on' } else { 'off' }
+$bootGuardTestMode = if ($BootGuardTest) { 'on' } else { 'off' }
 if ($TerminationQueueTest -and $Variant -ne 'sysmodule') {
     throw '-TerminationQueueTest is valid only for the sysmodule variant.'
 }
@@ -34,8 +36,14 @@ if ($PreflightEdgeTest -and $Variant -ne 'sysmodule') {
 if ($ResumeFailureTest -and $Variant -ne 'sysmodule') {
     throw '-ResumeFailureTest is valid only for the sysmodule variant.'
 }
+if ($BootGuardTest -and $Variant -ne 'sysmodule') {
+    throw '-BootGuardTest is valid only for the sysmodule variant.'
+}
+if ($BootGuardTest -and $Mode -ne 'debug') {
+    throw '-BootGuardTest is a debug-only diagnostic (use -Mode debug); a release build must never carry the crash injector.'
+}
 $diagnosticModeCount = @(
-    @($TerminationQueueTest, $PreflightMatrixTest, $PreflightEdgeTest, $ResumeFailureTest) |
+    @($TerminationQueueTest, $PreflightMatrixTest, $PreflightEdgeTest, $ResumeFailureTest, $BootGuardTest) |
         Where-Object { [bool]$_ }
 ).Count
 if ($diagnosticModeCount -gt 1) {
@@ -197,7 +205,7 @@ $started = Get-Date
 # every --rm run would make later builds incorrectly think dependencies exist.
 $ErrorActionPreference = 'Continue'
 & $docker run --rm -v "${repo}:/src" -v switchu-xmake:/root/.xmake -e SWITCHU_CLIENT_KEY `
-    $buildImage bash /src/tools/build-inside.sh $Mode $Variant $terminationQueueTestMode $preflightMatrixTestMode $preflightEdgeTestMode $resumeFailureTestMode |
+    $buildImage bash /src/tools/build-inside.sh $Mode $Variant $terminationQueueTestMode $preflightMatrixTestMode $preflightEdgeTestMode $resumeFailureTestMode $bootGuardTestMode |
     Tee-Object -FilePath $log
 $rc = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'

@@ -59,6 +59,9 @@ enum class SystemMessage : uint32_t {
     // The menu has durably staged a request to disable its qlaunch override.
     // The daemon reboots now and applies that request before launching a menu.
     RequestSelfUninstall  = 24,
+    // The player chose to leave safe mode. The daemon clears the boot guard and
+    // reboots so the next start is a normal one.
+    LeaveSafeMode         = 25,
 
     GetAppList            = 30,
     GetSystemStatus       = 31,
@@ -197,8 +200,14 @@ struct SystemStatus {
     uint8_t   _pad[7];
     uint64_t  transition_origin_tick;
     MenuTransitionReason transition_reason;
-    uint32_t  _trace_pad;
+    // Bit 0: the daemon's boot guard asked for safe mode (built-in theme, no video
+    // wallpaper, no music, no third-party assets), in memory only.
+    uint32_t  boot_flags;
 };
+inline constexpr uint32_t kStatusFlagSafeMode = 1u;
+// Bit 1: tell the player once per daemon boot that safe mode is active, with the
+// choice to leave it.
+inline constexpr uint32_t kStatusFlagSafeModeNotice = 2u;
 static_assert(sizeof(SystemStatus) == 48);
 
 struct MenuReadyArgs {

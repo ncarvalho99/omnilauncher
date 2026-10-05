@@ -664,6 +664,11 @@ private:
     bool                 m_musicFadeActive = false;
 #ifdef SWITCHU_MENU
     uint64_t             m_transitionOriginTick = 0;
+    // Boot-guard safe mode, from the daemon's start status. The overrides are
+    // applied to m_config in memory only (see AppConfig::enterSafeMode).
+    bool                 m_safeModeRequested = false;
+    bool                 m_safeModeNotice = false;
+    int                  m_safeModeNoticeFrames = 0;
     uint64_t             m_menuMainTick = 0;
     uint32_t             m_menuMainCore = 0;
 #endif

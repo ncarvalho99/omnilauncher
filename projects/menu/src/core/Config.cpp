@@ -218,8 +218,16 @@ bool AppConfig::save() const {
     std::filesystem::create_directory(kConfigDir, ec);
 
     nlohmann::json j;
-    j["musicEnabled"] = musicEnabled;
-    j["customBgmEnabled"] = customBgmEnabled;
+    // In safe mode a value still equal to the in-memory override was not chosen
+    // by the player, so the value they had before is what must stay on disk.
+    if (m_safe) {
+        if (musicEnabled) m_touchedMusic = true;
+        if (customBgmEnabled) m_touchedBgm = true;
+        if (soundPreset != "wiiu") m_touchedSound = true;
+        if (themePreset != kSafeTheme) m_touchedTheme = true;
+    }
+    j["musicEnabled"] = (m_safe && !m_touchedMusic) ? m_savedMusic : musicEnabled;
+    j["customBgmEnabled"] = (m_safe && !m_touchedBgm) ? m_savedCustomBgm : customBgmEnabled;
     j["customBgmShuffle"] = customBgmShuffle;
     j["audioSourcePreference"] = audioSourcePreference;
     j["musicVolume"] = musicVolume;
@@ -249,7 +257,7 @@ bool AppConfig::save() const {
     }
     j["actionHintStyle"] = actionHintStyle == "panel" ? "panel" : "capsules";
     j["uiLanguageOverride"] = uiLanguageOverride;
-    j["soundPreset"] = soundPreset;
+    j["soundPreset"] = (m_safe && !m_touchedSound) ? m_savedSound : soundPreset;
     j["defaultProfileEnabled"] = defaultProfileEnabled;
     j["defaultProfileUid"] = defaultProfileEnabled ? defaultProfileUid : std::string();
     j["tutorialCompleted"] = tutorialCompleted;
@@ -268,7 +276,7 @@ bool AppConfig::save() const {
     j["steamGridDbOpacity"] = std::clamp(steamGridDbOpacity, 0.f, 1.f);
     j["steamGridDbApiKey"] = steamGridDbApiKey;
     j["ytdlBackendUrl"] = ytdlBackendUrl;
-    j["themePreset"] = themePreset;
+    j["themePreset"] = (m_safe && !m_touchedTheme) ? m_savedTheme : themePreset;
     j["lastPageTitleId"] = lastPageTitleId;
     j["sortMode"] = sortMode;
     j["lastOpenedSequence"] = lastOpenedSequence;

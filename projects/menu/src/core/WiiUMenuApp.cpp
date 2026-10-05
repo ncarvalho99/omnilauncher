@@ -395,6 +395,8 @@ void WiiUMenuApp::setStartupConfig(const AppConfig& config) {
 void WiiUMenuApp::setStartupStatus(const switchu::smi::SystemStatus& status) {
     m_launcher.setStartupStatus(status.suspended_app_id, status.app_running);
     m_transitionOriginTick = status.transition_origin_tick;
+    m_safeModeRequested = (status.boot_flags & switchu::smi::kStatusFlagSafeMode) != 0;
+    m_safeModeNotice = (status.boot_flags & switchu::smi::kStatusFlagSafeModeNotice) != 0;
 }
 
 void WiiUMenuApp::setMenuMainTrace(uint64_t tick, uint32_t core) {
@@ -413,6 +415,15 @@ bool WiiUMenuApp::onCreate() {
     m_iconStreamer.setThreadPool(&m_threadPool);
     if (!m_startupConfigProvided)
         m_config.load();
+#ifdef SWITCHU_MENU
+    if (m_safeModeRequested) {
+        // Repeated start-up crashes: run this session on the built-in theme with
+        // no video wallpaper, no music and no third-party assets. In memory only;
+        // config.json keeps the player's choices (AppConfig::save restores them).
+        m_config.enterSafeMode();
+        DebugLog::log("[safe-mode] active: built-in theme, no music, no video wallpaper");
+    }
+#endif
     const bool fastReturn = m_launcher.suspendedTitleId() != 0;
     m_fastReturnRequested = fastReturn;
     m_fastReturnStartupTick = fastReturn ? activityCreateStartTick : 0;
@@ -6525,6 +6536,8 @@ void WiiUMenuApp::loadSoundPreset(const std::string& preset) {
 constexpr const char* kCustomMusicDir = "sdmc:/config/OmniLaunch/music";
 
 std::vector<TrackInfo> WiiUMenuApp::scanCustomBgmTracks() {
+    if (m_config.safeMode())   // boot-guard safe mode: no third-party audio
+        return {};
     std::vector<TrackInfo> tracks;
     std::error_code ec;
     std::filesystem::create_directories(kCustomMusicDir, ec);
@@ -7648,6 +7661,32 @@ void WiiUMenuApp::onUpdate(float dt) {
     syncThemePackageTransfer();
     syncGameArtworkSave();
 
+#ifdef SWITCHU_MENU
+    // Safe mode explains itself once per boot, after the first frames so it
+    // never competes with start-up. The player can stay, or leave: leaving
+    // restarts into a normal start with their saved theme.
+    if (m_safeModeNotice && m_dialog && !m_dialog->isActive() && !m_lockScreen.isLocked()) {
+        if (++m_safeModeNoticeFrames >= 90) {
+            m_safeModeNotice = false;
+            auto& i18n = nxui::I18n::instance();
+            m_dialogReturnFocus = focusManager().current();
+            m_dialog->show(
+                i18n.tr("safemode.title", "Safe mode"),
+                i18n.tr("safemode.body",
+                        "The menu stopped unexpectedly several times while starting, so it is running "
+                        "with the built-in theme, no video wallpaper and no music. Your theme and settings "
+                        "were not changed. Remove or replace the theme that caused this, then leave safe mode."),
+                {
+                    {i18n.tr("safemode.stay", "Stay in safe mode"), {}, true},
+                    {i18n.tr("safemode.leave", "Leave safe mode (restart)"), [this]() {
+                        const Result rc = m_launcher.leaveSafeMode();
+                        DebugLog::log("[safe-mode] leave request rc=0x%X", rc);
+                    }, true},
+                });
+            focusManager().setFocus(m_dialog.get());
+        }
+    }
+#endif
     if (m_deferredInitialAssetFrames > 0) {
         --m_deferredInitialAssetFrames;
         if (m_deferredInitialAssetFrames == 0) {

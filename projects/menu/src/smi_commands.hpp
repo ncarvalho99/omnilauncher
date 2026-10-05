@@ -47,6 +47,12 @@ inline Result requestSelfUninstall() {
     return sendSimple(smi::SystemMessage::RequestSelfUninstall);
 }
 
+// The player chose to leave safe mode: the daemon clears its boot guard and
+// reboots into a normal start.
+inline Result leaveSafeMode() {
+    return sendSimple(smi::SystemMessage::LeaveSafeMode);
+}
+
 inline Result setManualDateTime(const smi::ManualDateTimeArgs& value) {
     uint8_t buf[sizeof(smi::CommandHeader) + sizeof(value)]{};
     auto* hdr = reinterpret_cast<smi::CommandHeader*>(buf);

@@ -18,6 +18,14 @@ static bool g_holderCreated = false;
 static bool g_externalRegistered = false;
 static LibAppletExitReason g_lastExitReason = LibAppletExitReason_Normal;
 static uint64_t g_lastFinishedTick = 0;
+// Incremented every time a menu process is started, so the boot guard can tell
+// one run from the next without hooking each of the launch call sites.
+static uint32_t g_startSerial = 0;
+// Set by checkFinished() when a MenuClosing message was still queued from the
+// menu when it exited. handleMenuCommand() pops one message per main-loop tick,
+// and MenuClosing is sent at the very end of the menu's teardown, so it can be
+// unread by the time the holder reports finished and is closed.
+static bool g_closingSeenAtExit = false;
 
 struct MenuLaunchTrace {
     uint64_t originTick = 0;
@@ -36,6 +44,8 @@ static MenuLaunchTrace g_launchTrace{};
 
 inline const MenuLaunchTrace& launchTrace() { return g_launchTrace; }
 inline uint64_t lastFinishedTick() { return g_lastFinishedTick; }
+inline uint32_t startSerial() { return g_startSerial; }
+inline bool closingSeenAtExit() { return g_closingSeenAtExit; }
 inline void markMenuReady(uint64_t tick) { g_launchTrace.menuReadyReceiveTick = tick; }
 
 inline bool hasHolder() {
@@ -139,6 +149,7 @@ inline Result startPrepared(smi::MenuStartMode mode, const smi::SystemStatus& st
     }
 
     g_active = true;
+    ++g_startSerial;
     switchu::FileLog::log("[menu_la] started (mode=%u holderActive=%d)",
                           static_cast<u32>(mode),
                           appletHolderActive(&g_holder) ? 1 : 0);
@@ -177,6 +188,18 @@ inline bool checkFinished() {
         switchu::FileLog::log("[menu_la] holder finished reason=%d",
                               (int)g_lastExitReason);
         appletHolderJoin(&g_holder);
+        // Read what the menu left in its out-queue before the holder is closed.
+        // The same messages would be discarded by cleanupHolder() anyway; this
+        // only records whether the exit was announced with MenuClosing.
+        g_closingSeenAtExit = false;
+        for (int i = 0; i < 16; ++i) {
+            AppletStorage st;
+            if (R_FAILED(appletHolderPopInteractiveOutData(&g_holder, &st)))
+                break;
+            smi::StorageReader reader(st);
+            if (reader.valid() && reader.systemMessage() == smi::SystemMessage::MenuClosing)
+                g_closingSeenAtExit = true;
+        }
         cleanupHolder();
         return true;
     }

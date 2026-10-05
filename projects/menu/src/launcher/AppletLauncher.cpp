@@ -126,6 +126,12 @@ void AppletLauncher::reboot() {
     switchu::menu::smi_cmd::reboot();
 }
 
+Result AppletLauncher::leaveSafeMode() {
+    quiesceForPower("leave-safe-mode");
+    DebugLog::log("[launcher] asking the daemon to leave safe mode");
+    return switchu::menu::smi_cmd::leaveSafeMode();
+}
+
 Result AppletLauncher::requestSelfUninstall() {
     quiesceForPower("self-uninstall");
     DebugLog::log("[launcher] requesting staged SwitchU removal");
@@ -297,6 +303,9 @@ void AppletLauncher::reboot()                  {}
 // caller then reports that nothing was changed instead of waiting for a
 // restart that will never come.
 Result AppletLauncher::requestSelfUninstall()  {
+    return MAKERESULT(Module_Libnx, LibnxError_NotInitialized);
+}
+Result AppletLauncher::leaveSafeMode()         {
     return MAKERESULT(Module_Libnx, LibnxError_NotInitialized);
 }
 Result AppletLauncher::prepareApplication(uint64_t, AccountUid,
