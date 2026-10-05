@@ -7083,9 +7083,19 @@ void WiiUMenuApp::pollAutoNtpSync(float dt) {
         return;
     m_ntpCheckTimer = 0.f;
 
+    // Its own balanced nifm session. This poll used to read the status with no
+    // session of its own and worked only because the NTP client leaked an
+    // initialised nifm for the rest of the process. NTP now goes through the
+    // shared reference-counted runtime and no longer leaks, so a failed first
+    // attempt (offline at boot) would otherwise stop every later retry.
     NifmInternetConnectionStatus nifmStatus = NifmInternetConnectionStatus_ConnectingUnknown1;
-    if (R_SUCCEEDED(nifmGetInternetConnectionStatus(nullptr, nullptr, &nifmStatus)) &&
-        nifmStatus == NifmInternetConnectionStatus_Connected) {
+    bool connected = false;
+    if (R_SUCCEEDED(nifmInitialize(NifmServiceType_User))) {
+        connected = R_SUCCEEDED(nifmGetInternetConnectionStatus(nullptr, nullptr, &nifmStatus)) &&
+                    nifmStatus == NifmInternetConnectionStatus_Connected;
+        nifmExit();
+    }
+    if (connected) {
         switchu::services::NtpClient::syncAsync([this](bool ok, uint64_t timestamp) {
             if (ok) {
                 m_autoNtpSynced = true;

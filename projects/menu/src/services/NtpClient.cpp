@@ -1,4 +1,5 @@
 #include "NtpClient.hpp"
+#include "NetRuntime.hpp"
 #include "smi_commands.hpp"
 #include <switchu/file_log.hpp>
 #include <switch.h>
@@ -48,23 +49,6 @@ const std::vector<std::string> s_ntpServers = {
     "time.google.com",
     "time.cloudflare.com",
 };
-
-static std::mutex s_socketMutex;
-static bool s_socketInitialized = false;
-
-bool ensureNetworkInitialized() {
-    std::lock_guard<std::mutex> lock(s_socketMutex);
-    if (s_socketInitialized) return true;
-
-    nifmInitialize(NifmServiceType_User);
-    Result rc = socketInitializeDefault();
-    if (R_SUCCEEDED(rc) || rc == MAKERESULT(Module_Libnx, LibnxError_AlreadyInitialized)) {
-        s_socketInitialized = true;
-        return true;
-    }
-    switchu::FileLog::log("[ntp] socketInitializeDefault failed: 0x%X", rc);
-    return false;
-}
 
 uint64_t queryServer(const std::string& host, int timeoutSec, bool* outDnsFailed = nullptr) {
     if (outDnsFailed) *outDnsFailed = false;
@@ -155,7 +139,17 @@ const std::vector<std::string>& NtpClient::serverList() {
 }
 
 uint64_t NtpClient::queryNetworkTime(int timeoutSeconds) {
-    if (s_cancelRequested.load() || !ensureNetworkInitialized()) {
+    if (s_cancelRequested.load())
+        return 0;
+
+    // Hold a reference on the shared network runtime for the whole query. The
+    // Theme Shop HTTP layer exits the socket device between request retries;
+    // without this reference it could do so while a descriptor opened below was
+    // still live, and the close() that follows crashed the menu (data abort in
+    // _close_r on a removed "soc:" device).
+    net::Guard netRuntime;
+    if (!netRuntime) {
+        switchu::FileLog::log("[ntp] network runtime unavailable");
         return 0;
     }
 

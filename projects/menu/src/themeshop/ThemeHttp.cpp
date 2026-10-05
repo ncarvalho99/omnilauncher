@@ -2,6 +2,7 @@
 
 #include "core/DebugLog.hpp"
 #include "ClientKey.hpp"
+#include "services/NetRuntime.hpp"
 
 #include <curl/curl.h>
 #include <switch.h>
@@ -62,38 +63,31 @@ void shutdownRuntimeLocked() {
         curl_global_cleanup();
         g_curlInitialized = false;
     }
+    // One reference on the shared network runtime. Exiting the socket layer
+    // directly here, between request retries, removed the "soc:" device while
+    // the NTP clock-sync thread still had a socket open, and that thread's
+    // close() then crashed the menu. The shared runtime only exits it when the
+    // last user (this module or NTP) lets go. Both flags below mean "this
+    // module holds its reference".
     if (g_socketInitialized) {
-        socketExit();
+        switchu::services::net::release();
         g_socketInitialized = false;
     }
-    if (g_nifmInitialized) {
-        nifmExit();
-        g_nifmInitialized = false;
-    }
+    g_nifmInitialized = false;
 }
 
 bool initializeRuntimeLocked() {
     if (runtimeInitializedLocked())
         return true;
 
-    if (!g_nifmInitialized) {
-        Result rc = nifmInitialize(NifmServiceType_User);
-        if (R_FAILED(rc)) {
-            DebugLog::log("[themeshop] nifmInitialize failed: %s", resultToString(rc).c_str());
-            shutdownRuntimeLocked();
-            return false;
-        }
-        g_nifmInitialized = true;
-    }
-
     if (!g_socketInitialized) {
-        Result rc = socketInitializeDefault();
-        if (R_FAILED(rc)) {
-            DebugLog::log("[themeshop] socketInitializeDefault failed: %s", resultToString(rc).c_str());
+        if (!switchu::services::net::acquire()) {
+            DebugLog::log("[themeshop] network runtime unavailable");
             shutdownRuntimeLocked();
             return false;
         }
         g_socketInitialized = true;
+        g_nifmInitialized = true;
     }
 
     if (!g_curlInitialized) {
