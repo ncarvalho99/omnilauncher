@@ -10,6 +10,9 @@
 #include "themeshop/ThemeHttp.hpp"
 #include "themeshop/ZipReader.hpp"
 #include <switchu/sd_commit.hpp>
+#ifdef __SWITCH__
+#include <switch.h>
+#endif
 #include "core/DebugLog.hpp"
 
 #include <nxui/core/I18n.hpp>
@@ -27,6 +30,38 @@
 #endif
 
 namespace {
+
+// SHA-256 of a file, read in chunks. Empty when the file cannot be read (and on
+// hosts without libnx, where updates are not applied anyway).
+std::string fileSha256Hex(const char* path) {
+#ifdef __SWITCH__
+    std::FILE* f = std::fopen(path, "rb");
+    if (!f)
+        return {};
+    Sha256Context ctx;
+    sha256ContextCreate(&ctx);
+    static unsigned char buf[64 * 1024];
+    std::size_t n;
+    while ((n = std::fread(buf, 1, sizeof(buf), f)) > 0)
+        sha256ContextUpdate(&ctx, buf, n);
+    const bool readOk = std::ferror(f) == 0;
+    std::fclose(f);
+    if (!readOk)
+        return {};
+    std::uint8_t digest[SHA256_HASH_SIZE];
+    sha256ContextGetHash(&ctx, digest);
+    static const char hex[] = "0123456789abcdef";
+    std::string out;
+    for (std::uint8_t b : digest) {
+        out.push_back(hex[b >> 4]);
+        out.push_back(hex[b & 0x0f]);
+    }
+    return out;
+#else
+    (void)path;
+    return {};
+#endif
+}
 
 constexpr const char* kUpdateDir = "sdmc:/config/OmniLaunch/update";
 constexpr const char* kUpdateArchive = "sdmc:/config/OmniLaunch/update/update.zip";
@@ -310,6 +345,20 @@ void WiiUMenuApp::startUpdateDownload(const update::UpdateClient::Release& relea
             // agreeing with what the release published, is anything replaced.
             if (shared->release.sizeBytes && written != shared->release.sizeBytes)
                 throw std::runtime_error("download size did not match the release");
+
+            // Verify the whole archive before creating the ready marker or
+            // replacing the daemon. Missing or malformed release digests are
+            // refused when the release is parsed. A digest from the same HTTPS
+            // API response protects against a corrupt/swapped download, not a
+            // compromised publisher or release metadata.
+            if (shared->release.sha256.empty())
+                throw std::runtime_error("release has no published SHA-256 checksum");
+            const std::string actual = fileSha256Hex(kUpdateArchive);
+            if (actual != shared->release.sha256) {
+                DebugLog::log("[update] SHA-256 mismatch");
+                throw std::runtime_error("download did not match the published checksum");
+            }
+            DebugLog::log("[update] SHA-256 verified");
 
             {
                 std::lock_guard<std::mutex> lock(shared->mutex);

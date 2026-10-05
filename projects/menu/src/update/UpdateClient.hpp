@@ -30,6 +30,9 @@ public:
         std::string notes;        // condensed for a dialog, already plain text
         std::string downloadUrl;  // the sysmodule zip asset
         std::uint64_t sizeBytes = 0;
+        // Lower-case hex SHA-256 published with the release ZIP asset.
+        // A missing or malformed digest prevents offering this update.
+        std::string sha256;
     };
 
     enum class Phase { Idle, Checking, UpToDate, Available, Failed };

@@ -276,6 +276,13 @@ UpdateClient::Snapshot UpdateClient::fetch(const std::string& currentVersion, st
     if (name != feed.end() && name->is_string()) release.title = name->get<std::string>();
     const auto body = feed.find("body");
     if (body != feed.end() && body->is_string()) release.notes = body->get<std::string>();
+    // Keep the installed version's release notes visible even when its older
+    // asset has no digest. Only an update we might actually install needs one.
+    if (!isNewer(release.version, currentVersion)) {
+        result.phase = Phase::UpToDate;
+        result.release = std::move(release);
+        return result;
+    }
 
     // The sysmodule payload is the only asset worth offering; ignore anything
     // else a release might carry.
@@ -295,6 +302,21 @@ UpdateClient::Snapshot UpdateClient::fetch(const std::string& currentVersion, st
             const auto size = asset.find("size");
             if (size != asset.end() && size->is_number_unsigned())
                 release.sizeBytes = size->get<std::uint64_t>();
+            const auto digest = asset.find("digest");
+            if (digest == asset.end() || !digest->is_string())
+                throw std::runtime_error("release ZIP has no published SHA-256 checksum");
+            std::string d = digest->get<std::string>();
+            if (d.rfind("sha256:", 0) != 0)
+                throw std::runtime_error("release ZIP checksum is not SHA-256");
+            d.erase(0, 7);
+            if (d.size() != 64)
+                throw std::runtime_error("release ZIP has an invalid SHA-256 checksum");
+            for (char& c : d) {
+                if (c >= 'A' && c <= 'F') c = static_cast<char>(c - 'A' + 'a');
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+                    throw std::runtime_error("release ZIP has an invalid SHA-256 checksum");
+            }
+            release.sha256 = std::move(d);
             break;
         }
     }
