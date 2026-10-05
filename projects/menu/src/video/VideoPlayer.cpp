@@ -112,28 +112,78 @@ const char* wallpaperStreamRejection(const AVStream* stream) {
 
 } // namespace
 
-bool probeWallpaper(const std::string& path, std::string& reason) {
-    reason.clear();
+namespace {
+
+// Rejection grounds that do not depend on the analysed window: codec id, a known
+// pixel format that is not 8-bit 4:2:0, or known dimensions over the limit.
+bool cheapRejection(const AVStream* st) {
+    const AVCodecParameters* cp = st->codecpar;
+    if (cp->codec_id != AV_CODEC_ID_H264) return true;
+    if (cp->format != AV_PIX_FMT_NONE &&
+        cp->format != AV_PIX_FMT_YUV420P && cp->format != AV_PIX_FMT_YUVJ420P) return true;
+    return cp->width > 1920 || cp->height > 1080;
+}
+
+enum class ProbeVerdict { Accepted, Rejected, Inconclusive };
+
+// One probe pass. `capped` bounds the container read window so a refusal does
+// not stall the UI thread reading megabytes from the SD (a 132 MB 4K clip took
+// 1.67 s with the default 5 MB window). A capped pass can leave pix_fmt or the
+// frame rates unset, so it never turns a missing field into a verdict: it
+// reports Inconclusive and the caller repeats the pass uncapped.
+ProbeVerdict probeOnce(const std::string& url, bool capped, std::string& reason) {
     AVFormatContext* fmt = nullptr;
-    const std::string url = "file:" + path;
-    if (avformat_open_input(&fmt, url.c_str(), nullptr, nullptr) < 0) {
-        reason = "the file could not be opened";
-        return false;
+    AVDictionary* opts = nullptr;
+    if (capped) {
+        av_dict_set(&opts, "probesize", "262144", 0);
+        av_dict_set(&opts, "analyzeduration", "0", 0);
     }
-    bool ok = false;
+    const int openRc = avformat_open_input(&fmt, url.c_str(), nullptr, &opts);
+    av_dict_free(&opts);
+    if (openRc < 0) {
+        reason = "the file could not be opened";
+        return ProbeVerdict::Rejected;
+    }
+    ProbeVerdict v = ProbeVerdict::Rejected;
     if (avformat_find_stream_info(fmt, nullptr) < 0) {
-        reason = "the file is not a readable video";
+        reason = capped ? std::string() : "the file is not a readable video";
+        if (capped) v = ProbeVerdict::Inconclusive;
     } else {
         const int idx = pickVideoStream(fmt);
         if (idx < 0) {
             reason = "the file has no video stream";
-        } else if (const char* why = wallpaperStreamRejection(fmt->streams[idx])) {
-            reason = why;
+            if (capped) v = ProbeVerdict::Inconclusive;
         } else {
-            ok = true;
+            const AVStream* st = fmt->streams[idx];
+            const char* why = wallpaperStreamRejection(st);
+            if (!why) {
+                // Frame rates from a capped window can be guessed, so an
+                // acceptance is only trusted from the full pass.
+                v = capped ? ProbeVerdict::Inconclusive : ProbeVerdict::Accepted;
+            } else if (capped && !cheapRejection(st)) {
+                // Rejected only on frame rate or an unset field: not reliable
+                // with a truncated window.
+                v = ProbeVerdict::Inconclusive;
+            } else {
+                reason = why;
+            }
         }
     }
     avformat_close_input(&fmt);
+    return v;
+}
+
+} // namespace
+
+bool probeWallpaper(const std::string& path, std::string& reason) {
+    reason.clear();
+    const std::string url = "file:" + path;
+    ProbeVerdict v = probeOnce(url, true, reason);
+    if (v == ProbeVerdict::Inconclusive) {
+        reason.clear();
+        v = probeOnce(url, false, reason);
+    }
+    const bool ok = v == ProbeVerdict::Accepted;
     if (!ok)
         DebugLog::log("[video] probe rejected %s: %s", path.c_str(), reason.c_str());
     return ok;
