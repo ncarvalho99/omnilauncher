@@ -5,6 +5,8 @@ import glob
 import hashlib
 import json
 import os
+import re
+import subprocess
 import sys
 import zipfile
 
@@ -25,37 +27,82 @@ VECTEEZY_MAP = {
     'purple-particles': 'vecteezy_purple_themed_particle_form_futuristic_neon_graphic_15287575.mp4',
     'white-strings': 'vecteezy_white_particles_strings_fading_over_blue_background_2276219.mp4',
     'blue-motion': 'vecteezy_abstract-blue-motion-background-loop_81298801.mp4',
-    'blue-bubbles-live-wallpaper': 'Blue Bubbles Live Wallpaper.webm',
-    'digital-code-live-wallpaper': 'Digital Code Live Wallpaper.webm',
+    'zelda-ultrahand': 'zelda-ultrahand-tears-of-the-kingdom-moewalls-com.mp4',
+    'neon-gradient': 'vecteezy_color_neon_gradient_moving_abstract_blurred_background.mp4',
+    'miles-morales-falling-upside-down-spiderman-into-the-spidervers': 'miles-morales-falling-upside-down-spiderman-into-the-spiderverse-moewalls-com.mp4',
 }
 
-def find_direct_video(theme_name):
-    if theme_name in VECTEEZY_MAP:
-        cand = os.path.join(VIDEOS, VECTEEZY_MAP[theme_name])
-        if os.path.isfile(cand):
-            return VECTEEZY_MAP[theme_name], cand
+# Console playback limits. Mirror VideoPlayer.cpp wallpaperStreamRejection():
+# H.264, 8-bit 4:2:0, at most 1920x1080 and 60 fps. A file outside them is
+# refused by the menu at apply time (or, for VP9, used to abort deko3d at boot),
+# so it must never be published as a store theme.
+MAX_W, MAX_H, MAX_FPS = 1920, 1080, 60.01
 
+# Re-encoded files are published under a content-addressed name so the CDN
+# (Cache-Control max-age on /videos/) can never serve stale bytes for a URL
+# that the catalogue now describes differently. Same idea as theme-<hash>.zip.
+H264_VARIANT = re.compile(r'-h264-[0-9a-f]{8}(?=\.mp4$)')
+
+def _rate(text):
+    try:
+        num, den = str(text).split('/')
+        num, den = float(num), float(den)
+        return num / den if num > 0 and den > 0 else 0.0
+    except (ValueError, ZeroDivisionError):
+        return 0.0
+
+def video_problem(path):
+    """Return None if the console can play `path`, else a short reason."""
+    try:
+        run = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
+             'stream=codec_name,pix_fmt,width,height,r_frame_rate,avg_frame_rate',
+             '-of', 'json', path],
+            capture_output=True, text=True, timeout=60)
+        stream = json.loads(run.stdout)['streams'][0]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError) as exc:
+        return 'unreadable (%s)' % type(exc).__name__
+    if stream.get('codec_name') != 'h264':
+        return 'codec %s (only H.264)' % stream.get('codec_name')
+    if stream.get('pix_fmt') not in ('yuv420p', 'yuvj420p'):
+        return 'pixel format %s (need 8-bit 4:2:0)' % stream.get('pix_fmt')
+    width, height = int(stream.get('width') or 0), int(stream.get('height') or 0)
+    avg, nominal = _rate(stream.get('avg_frame_rate')), _rate(stream.get('r_frame_rate'))
+    if not (0 < width <= MAX_W and 0 < height <= MAX_H) or (avg <= 0 and nominal <= 0) \
+            or avg > MAX_FPS or nominal > MAX_FPS:
+        return 'source %dx%d avg=%.2f nominal=%.2f (max %dx%d at 60 fps)' % (
+            width, height, avg, nominal, MAX_W, MAX_H)
+    return None
+
+def find_direct_video(theme_name):
+    """Pick the playable direct video for a theme, or (None, None).
+
+    Candidates keep the old precedence (explicit map, <id>-moewalls-com.mp4,
+    <id>.mp4, normalised name). Re-encoded `-h264-<hash>` variants resolve to the
+    same logical name and win over the original. Anything the console cannot
+    play is skipped with a log line instead of being published.
+    """
     if not os.path.isdir(VIDEOS):
         return None, None
-
-    video_files = os.listdir(VIDEOS)
-    # 1. Exact match with moewalls suffix
-    target = f"{theme_name}-moewalls-com.mp4"
-    if target in video_files:
-        return target, os.path.join(VIDEOS, target)
-
-    # 2. Match without suffix
-    target = f"{theme_name}.mp4"
-    if target in video_files:
-        return target, os.path.join(VIDEOS, target)
-
-    # 3. Normalized search
-    norm_theme = theme_name.lower().replace("-", "").replace("_", "")
-    for vf in video_files:
-        norm_v = vf.replace("-moewalls-com.mp4", "").replace(".mp4", "").replace(".webm", "").lower().replace("-", "").replace("_", "").replace(" ", "")
-        if norm_v == norm_theme:
-            return vf, os.path.join(VIDEOS, vf)
-
+    files = sorted(f for f in os.listdir(VIDEOS) if f.endswith('.mp4'))
+    logical = lambda f: H264_VARIANT.sub('', f)
+    norm = lambda s: (s.replace('-moewalls-com.mp4', '').replace('.mp4', '').lower()
+                      .replace('-', '').replace('_', '').replace(' ', ''))
+    norm_theme = theme_name.lower().replace('-', '').replace('_', '')
+    exact = [f'{theme_name}-moewalls-com.mp4', f'{theme_name}.mp4']
+    if theme_name in VECTEEZY_MAP:
+        exact.insert(0, VECTEEZY_MAP[theme_name])
+    matchers = [lambda f, w=w: logical(f) == w for w in exact]
+    matchers.append(lambda f: norm(logical(f)) == norm_theme)
+    for match in matchers:
+        cands = [f for f in files if match(f)]
+        cands.sort(key=lambda f: (not H264_VARIANT.search(f), f))
+        for vf in cands:
+            path = os.path.join(VIDEOS, vf)
+            why = video_problem(path)
+            if why is None:
+                return vf, path
+            print('[reindex] skip video %s for %s: %s' % (vf, theme_name, why), file=sys.stderr)
     return None, None
 
 def pick_preview_video(theme_dir, rel_dir):
@@ -198,7 +245,8 @@ def main():
             if cover: entry['cover'] = cover
 
             # Standard entry (used for index.json for SwitchU 2.6.5)
-            entries.append(entry)
+            if not os.path.isfile(os.path.join(theme_dir, '.omnilaunch-only')):
+                entries.append(entry)
 
             # OmniLaunch dedicated entry (omnilaunch.json)
             omni_entry = dict(entry)
