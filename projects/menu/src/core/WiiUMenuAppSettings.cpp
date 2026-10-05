@@ -196,6 +196,11 @@ std::string installedThemePreviewPath(const ThemePreset& preset) {
         "screenshots/screenshot.png",
         "cover.png",
         "screenshot.png",
+        // Direct-video store installs (ThemePackageInstaller) write a manifest
+        // with no "preview" key and save the catalogue cover here, so without
+        // these two the Installed tab showed "No screenshot" for every one.
+        "media/screenshots/00.jpg",
+        "media/screenshots/00.png",
     };
     for (const char* fallback : kFallbacks) {
         std::string path = joinPath(preset.installPath, fallback);
