@@ -1079,6 +1079,10 @@ static void startPowerSequence(const char* source, smi::SystemMessage action) {
         return;
     }
 
+    // Flush and close the log sink and commit the card before teardown finishes.
+    switchu::FileLog::close();
+    switchu::commitSdCard("power teardown");
+
     // The accepted sequence completes asynchronously. Never return to normal
     // daemon work or relaunch the menu while Horizon is tearing the system down.
     while (true)
