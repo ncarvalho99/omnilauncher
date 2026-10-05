@@ -128,7 +128,7 @@ ffmpeg -i input.mkv -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p -vf "
 
 ### Auto-Update & Self-Uninstall Engine
 - Self-updater fetching stable releases and assets from GitHub API (`ncarvalho99/omnilauncher`).
-- Safe two-phase staging: updates are verified, unpacked, and applied at boot by the daemon before the menu executable loads.
+- The in-menu updater checks the published ZIP's size and SHA-256 digest before staging it; an update without a published digest is refused. The daemon applies staged files at boot, before loading the menu. **The in-menu updater does not yet provide an atomic whole-install rollback:** a power cut or failed replacement could leave a mixed install. Keep a backup of the SD card and do not treat the checksum check as rollback protection.
 - **Clean Self-Uninstall:** Permanently purges OmniLaunch and SwitchU files from `atmosphere/contents/`, `switch/`, and `config/`, rebooting cleanly into the original stock Nintendo HOME Menu.
 
 ### Accessibility & Multi-Language Support
