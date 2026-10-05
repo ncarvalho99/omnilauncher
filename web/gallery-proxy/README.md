@@ -5,12 +5,12 @@ API somente no LXC e expõe os dados mínimos ao menu.
 
 ## Produção
 
-- LXC Proxmox: `124` (`switchu-gallery`), `172.26.128.21`, porta HTTP `8081`.
+- LXC Proxmox: `<container-id>` (`switchu-gallery`), `<proxy-host-ip>`, porta HTTP `8081`.
 - Endereço público: `https://gallery.nclabs.dev` pelo Cloudflare Tunnel.
 - Código no LXC: `/opt/switchu-gallery`.
 - Segredo: `/etc/switchu-gallery/steamgriddb.env`, modo `0600`, nunca versionar.
 
-O Public Hostname do Tunnel deve apontar para `http://172.26.128.21:8081`.
+O Public Hostname do Tunnel deve apontar para `http://<proxy-host-ip>:8081`.
 
 ## Endpoints públicos
 
