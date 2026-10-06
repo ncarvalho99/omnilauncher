@@ -4695,6 +4695,8 @@ void WiiUMenuApp::syncPageIndicator() {
 // Grid -> DynamicLine -> Flow -> Shelf -> Deck -> Grid. Grid stays reachable from every view, so
 // it remains the escape hatch if a newer view misbehaves.
 void WiiUMenuApp::toggleAppLayoutMode() {
+    if (m_openFolderId != 0)
+        return;
     switch (m_appLayoutMode) {
         case AppLayoutMode::Grid:        setAppLayoutMode(AppLayoutMode::DynamicLine); break;
         case AppLayoutMode::DynamicLine: setAppLayoutMode(AppLayoutMode::Flow);        break;
@@ -4852,6 +4854,8 @@ void WiiUMenuApp::configureDynamicLineNavigation() {
 }
 
 void WiiUMenuApp::setAppLayoutMode(AppLayoutMode mode) {
+    if (m_openFolderId != 0)
+        return;
     if (m_appLayoutMode == mode && m_grid && m_grid->layoutMode() == mode)
         return;
     m_appLayoutMode = mode;
@@ -6919,10 +6923,22 @@ void WiiUMenuApp::finalizeRefresh() {
     if (m_layoutDirty)
         saveMenuLayout();
     DebugLog::log("[refresh] done, %d icons on page %d", m_model.count(), m_grid->currentPage());
-    checkNewGameSteamGridDbPrompt();
 }
 
 void WiiUMenuApp::checkNewGameSteamGridDbPrompt() {
+#ifdef SWITCHU_MENU
+    NifmInternetConnectionStatus nifmStatus = NifmInternetConnectionStatus_ConnectingUnknown1;
+    bool connected = false;
+    if (R_SUCCEEDED(nifmInitialize(NifmServiceType_User))) {
+        connected = R_SUCCEEDED(nifmGetInternetConnectionStatus(nullptr, nullptr, &nifmStatus)) &&
+                    nifmStatus == NifmInternetConnectionStatus_Connected;
+        nifmExit();
+    }
+    if (!connected) {
+        m_newGamePromptChecked = false;
+        return;
+    }
+#endif
     if (m_allApps.empty())
         return;
 
@@ -7088,11 +7104,11 @@ std::string WiiUMenuApp::resolveAppTitle(std::uint64_t titleId, const std::strin
 
 void WiiUMenuApp::pollAutoNtpSync(float dt) {
 #ifdef SWITCHU_MENU
-    if (m_autoNtpSynced)
+    if (m_autoNtpSynced && m_newGamePromptChecked)
         return;
 
     m_ntpCheckTimer += dt;
-    if (m_ntpCheckTimer < 5.0f)
+    if (m_ntpCheckTimer < 3.0f)
         return;
     m_ntpCheckTimer = 0.f;
 
@@ -7109,13 +7125,23 @@ void WiiUMenuApp::pollAutoNtpSync(float dt) {
         nifmExit();
     }
     if (connected) {
-        switchu::services::NtpClient::syncAsync([this](bool ok, uint64_t timestamp) {
-            if (ok) {
-                m_autoNtpSynced = true;
-                DebugLog::log("[ntp] auto internet clock sync successful: timestamp=%llu",
-                              static_cast<unsigned long long>(timestamp));
-            }
-        });
+        if (!m_autoNtpSynced) {
+            switchu::services::NtpClient::syncAsync([this](bool ok, uint64_t timestamp) {
+                if (ok) {
+                    m_autoNtpSynced = true;
+                    DebugLog::log("[ntp] auto internet clock sync successful: timestamp=%llu",
+                                  static_cast<unsigned long long>(timestamp));
+                }
+            });
+        }
+        const bool lockScreenUp = m_lockScreen.isLocked();
+        if (!m_newGamePromptChecked && !lockScreenUp && !m_fastReturnRequested && !m_allApps.empty() &&
+            !(m_dialog && m_dialog->isActive()) &&
+            !(m_settings && m_settings->isActive()) &&
+            !(m_themeShop && m_themeShop->isActive())) {
+            m_newGamePromptChecked = true;
+            checkNewGameSteamGridDbPrompt();
+        }
     }
 #endif
 }
@@ -7898,11 +7924,6 @@ void WiiUMenuApp::onUpdate(float dt) {
     syncUpdateDownload();
 #ifdef SWITCHU_MENU
     pollAutoNtpSync(dt);
-
-    if (!m_newGamePromptChecked && !lockScreenUp && !m_fastReturnRequested && !m_allApps.empty()) {
-        m_newGamePromptChecked = true;
-        checkNewGameSteamGridDbPrompt();
-    }
 #endif
 
     if (!app().input().isDown(nxui::Button::Plus) || !app().input().isDown(nxui::Button::Minus))
@@ -7965,6 +7986,7 @@ void WiiUMenuApp::onUpdate(float dt) {
         !app().input().isDown(nxui::Button::Plus) &&
         m_navigator.route() == switchu::navigation::Route::Home &&
         !m_editMode &&
+        m_openFolderId == 0 &&
         !(m_quickSettings && m_quickSettings->isActive()) &&
         !(m_contextMenu && m_contextMenu->isActive()) &&
         !(m_dialog && m_dialog->isActive()) &&
@@ -8312,6 +8334,10 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
         if (!icon.empty() && !label.empty())
             hints.push_back({icon, label});
     };
+    auto hasIcon = [&](const std::string& icon) {
+        return std::any_of(hints.begin(), hints.end(),
+                           [&](const ActionHint& h) { return h.icon == icon; });
+    };
     auto addVoiceControls = [&]() {
         if (!m_config.accessibilityEnabled)
             return;
@@ -8486,7 +8512,7 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
     if (m_openFolderId != 0)
         add(buttonGlyph(nxui::Button::B), i18n.tr("hint.back", "Back"));
 
-    if (m_appLayoutMode == AppLayoutMode::Metro && focusRoot() == &rootBox()) {
+    if (m_appLayoutMode == AppLayoutMode::Metro && focusRoot() == &rootBox() && m_openFolderId == 0) {
         nxui::Widget* cur = focusManager().current();
         if (cur && cur->tag() == "glossy_icon") {
             auto* icon = static_cast<GlossyIcon*>(cur);
@@ -8499,7 +8525,7 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
             }
             add(buttonGlyph(nxui::Button::Y), i18n.tr("hint.tile_size", "Tile Size"));
             add(buttonGlyph(nxui::Button::Plus), i18n.tr("hint.options", "Options"));
-            add(buttonGlyph(nxui::Button::Minus), i18n.tr("hint.switch_view", "Switch view"));
+            add(buttonGlyph(nxui::Button::Minus), i18n.tr("hint.switch_layout", "Switch view"));
             return hints;
         }
     }
@@ -8563,6 +8589,7 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
             if (deletePageAvailable()) {
                 add(buttonGlyph(nxui::Button::ZL), i18n.tr("folder.delete_page", "Delete page"));
             }
+            add(buttonGlyph(nxui::Button::Minus), i18n.tr("hint.switch_layout", "Switch view"));
         } else if (m_openFolderId != 0 && deletePageAvailable()) {
             add(buttonGlyph(nxui::Button::ZL), i18n.tr("folder.delete_page", "Delete page"));
         }
@@ -8588,10 +8615,14 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
     }
 
     if (m_navigator.route() == switchu::navigation::Route::Home && !m_editMode) {
-        add(buttonGlyph(nxui::Button::Minus),
-            i18n.tr("hint.switch_layout", "Switch view"));
-        add(buttonGlyph(nxui::Button::LStick),
-            i18n.tr("quicksettings.hint_shortcut", "Quick Settings"));
+        if (m_openFolderId == 0 && !hasIcon(buttonGlyph(nxui::Button::Minus))) {
+            add(buttonGlyph(nxui::Button::Minus),
+                i18n.tr("hint.switch_layout", "Switch view"));
+        }
+        if (!hasIcon(buttonGlyph(nxui::Button::LStick))) {
+            add(buttonGlyph(nxui::Button::LStick),
+                i18n.tr("quicksettings.hint_shortcut", "Quick Settings"));
+        }
     }
     addVoiceControls();
 
