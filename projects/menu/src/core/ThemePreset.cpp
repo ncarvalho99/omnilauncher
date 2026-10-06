@@ -830,6 +830,7 @@ std::vector<ThemePreset> ThemePreset::loadUserPresets() {
 }
 
 std::vector<ThemePreset> ThemePreset::loadInstalledPackages() {
+    sweepInstallLeftovers();
     std::vector<ThemePreset> result;
     static constexpr const char* kThemeScanDirs[] = {
         "sdmc:/config/OmniLaunch/themes",
@@ -952,27 +953,79 @@ bool ThemePreset::saveUserPresets(const std::vector<ThemePreset>& presets) {
 }
 
 int ThemePreset::sweepInstallLeftovers() {
-    // Only the installer's own working names, and only as whole suffixes: a
-    // theme is free to be called anything, and nothing here may touch a folder
-    // a player still has a theme in. Folders with no theme.json are left alone
-    // too -- a hand-installed theme with broken JSON looks exactly like one,
-    // and removing it would be the delete-without-asking this project already
-    // got burned by once.
-    std::error_code ec;
+    static constexpr std::string_view kPreviousSuffix = ".previous";
+    static constexpr std::string_view kInstallingSuffix = ".installing";
+    static constexpr std::string_view kInstallingPartSuffix = ".installing.part";
+
+    static constexpr const char* kScanDirs[] = {
+        kInstalledThemesDir,
+        "sdmc:/switchu/themes",
+        "sdmc:/slaunch/themes"
+    };
+
     int removed = 0;
-    for (const auto& entry : std::filesystem::directory_iterator(kInstalledThemesDir, ec)) {
-        if (ec)
-            break;
-        const std::string name = entry.path().filename().string();
-        if (!isThemeInstallLeftover(name))
+    for (const char* baseDir : kScanDirs) {
+        std::error_code ec;
+        if (!std::filesystem::exists(baseDir, ec))
             continue;
-        std::string failedPath;
-        if (switchu::removeRecursive(entry.path().string(), &failedPath)) {
-            ++removed;
-            DebugLog::log("[themes] removed install leftover %s", name.c_str());
-        } else {
-            DebugLog::log("[themes] could not remove leftover %s (%s)",
-                          name.c_str(), failedPath.c_str());
+
+        for (const auto& entry : std::filesystem::directory_iterator(baseDir, ec)) {
+            if (ec)
+                break;
+            if (!entry.is_directory(ec))
+                continue;
+
+            const std::string name = entry.path().filename().string();
+
+            // 1. Check .previous: interrupted install where original was set aside
+            if (name.size() > kPreviousSuffix.size() &&
+                name.compare(name.size() - kPreviousSuffix.size(), kPreviousSuffix.size(), kPreviousSuffix) == 0) {
+                const std::string targetName = name.substr(0, name.size() - kPreviousSuffix.size());
+                const std::filesystem::path targetPath = entry.path().parent_path() / targetName;
+
+                std::error_code ecTarget;
+                const bool targetExists = std::filesystem::exists(targetPath, ecTarget);
+
+                if (!ecTarget && !targetExists) {
+                    // Target is absent: recover the previous working theme!
+                    if (std::rename(entry.path().string().c_str(), targetPath.string().c_str()) == 0) {
+                        DebugLog::log("[themes] recovered interrupted install: %s -> %s",
+                                      name.c_str(), targetName.c_str());
+                    } else {
+                        DebugLog::log("[themes] failed to recover interrupted install %s -> %s",
+                                      name.c_str(), targetName.c_str());
+                    }
+                } else if (!ecTarget && targetExists) {
+                    // Target exists. Only delete .previous if target is a complete valid theme (has theme.json)
+                    std::error_code ecManifest;
+                    if (std::filesystem::exists(targetPath / "theme.json", ecManifest)) {
+                        std::string failedPath;
+                        if (switchu::removeRecursive(entry.path().string(), &failedPath)) {
+                            ++removed;
+                            DebugLog::log("[themes] removed obsolete previous backup %s", name.c_str());
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // 2. Check .installing and .installing.part: abandoned staging folders
+            const bool isInstalling =
+                (name.size() > kInstallingSuffix.size() &&
+                 name.compare(name.size() - kInstallingSuffix.size(), kInstallingSuffix.size(), kInstallingSuffix) == 0) ||
+                (name.size() > kInstallingPartSuffix.size() &&
+                 name.compare(name.size() - kInstallingPartSuffix.size(), kInstallingPartSuffix.size(), kInstallingPartSuffix) == 0);
+
+            if (isInstalling) {
+                std::string failedPath;
+                if (switchu::removeRecursive(entry.path().string(), &failedPath)) {
+                    ++removed;
+                    DebugLog::log("[themes] removed abandoned install staging %s", name.c_str());
+                } else {
+                    DebugLog::log("[themes] could not remove install staging %s (%s)",
+                                  name.c_str(), failedPath.c_str());
+                }
+            }
         }
     }
     return removed;
