@@ -956,107 +956,48 @@ static Result requestPowerStateChange(const char* source, bool reboot) {
                           source, reboot ? "reboot" : "shutdown");
     switchu::FileLog::flush();
 
-    if (reboot) {
-        // Arm Atmosphere reboot payload if available
-        Handle bpcAmsHandle = INVALID_HANDLE;
-        if (R_SUCCEEDED(svcConnectToNamedPort(&bpcAmsHandle, "bpc:ams"))) {
-            Service amsBpcSrv;
-            serviceCreate(&amsBpcSrv, bpcAmsHandle);
-            FILE* f = std::fopen("sdmc:/atmosphere/reboot_payload.bin", "rb");
-            if (f) {
-                std::vector<uint8_t> payload(0x24000);
-                size_t readBytes = std::fread(payload.data(), 1, payload.size(), f);
-                std::fclose(f);
-                if (readBytes > 0) {
-                    serviceDispatch(&amsBpcSrv, 65001,
-                        .buffer_attrs = { SfBufferAttr_In | SfBufferAttr_HipcMapAlias },
-                        .buffers = { { payload.data(), readBytes } },
-                    );
-                }
-            }
-            serviceClose(&amsBpcSrv);
+    // Configure Exosphere to perform a clean hardware PMIC power-cycle on reboot
+    Result splRc = splInitialize();
+    if (R_SUCCEEDED(splRc)) {
+        if (reboot) {
+            splSetConfig(static_cast<SplConfigItem>(65001), 4); // ForceRebootByPmic
+        } else {
+            splSetConfig(static_cast<SplConfigItem>(65002), 1); // ForceShutdown
         }
-
-        // 1. Preferred Atmosphere path: Hardware PMIC reboot (ConfigItem 65001 = 4).
-        // Power-cycles the SoC directly via MAX77620 PMIC, identical to physical power button.
-        // Bypasses software warm-reset state and power-cycles the SD card bus cleanly.
-        Result rc = splInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = splSetConfig(static_cast<SplConfigItem>(65001), 4);
-            splExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] PMIC reboot accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-
-        // 2. Fall back to spsmShutdown(true)
-        rc = spsmInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = spsmShutdown(true);
-            spsmExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] spsm reboot accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-
-        // 3. Fall back to bpcRebootSystem()
-        rc = bpcInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = bpcRebootSystem();
-            bpcExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] bpc reboot accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-
-        // 4. Last resort: applet reboot
-        Result appletRc = appletStartRebootSequence();
-        switchu::FileLog::log("[power] applet fallback rc=0x%X", appletRc);
-        switchu::FileLog::flush();
-        return appletRc;
-    } else {
-        // Hardware PMIC shutdown
-        Result rc = splInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = splSetConfig(static_cast<SplConfigItem>(65002), 1);
-            splExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] PMIC shutdown accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-        rc = spsmInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = spsmShutdown(false);
-            spsmExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] spsm shutdown accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-        rc = bpcInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = bpcShutdownSystem();
-            bpcExit();
-            if (R_SUCCEEDED(rc)) {
-                switchu::FileLog::log("[power] bpc shutdown accepted");
-                switchu::FileLog::flush();
-                return rc;
-            }
-        }
-        Result appletRc = appletStartShutdownSequence();
-        switchu::FileLog::log("[power] applet shutdown fallback rc=0x%X", appletRc);
-        switchu::FileLog::flush();
-        return appletRc;
+        splExit();
     }
+
+    // 1. Primary path: Power State Manager (spsm).
+    // spsm drives the real power-down path: tells the filesystem service to commit
+    // and unmount cleanly before the hardware power transition.
+    Result rc = spsmInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = spsmShutdown(reboot);
+        spsmExit();
+        if (R_SUCCEEDED(rc)) {
+            switchu::FileLog::log("[power] spsm %s accepted", reboot ? "reboot" : "shutdown");
+            switchu::FileLog::flush();
+            return rc;
+        }
+    }
+
+    // 2. Fall back to bpc
+    rc = bpcInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = reboot ? bpcRebootSystem() : bpcShutdownSystem();
+        bpcExit();
+        if (R_SUCCEEDED(rc)) {
+            switchu::FileLog::log("[power] bpc %s accepted", reboot ? "reboot" : "shutdown");
+            switchu::FileLog::flush();
+            return rc;
+        }
+    }
+
+    // 3. Fall back to applet sequence
+    rc = reboot ? appletStartRebootSequence() : appletStartShutdownSequence();
+    switchu::FileLog::log("[power] applet sequence rc=0x%X", rc);
+    switchu::FileLog::flush();
+    return rc;
 }
 
 // Sleep is not a power-down and must not use the shutdown teardown below.
