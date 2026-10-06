@@ -47,6 +47,7 @@ compile_commands.json
 # Regenerated frame sources and Python bytecode used while authoring animated
 # theme assets. The committed DDS frames live under romfs/themes instead.
 /fps/
+/romfs/icons-regenerated/
 tools/__pycache__/
 __pycache__/
 
