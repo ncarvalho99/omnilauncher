@@ -941,89 +941,39 @@ static bool takeForegroundFromRunningApp(const char* source) {
 // the console is shutting down underneath it.
 static void stopControlCacheWorker();
 
-// Reboot and shutdown must enter Horizon's orderly power sequence first.
-// This daemon runs as the qlaunch replacement (AppletType_SystemApplet), so
-// appletStart{Reboot,Shutdown}Sequence is the same path stock qlaunch uses: it
-// coordinates service teardown and lets Atmosphere's bpc MITM choose the
-// configured reboot target (payload, RCM, standard reboot, or PMIC on Mariko).
+// Reboot and shutdown go through the Power State Manager rather than the
+// applet path.
 //
-// spsmShutdown remains a fallback only. Calling it first bypasses the qlaunch
-// sequence; on this console that consistently powers down into RCM before
-// atmosphere/reboot_payload.bin is chainloaded, leaving an entirely black
-// screen until a payload is injected externally.
-// Orderly reboot and shutdown handling.
-// For rebooting into Hekate on Atmosphere, we follow the exact canonical sequence
-// from Atmosphere's official reboot_to_payload tool:
-// 1. spsmInitialize()
-// 2. Load atmosphere/reboot_payload.bin into memory
-// 3. Close sm session (smExit) so svcConnectToNamedPort("bpc:ams") succeeds cleanly
-// 4. amsBpcInitialize() -> amsBpcSetRebootPayload(payload, 0x24000) -> amsBpcExit()
-// 5. spsmShutdown(true)
-static Result requestPowerStateChange(const char* source, bool reboot) {
-    switchu::FileLog::log("[power] request source=%s action=%s",
-                          source, reboot ? "reboot" : "shutdown");
-    switchu::FileLog::flush();
-
-    if (reboot) {
-        // Step 1: Initialize spsm
-        Result spsmRc = spsmInitialize();
-
-        // Step 2 & 3 & 4: Arm Atmosphere reboot payload if on Erista
-        static constexpr size_t kIramPayloadMaxSize = 0x24000;
-        std::vector<uint8_t> payload(kIramPayloadMaxSize, 0);
-        FILE* f = std::fopen("sdmc:/atmosphere/reboot_payload.bin", "rb");
-        if (!f) {
-            f = std::fopen("sdmc:/payload.bin", "rb");
-        }
-        if (f) {
-            std::fread(payload.data(), 1, kIramPayloadMaxSize, f);
-            std::fclose(f);
-
-            // Connect to bpc:ams directly via named port
-            Handle bpcAmsHandle = INVALID_HANDLE;
-            Result bpcAmsRc = svcConnectToNamedPort(&bpcAmsHandle, "bpc:ams");
-            if (R_SUCCEEDED(bpcAmsRc)) {
-                Service amsBpcSrv;
-                serviceCreate(&amsBpcSrv, bpcAmsHandle);
-                Result setPayloadRc = serviceDispatch(&amsBpcSrv, 65001,
-                    .buffer_attrs = { SfBufferAttr_In | SfBufferAttr_HipcMapAlias },
-                    .buffers = { { payload.data(), kIramPayloadMaxSize } },
-                );
-                serviceClose(&amsBpcSrv);
-                switchu::FileLog::log("[power] amsBpcSetRebootPayload rc=0x%X", setPayloadRc);
-                switchu::FileLog::flush();
-            } else {
-                switchu::FileLog::log("[power] bpc:ams connect rc=0x%X", bpcAmsRc);
-                switchu::FileLog::flush();
-            }
-        }
-
-        // Step 5: Execute power-down via spsm
-        if (R_SUCCEEDED(spsmRc)) {
-            Result shutdownRc = spsmShutdown(true);
-            spsmExit();
-            switchu::FileLog::log("[power] spsm reboot rc=0x%X", shutdownRc);
-            switchu::FileLog::flush();
-            if (R_SUCCEEDED(shutdownRc))
-                return shutdownRc;
-        }
-
-        // Fallback: applet reboot
-        Result appletRc = appletStartRebootSequence();
-        switchu::FileLog::log("[power] applet reboot fallback rc=0x%X", appletRc);
-        switchu::FileLog::flush();
-        return appletRc;
-    } else {
-        // Clean shutdown
-        Result rc = spsmInitialize();
-        if (R_SUCCEEDED(rc)) {
-            rc = spsmShutdown(false);
-            spsmExit();
-            if (R_SUCCEEDED(rc))
-                return rc;
-        }
-        return appletStartShutdownSequence();
+// appletStartRebootSequence asks the system applet to orchestrate an orderly
+// shutdown — and this daemon *is* the system applet, standing in for qlaunch.
+// It is asking itself to perform a coordination step it never implements, so
+// nothing tells the filesystem service to flush and unmount. That matches the
+// symptom exactly: corruption roughly one reboot in three or four, depending
+// on whether anything happened to be dirty, and a card that comes back needing
+// its firmware files replaced rather than being wholly unreadable.
+//
+// spsm is what the Reboot-to-Payload homebrew uses, and the user rebooted with
+// it repeatedly — including after changing settings — with no corruption at
+// all. spsmShutdown drives the real power-down path, which includes telling FS
+// to commit and unmount before power drops.
+//
+// Falls back to the applet call if spsm cannot be reached, so a failure here
+// leaves the previous behaviour rather than a console that will not turn off.
+static void requestPowerStateChange(const char* source, bool reboot) {
+    Result rc = spsmInitialize();
+    if (R_SUCCEEDED(rc)) {
+        rc = spsmShutdown(reboot);
+        spsmExit();
+        if (R_SUCCEEDED(rc))
+            return;
     }
+
+    svcOutputDebugString("[SwitchU-daemon] spsm power path failed, using applet", 52);
+    (void)source;
+    if (reboot)
+        appletStartRebootSequence();
+    else
+        appletStartShutdownSequence();
 }
 
 // Sleep is not a power-down and must not use the shutdown teardown below.
@@ -1109,28 +1059,16 @@ static void startPowerSequence(const char* source, smi::SystemMessage action) {
         return;
     }
 
-    Result rc = MAKERESULT(Module_Libnx, LibnxError_BadInput);
     switch (action) {
         case smi::SystemMessage::Shutdown:
-            rc = requestPowerStateChange(source, false);
+            requestPowerStateChange(source, false);
             break;
         case smi::SystemMessage::Reboot:
-            rc = requestPowerStateChange(source, true);
+            requestPowerStateChange(source, true);
             break;
         default:
             break;
     }
-
-    if (R_FAILED(rc)) {
-        switchu::FileLog::log("[power] action failed rc=0x%X; resuming daemon", rc);
-        switchu::FileLog::flush();
-        g_powerSequenceStarted.store(false);
-        return;
-    }
-
-    // Flush and close the log sink and commit the card before teardown finishes.
-    switchu::FileLog::close();
-    switchu::commitSdCard("power teardown");
 
     // The accepted sequence completes asynchronously. Never return to normal
     // daemon work or relaunch the menu while Horizon is tearing the system down.
@@ -2898,10 +2836,9 @@ int main(int argc, char* argv[]) {
     const auto uninstallResult = switchu::daemon::self_uninstall::applyStagedRequest();
     if (uninstallResult == switchu::daemon::self_uninstall::StagedRequestResult::Applied) {
         switchu::FileLog::flush();
-        if (R_SUCCEEDED(requestPowerStateChange("self-uninstall applied", true))) {
-            while (true)
-                svcSleepThread(100'000'000ULL);
-        }
+        requestPowerStateChange("self-uninstall applied", true);
+        while (true)
+            svcSleepThread(100'000'000ULL);
         return 0;
     }
     const bool uninstallPending =
@@ -2925,10 +2862,9 @@ int main(int argc, char* argv[]) {
         switchu::daemon::mem::snapshot("update");
         switchu::FileLog::log("[update] applied; rebooting so the new daemon runs");
         switchu::FileLog::flush();
-        if (R_SUCCEEDED(requestPowerStateChange("update applied", true))) {
-            while (true)
-                svcSleepThread(100'000'000ULL);
-        }
+        requestPowerStateChange("update applied", true);
+        while (true)
+            svcSleepThread(100'000'000ULL);
         return 0;
     }
 
