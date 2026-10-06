@@ -3,6 +3,7 @@
 #include "themeshop/ZipReader.hpp"
 #include <switchu/file_log.hpp>
 #include <switchu/sd_commit.hpp>
+#include <switchu/install_txn.hpp>
 
 #include <cstdio>
 #include <string>
@@ -65,7 +66,69 @@ void clearStaging() {
     std::remove(kDaemonMarker);
 }
 
+// The journal must reach the card before the file moves it describes. Pure std code
+// cannot commit the card, so this installs the hook.
+void installSyncHook() {
+    switchu::install_txn::g_syncHook = +[]() { return switchu::commitSdCard("update journal"); };
+}
+
+// Puts the previous files back and forgets that the daemon half was ever placed.
+bool restoreBackup(const char* why) {
+    std::string failed;
+    const bool restored = switchu::install_txn::rollback(
+        switchu::install_txn::kUpdateBackupRoot, kCardRoot, &failed);
+    // The marker says the daemon on the card is the new one. After a rollback it
+    // is the old one again, so the marker would lie.
+    std::remove(kDaemonMarker);
+    if (restored)
+        switchu::FileLog::log("[update] rollback (%s): previous files restored", why);
+    else
+        switchu::FileLog::log("[update] rollback (%s) INCOMPLETE at %s; backup kept for the next boot",
+                              why, failed.c_str());
+    switchu::commitSdCard("update rollback");
+    return restored;
+}
+
 } // namespace
+
+bool backupPending() {
+    installSyncHook();
+    return switchu::install_txn::pending(switchu::install_txn::kUpdateBackupRoot);
+}
+
+void acceptUpdate() {
+    installSyncHook();
+    if (!backupPending())
+        return;
+    const bool ok = switchu::install_txn::commit(switchu::install_txn::kUpdateBackupRoot);
+    switchu::FileLog::log("[update] new version healthy; rollback backup %s", ok ? "dropped" : "could not be removed");
+    switchu::commitSdCard("update accepted");
+}
+
+bool rollbackUpdate() {
+    installSyncHook();
+    return restoreBackup("new menu keeps failing");
+}
+
+bool recoverInterruptedUpdate() {
+    // A pass that was cut short (power loss, crash) left a journal that does not
+    // end in a completed pass: undo it before anything else, whether or not an
+    // update is still staged. Without this the console would run a mix of old
+    // and new files.
+    installSyncHook();
+    switchu::install_txn::resumeCleanup(switchu::install_txn::kUpdateBackupRoot);
+    if (switchu::install_txn::interrupted(switchu::install_txn::kUpdateBackupRoot)) {
+        switchu::FileLog::log("[update] found an interrupted update pass; rolling back to the previous version");
+        if (!restoreBackup("interrupted pass")) {
+            // Fail closed: re-applying over a half-restored tree would back up
+            // files that are already part-new. The backup is kept and the rollback
+            // is retried at the next boot.
+            switchu::FileLog::log("[update] recovery incomplete; not applying anything this boot");
+            return false;
+        }
+    }
+    return true;
+}
 
 bool applyStagedUpdate() {
     if (!exists(kReadyMarker))
@@ -93,29 +156,34 @@ bool applyStagedUpdate() {
     policy.allowExecutablePayload = true;
     policy.requiredRoots = {"atmosphere/", "switch/"};
 
-    const auto result = themeshop::extractZipFile(kStagedArchive, kCardRoot, {}, policy);
+    // Every file this replaces is first set aside in the rollback backup. The
+    // journal may already hold the menu's daemon-half pass; rollback returns to
+    // the state before the first pass.
+    switchu::install_txn::Txn txn(switchu::install_txn::kUpdateBackupRoot, kCardRoot);
+    const bool journalOk = txn.begin();
+    if (!journalOk) {
+        switchu::FileLog::log("[update] could not open the rollback journal; not touching the installed files");
+        switchu::commitSdCard("update refused");
+        return false;   // staging stays; retried until the limit
+    }
+    policy.txn = &txn;
 
-    // Commit whichever way it went, before anything else runs.
-    //
-    // This is the largest write the console ever makes on its own: 527 files
-    // and about 43 MB, each one created as .part and renamed over its target,
-    // which is three directory operations apiece. That much FAT churn left
-    // outstanding is exactly the state the power sequence was taught to avoid,
-    // and it was left outstanding here -- extraction happens in the daemon, at
-    // boot, and nothing committed it. The console then ran for ten minutes and
-    // rebooted, and hekate came up unable to find nyx.
-    //
-    // The failure path commits too: the extractor writes beside its targets and
-    // swaps at the end, so a run that gave up partway still moved real files.
-    //
-    // A power cut during the extraction itself is still a risk, but it is a
-    // twenty-second window at boot rather than a whole session.
-    switchu::commitSdCard("update applied");
-
+    auto result = themeshop::extractZipFile(kStagedArchive, kCardRoot, {}, policy);
+    if (result.success && !txn.completePass()) {
+        result.success = false;
+        result.error = "could not record the completed pass";
+    }
     if (!result.success) {
         switchu::FileLog::log("[update] apply failed: %s", result.error.c_str());
-        return false;   // staging stays; the next boot retries until the limit
+        if (!restoreBackup("apply failed"))
+            return false;   // backup and journal kept; resumed at the next boot
     }
+
+    // Commit whichever way it went, before anything else runs.
+    switchu::commitSdCard("update applied");
+
+    if (!result.success)
+        return false;   // originals restored above; staging stays, the next boot retries until the limit
 
     switchu::FileLog::log("[update] applied %d files, %llu bytes",
                           result.filesWritten, (unsigned long long)result.bytesWritten);

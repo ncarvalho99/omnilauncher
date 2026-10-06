@@ -2244,6 +2244,22 @@ static uint64_t g_guardTestStartMs = 0;
 constexpr int kGuardRetryTicks = 3000;   // 30 s at the 10 ms main-loop tick
 static void guardFallBackToStock(const char* why) {
     using namespace switchu::boot_guard;
+    // If this failure follows a launcher update, the previous version is the
+    // right recovery, not stock qlaunch: put its files back and reboot into it.
+    // The backup is consumed, so a second failure falls through to stock.
+    if (switchu::daemon::update::backupPending()) {
+        switchu::FileLog::log("[guard] %s: an update backup exists; rolling the update back first", why);
+        const bool restored = switchu::daemon::update::rollbackUpdate();
+        g_guard = State{};
+        guardPersist("update-rollback");
+        if (restored) {
+            startPowerSequence("guard-update-rollback", smi::SystemMessage::Reboot);
+            switchu::FileLog::log("[guard] reboot request failed after rollback");
+            g_menuRelaunchCooldown = kGuardRetryTicks;
+            return;
+        }
+        switchu::FileLog::log("[guard] rollback incomplete; continuing to stock fallback");
+    }
     switchu::FileLog::log("[guard] %s: handing the console back to stock qlaunch", why);
     g_guard.stage = Stage::Stock;
     g_guard.inFlight = false;
@@ -2335,6 +2351,11 @@ static void guardHealthTick() {
         }
         if (g_guard.stage == Stage::Safe)
             g_guardNoticeSent = true;
+        // A healthy menu on a freshly applied update means the update works.
+        if (g_guard.stage == Stage::Normal &&
+            switchu::daemon::update::backupPending()) {
+            switchu::daemon::update::acceptUpdate();
+        }
         g_menuFastExitCount = 0;
         g_menuRelaunchCooldown = 0;
     }
@@ -2812,6 +2833,15 @@ int main(int argc, char* argv[]) {
         switchu::FileLog::log("[daemon] general channel event unavailable: 0x%X", generalEventRc);
 
     appletLoadAndApplyIdlePolicySettings();
+
+    // Repair a launcher update that was interrupted by a power cut before any
+    // other disk work runs. If the previous files could not be restored
+    // completely, fail closed: do not apply over them and do not launch the menu.
+    if (!switchu::daemon::update::recoverInterruptedUpdate()) {
+        switchu::FileLog::log("[main] could not recover interrupted update; waiting for operator");
+        while (true)
+            svcSleepThread(100'000'000ULL);
+    }
 
     // Apply removal before the catalogue workers or an external menu start. A
     // request that cannot be applied blocks staged updates so they cannot

@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+namespace switchu::install_txn { class Txn; }
+
 // Extracts a theme package into a directory.
 //
 // Deliberately small: it reads the archives the theme catalogue produces and
@@ -40,6 +42,11 @@ struct ZipExtractResult {
 // also holds the bootloader.
 struct ZipExtractPolicy {
     bool allowExecutablePayload = false;
+    // When set, every file that replaces an existing one is first moved into the
+    // transaction's backup tree and journalled (see switchu/install_txn.hpp), so a
+    // failed or unhealthy update can be rolled back. destinationDir must be the
+    // transaction's destination root. Null: behaviour is unchanged.
+    switchu::install_txn::Txn* txn = nullptr;
     // When non-empty, every entry must start with one of these.
     std::vector<std::string> requiredRoots;
     // When non-empty, only entries starting with one of these are written.

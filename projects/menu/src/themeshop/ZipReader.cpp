@@ -1,6 +1,7 @@
 #include "ZipReader.hpp"
 
 #include "core/DebugLog.hpp"
+#include <switchu/install_txn.hpp>
 
 #include <zlib.h>
 
@@ -101,7 +102,8 @@ bool readAt(std::FILE* f, std::uint64_t offset, void* dst, std::size_t bytes) {
 // of input and a chunk of output, whatever the entry's size.
 bool copyEntry(std::FILE* src, std::uint64_t offset, std::uint64_t compressed,
                std::uint64_t plain, bool deflated, const std::string& target,
-               std::uint64_t& written) {
+               std::uint64_t& written,
+               switchu::install_txn::Txn* txn = nullptr, const std::string& rel = {}) {
     const std::string staging = target + ".part";
     std::FILE* out = std::fopen(staging.c_str(), "wb");
     if (!out)
@@ -176,9 +178,28 @@ bool copyEntry(std::FILE* src, std::uint64_t offset, std::uint64_t compressed,
         // rename() replaces the destination in one step, so a reader never sees
         // a half-written file. If it fails -- the file is open elsewhere, say --
         // the original is still there, untouched.
-        std::remove(target.c_str());
-        if (std::rename(staging.c_str(), target.c_str()) != 0)
-            ok = false;
+        if (txn && !txn->prepareReplace(rel)) {
+            ok = false;                  // the old file could not be set aside: nothing changed
+        } else {
+            const std::string oldTarget = target + ".old";
+            std::remove(oldTarget.c_str());
+            const bool renamedToOld = (std::rename(target.c_str(), oldTarget.c_str()) == 0);
+            if (!renamedToOld) {
+                std::remove(target.c_str());
+            }
+            if (std::rename(staging.c_str(), target.c_str()) != 0) {
+                ok = false;
+                if (renamedToOld) {
+                    std::rename(oldTarget.c_str(), target.c_str());
+                }
+                if (txn)
+                    txn->undoReplace(rel);   // put the original straight back
+            } else {
+                if (renamedToOld) {
+                    std::remove(oldTarget.c_str());
+                }
+            }
+        }
     }
     if (!ok)
         std::remove(staging.c_str());
@@ -387,7 +408,8 @@ static ZipExtractResult walkArchive(const std::string& archivePath,
 
         std::uint64_t written = 0;
         if (!copyEntry(f, dataOffset, compressed, plain,
-                       method == kMethodDeflate, target.string(), written)) {
+                       method == kMethodDeflate, target.string(), written,
+                       policy.txn, relative)) {
             result.error = "could not unpack " + relative;
             break;
         }

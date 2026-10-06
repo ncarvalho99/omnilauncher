@@ -10,6 +10,7 @@
 #include "themeshop/ThemeHttp.hpp"
 #include "themeshop/ZipReader.hpp"
 #include <switchu/sd_commit.hpp>
+#include <switchu/install_txn.hpp>
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
@@ -411,10 +412,35 @@ void WiiUMenuApp::startUpdateDownload(const update::UpdateClient::Release& relea
             // it. If any of this fails the marker is simply not written, and
             // the daemon falls back to applying everything and restarting once
             // more by itself.
+            switchu::install_txn::Txn daemonTxn(switchu::install_txn::kUpdateBackupRoot, kCardRoot);
             themeshop::ZipExtractPolicy daemonOnly = policy;
             daemonOnly.onlyRoots = {"atmosphere/"};
-            const auto daemonApply = themeshop::extractZipFile(
-                kUpdateArchive, kCardRoot, {}, daemonOnly);
+            themeshop::ZipExtractResult daemonApply;
+            // An earlier pass or rollback that was cut short is the daemon's to
+            // resolve at boot; this thread never undoes or builds on it. A held
+            // backup of a finished update is simply extended by a new pass.
+            const bool blocked =
+                switchu::install_txn::interrupted(switchu::install_txn::kUpdateBackupRoot);
+            const bool journalOk = !blocked && daemonTxn.begin();
+            if (!journalOk) {
+                // No journal means no way to undo: replace nothing from here. The boot
+                // that applies the rest does it, under its own journal.
+                daemonApply.success = false;
+                daemonApply.error = blocked ? "an earlier update pass is waiting for recovery"
+                                            : "could not open the rollback journal";
+            } else {
+                daemonOnly.txn = &daemonTxn;
+                daemonApply = themeshop::extractZipFile(kUpdateArchive, kCardRoot, {}, daemonOnly);
+                if (daemonApply.success && !daemonTxn.completePass())
+                    daemonApply.success = false;
+            }
+            if (journalOk && !daemonApply.success) {
+                std::string failed;
+                const bool restored = switchu::install_txn::rollback(
+                    switchu::install_txn::kUpdateBackupRoot, kCardRoot, &failed);
+                DebugLog::log("[update] daemon half failed (%s); rolled back (%s)",
+                              daemonApply.error.c_str(), restored ? "ok" : failed.c_str());
+            }
             if (daemonApply.success) {
                 switchu::commitSdCard("update daemon in place");
                 if (std::FILE* marker = std::fopen(kDaemonMarker, "wb")) {
