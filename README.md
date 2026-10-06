@@ -309,7 +309,17 @@ xmake -j$(nproc)
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-image.ps1 -PullBase
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-local.ps1 -Mode release -Variant sysmodule -SkipConsoleDeploy
 ```
-The compiled output package will be placed under `artifacts/OmniLaunch-sysmodule-release.zip`.
+The compiled output package will be placed under `artifacts/OmniLaunch-1.0.0.zip`.
+
+---
+
+## Support & Bug Reporting
+
+OmniLaunch 1.0.0 is an initial release following a comprehensive process of implementations and refinements. While rigorously tested, unexpected edge cases and bugs may still occur.
+
+If you encounter any issues:
+- **Telegram:** Reach out directly to the developer at [https://t.me/ncarvalho99](https://t.me/ncarvalho99)
+- **Logs:** When reporting a bug, please include your console log located at `sdmc:/config/OmniLaunch/menu.log` (or `sdmc:/config/OmniLaunch/log.txt`).
 
 ---
 

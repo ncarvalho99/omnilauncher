@@ -42,9 +42,9 @@ def main() -> int:
         return 1
 
     text = CHANGELOG.read_text(encoding="utf-8")
-    sections = text.split("\n# SwitchU ")
+    sections = re.split(r"\n#\s*(?:OmniLaunch|SwitchU)\s+", text)
     head = sections[0]
-    version_match = re.match(r"#\s*SwitchU\s+(\S+)", head)
+    version_match = re.match(r"#\s*(?:OmniLaunch|SwitchU)\s+(\S+)", head)
     if not version_match:
         print("could not read the version from the first heading", file=sys.stderr)
         return 1
@@ -67,7 +67,7 @@ def main() -> int:
 
     for raw in head.splitlines():
         stripped = raw.strip()
-        if stripped.startswith("# SwitchU"):
+        if stripped.startswith("# SwitchU") or stripped.startswith("# OmniLaunch"):
             continue
         if stripped == "---" or not stripped or stripped.startswith("<") or stripped.startswith("!["):
             flush()
