@@ -6923,6 +6923,21 @@ void WiiUMenuApp::finalizeRefresh() {
     if (m_layoutDirty)
         saveMenuLayout();
     DebugLog::log("[refresh] done, %d icons on page %d", m_model.count(), m_grid->currentPage());
+
+    // If new applications appeared after boot (e.g. game card or fresh install), re-arm network check
+    if (m_newGamePromptChecked && !m_allApps.empty()) {
+        std::unordered_set<uint64_t> known(
+            m_config.steamGridDbKnownTitles.begin(),
+            m_config.steamGridDbKnownTitles.end());
+        for (const auto& app : m_allApps) {
+            if (app.titleId != 0 && (isNativeApplicationId(app.titleId) || m_config.isGamePort(app.titleId))) {
+                if (known.find(app.titleId) == known.end()) {
+                    m_newGamePromptChecked = false;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void WiiUMenuApp::checkNewGameSteamGridDbPrompt() {
@@ -7009,7 +7024,6 @@ void WiiUMenuApp::checkNewGameSteamGridDbPrompt() {
         }, true},
         {i18n.tr("button.cancel", "Cancel"), [this]() {
             if (m_dialog) m_dialog->hide();
-            if (m_dialogReturnFocus) focusManager().setFocus(m_dialogReturnFocus);
         }}
     });
     focusManager().setFocus(m_dialog.get());
@@ -7135,10 +7149,11 @@ void WiiUMenuApp::pollAutoNtpSync(float dt) {
             });
         }
         const bool lockScreenUp = m_lockScreen.isLocked();
-        if (!m_newGamePromptChecked && !lockScreenUp && !m_fastReturnRequested && !m_allApps.empty() &&
-            !(m_dialog && m_dialog->isActive()) &&
-            !(m_settings && m_settings->isActive()) &&
-            !(m_themeShop && m_themeShop->isActive())) {
+        const bool homeReady = m_navigator.route() == switchu::navigation::Route::Home &&
+                               focusRoot() == &rootBox() &&
+                               !m_editMode &&
+                               !(m_dialog && m_dialog->isActive());
+        if (!m_newGamePromptChecked && !lockScreenUp && !m_fastReturnRequested && !m_allApps.empty() && homeReady) {
             m_newGamePromptChecked = true;
             checkNewGameSteamGridDbPrompt();
         }
