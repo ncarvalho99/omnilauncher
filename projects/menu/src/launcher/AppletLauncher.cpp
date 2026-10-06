@@ -123,6 +123,18 @@ void AppletLauncher::shutdown() {
 
 void AppletLauncher::reboot() {
     quiesceForPower("reboot");
+#ifdef __SWITCH__
+    // On Horizon 15.0.0+, AppletType_LibraryApplet can call appletStartRebootSequence()
+    // directly via IGlobalStateController (command 4). This triggers the exact same
+    // clean AM-mediated reboot sequence that the official Nintendo power menu uses,
+    // coordinating PSC peripheral teardown (including SDMMC host controller).
+    Result rc = appletStartRebootSequence();
+    DebugLog::log("[launcher] appletStartRebootSequence rc=0x%X", rc);
+    if (R_SUCCEEDED(rc)) {
+        while (true)
+            svcSleepThread(100'000'000ULL);
+    }
+#endif
     switchu::menu::smi_cmd::reboot();
 }
 
