@@ -951,53 +951,79 @@ static void stopControlCacheWorker();
 // sequence; on this console that consistently powers down into RCM before
 // atmosphere/reboot_payload.bin is chainloaded, leaving an entirely black
 // screen until a payload is injected externally.
+// Orderly reboot and shutdown handling.
+// For rebooting into Hekate on Atmosphere, we follow the exact canonical sequence
+// from Atmosphere's official reboot_to_payload tool:
+// 1. spsmInitialize()
+// 2. Load atmosphere/reboot_payload.bin into memory
+// 3. Close sm session (smExit) so svcConnectToNamedPort("bpc:ams") succeeds cleanly
+// 4. amsBpcInitialize() -> amsBpcSetRebootPayload(payload, 0x24000) -> amsBpcExit()
+// 5. spsmShutdown(true)
 static Result requestPowerStateChange(const char* source, bool reboot) {
     switchu::FileLog::log("[power] request source=%s action=%s",
                           source, reboot ? "reboot" : "shutdown");
     switchu::FileLog::flush();
 
-    // Configure Exosphere to perform a clean hardware PMIC power-cycle on reboot
-    Result splRc = splInitialize();
-    if (R_SUCCEEDED(splRc)) {
-        if (reboot) {
-            splSetConfig(static_cast<SplConfigItem>(65001), 4); // ForceRebootByPmic
-        } else {
-            splSetConfig(static_cast<SplConfigItem>(65002), 1); // ForceShutdown
-        }
-        splExit();
-    }
+    if (reboot) {
+        // Step 1: Initialize spsm
+        Result spsmRc = spsmInitialize();
 
-    // 1. Primary path: Power State Manager (spsm).
-    // spsm drives the real power-down path: tells the filesystem service to commit
-    // and unmount cleanly before the hardware power transition.
-    Result rc = spsmInitialize();
-    if (R_SUCCEEDED(rc)) {
-        rc = spsmShutdown(reboot);
-        spsmExit();
-        if (R_SUCCEEDED(rc)) {
-            switchu::FileLog::log("[power] spsm %s accepted", reboot ? "reboot" : "shutdown");
+        // Step 2 & 3 & 4: Arm Atmosphere reboot payload if on Erista
+        static constexpr size_t kIramPayloadMaxSize = 0x24000;
+        std::vector<uint8_t> payload(kIramPayloadMaxSize, 0);
+        FILE* f = std::fopen("sdmc:/atmosphere/reboot_payload.bin", "rb");
+        if (!f) {
+            f = std::fopen("sdmc:/payload.bin", "rb");
+        }
+        if (f) {
+            std::fread(payload.data(), 1, kIramPayloadMaxSize, f);
+            std::fclose(f);
+
+            // Connect to bpc:ams directly via named port
+            Handle bpcAmsHandle = INVALID_HANDLE;
+            Result bpcAmsRc = svcConnectToNamedPort(&bpcAmsHandle, "bpc:ams");
+            if (R_SUCCEEDED(bpcAmsRc)) {
+                Service amsBpcSrv;
+                serviceCreate(&amsBpcSrv, bpcAmsHandle);
+                Result setPayloadRc = serviceDispatch(&amsBpcSrv, 65001,
+                    .buffer_attrs = { SfBufferAttr_In | SfBufferAttr_HipcMapAlias },
+                    .buffers = { { payload.data(), kIramPayloadMaxSize } },
+                );
+                serviceClose(&amsBpcSrv);
+                switchu::FileLog::log("[power] amsBpcSetRebootPayload rc=0x%X", setPayloadRc);
+                switchu::FileLog::flush();
+            } else {
+                switchu::FileLog::log("[power] bpc:ams connect rc=0x%X", bpcAmsRc);
+                switchu::FileLog::flush();
+            }
+        }
+
+        // Step 5: Execute power-down via spsm
+        if (R_SUCCEEDED(spsmRc)) {
+            Result shutdownRc = spsmShutdown(true);
+            spsmExit();
+            switchu::FileLog::log("[power] spsm reboot rc=0x%X", shutdownRc);
             switchu::FileLog::flush();
-            return rc;
+            if (R_SUCCEEDED(shutdownRc))
+                return shutdownRc;
         }
-    }
 
-    // 2. Fall back to bpc
-    rc = bpcInitialize();
-    if (R_SUCCEEDED(rc)) {
-        rc = reboot ? bpcRebootSystem() : bpcShutdownSystem();
-        bpcExit();
+        // Fallback: applet reboot
+        Result appletRc = appletStartRebootSequence();
+        switchu::FileLog::log("[power] applet reboot fallback rc=0x%X", appletRc);
+        switchu::FileLog::flush();
+        return appletRc;
+    } else {
+        // Clean shutdown
+        Result rc = spsmInitialize();
         if (R_SUCCEEDED(rc)) {
-            switchu::FileLog::log("[power] bpc %s accepted", reboot ? "reboot" : "shutdown");
-            switchu::FileLog::flush();
-            return rc;
+            rc = spsmShutdown(false);
+            spsmExit();
+            if (R_SUCCEEDED(rc))
+                return rc;
         }
+        return appletStartShutdownSequence();
     }
-
-    // 3. Fall back to applet sequence
-    rc = reboot ? appletStartRebootSequence() : appletStartShutdownSequence();
-    switchu::FileLog::log("[power] applet sequence rc=0x%X", rc);
-    switchu::FileLog::flush();
-    return rc;
 }
 
 // Sleep is not a power-down and must not use the shutdown teardown below.
