@@ -1,33 +1,25 @@
-# OmniLaunch 1.0.0
+# OmniLaunch 1.0.1
 
-Initial public release of OmniLaunch, the next-generation customizable Home Menu and qlaunch replacement for the Nintendo Switch.
+Maintenance update for OmniLaunch: switches the home grid sort/order button to Minus (-) and updates the on-screen shortcut legends accordingly.
 
-This is the first official release following an extensive implementation and refinement cycle. As with any initial release, unexpected edge cases may occur. If you encounter any bugs, please report them directly to the developer on Telegram at https://t.me/ncarvalho99 with your console logs (`/config/OmniLaunch/menu.log`).
+If you encounter any bugs, please report them directly to the developer on Telegram at https://t.me/ncarvalho99 with your console logs (`/config/OmniLaunch/menu.log`).
 
 ## English
 
-### Core Features & Views
-- **Eight Distinct View Modes**: Switch between Grid, Dynamic Line (Carousel), Flow (3D), Shelf (3D), Deck (3D), Cover, XMB (PlayStation XrossMediaBar style), and Metro (Windows Phone / Xbox Live Tiles).
-- **Hardware-Accelerated Video Themes**: Native 60 FPS animated background video playback utilizing the Tegra X1 NVDEC hardware accelerator (`nvtegra`).
-- **WaraWara Plaza**: Authentic Wii U-style community plaza featuring interactive Miis, animated pedestals, conversational dialogue, and direct game launching.
-- **SteamGridDB Integration**: Automatic high-definition cover downloads, real-time background artwork backdrops with opacity control, and automated new game detection upon WiFi connection.
-- **Interactive Live Widgets**: Digital Clock, Console and Joy-Con / Pro Controller battery monitors, Recently Played game hero card, Recent Playtime, and Image Pin widgets.
-- **Clean Atmosphere Power Teardown**: Power-menu reboots route through Horizon's Applet Manager and Atmosphere's reboot-to-payload sequence, ensuring safe SDMMC controller unmounting.
-- **Seamless Upgrade Migration**: Automatically detects and migrates existing SwitchU and sLaunch installations to OmniLaunch without data loss.
+### Controls & Interface
+- **Sort Shortcut Updated to Minus (-)**: Changing the game sort order (A-Z, Recent, Favorites, Most Played, Custom Order) on the home grid is now mapped to the Minus button (-) with updated on-screen legends.
+- **Folder View Mode Lock**: View mode switching remains disabled inside folders to keep the folder experience consistent.
+- **SteamGridDB WiFi Trigger**: Cover auto-checks trigger reliably upon network connection.
 
 ### Feedback & Bug Reports
 - **Contact Developer**: Report issues and send crash logs on Telegram at https://t.me/ncarvalho99.
 
 ## Português
 
-### Recursos Principais e Modos de Visualização
-- **Oito Modos de Visualização**: Alterne entre Grade, Linha Dinâmica (Carrossel), Flow (3D), Shelf (3D), Deck (3D), Cover, XMB (estilo PlayStation) e Metro (estilo Windows Phone / Xbox Live Tiles).
-- **Temas em Vídeo com Aceleração de Hardware**: Reprodução nativa de papéis de parede em vídeo a 60 FPS utilizando o acelerador NVDEC do Tegra X1 (`nvtegra`).
-- **WaraWara Plaza**: Praça comunitária autêntica no estilo Wii U com Miis interativos, pedestais animados, diálogos dinâmicos e inicialização direta de jogos.
-- **Integração Completa SteamGridDB**: Download automático de capas em alta resolução, planos de fundo dinâmicos com controle de opacidade e detecção de novos jogos ao conectar no Wi-Fi.
-- **Widgets Interativos**: Relógio digital, monitor de bateria do console e dos controles Joy-Con / Pro Controller, cartão de jogos recentes e alfinete de imagens.
-- **Desligamento e Reinicialização Segura**: Reinicializações integradas com a sequência canônica do Atmosphere e Applet Manager, prevenindo corrupção no cartão SD.
-- **Migração Transparente**: Detecta e migra automaticamente dados anteriores do SwitchU e sLaunch para o OmniLaunch sem perda de configurações.
+### Controles e Interface
+- **Atalho de Ordenação Atualizado para Menos (-)**: A alteração da ordem dos jogos (A-Z, Recentes, Favoritos, Mais Jogados, Minha Ordem) na grade principal agora é acionada pelo botão Menos (-) com legendas atualizadas na tela.
+- **Bloqueio de Modo de Visualização em Pastas**: A troca de modo de visualização permanece desativada dentro de pastas.
+- **Verificação do SteamGridDB via Wi-Fi**: Verificação automática de capas ocorre assim que a conexão de rede é estabelecida.
 
 ### Relato de Bugs e Suporte
 - **Contato com o Desenvolvedor**: Envie logs e relate bugs diretamente no Telegram em https://t.me/ncarvalho99.

@@ -8582,7 +8582,7 @@ std::vector<WiiUMenuApp::ActionHint> WiiUMenuApp::buildActionHints() {
             // a button that now does nothing there would be worse than not
             // having it.
             if (m_openFolderId == 0 && !isCarouselLayout())
-                add(buttonGlyph(nxui::Button::R), sortModeLabel());
+                add(buttonGlyph(nxui::Button::Minus), sortModeLabel());
 #ifdef SWITCHU_MENU
             if (entry && entry->isApplication())
                 add(buttonGlyph(nxui::Button::RStick), i18n.tr("hint.favorite", "Favorite"));

@@ -100,11 +100,11 @@ if [ "$VARIANT" = sysmodule ]; then
     [ -d "$DIST/atmosphere" ] || { echo "faltou $DIST/atmosphere"; exit 1; }
     [ -d "$DIST/switch" ] || { echo "faltou $DIST/switch"; exit 1; }
     mkdir -p artifacts
-    ZIP="$PWD/artifacts/OmniLaunch-1.0.0.zip"
+    ZIP="$PWD/artifacts/OmniLaunch-1.0.1.zip"
     rm -f "$ZIP" "$PWD/artifacts/OmniLaunch-sysmodule-$MODE.zip"
     ( cd "$DIST" && zip -qr "$ZIP" atmosphere switch ) || exit $?
     cp -f "$ZIP" "$PWD/artifacts/OmniLaunch-sysmodule-$MODE.zip"
-    echo "pronto: artifacts/OmniLaunch-1.0.0.zip ($(du -h "$ZIP" | cut -f1))"
+    echo "pronto: artifacts/OmniLaunch-1.0.1.zip ($(du -h "$ZIP" | cut -f1))"
     echo "copie atmosphere/ e switch/ do zip para a raiz do cartao SD"
 else
     echo "pronto: build/cross/aarch64/$MODE/SwitchU.nro"

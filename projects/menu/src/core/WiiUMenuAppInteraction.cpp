@@ -864,13 +864,13 @@ void WiiUMenuApp::toggleAccessibilitySpeech() {
 
 void WiiUMenuApp::handleSortShortcutRelease(float dt) {
     auto& input = app().input();
-    if (input.isDown(nxui::Button::R)) {
+    if (input.isDown(nxui::Button::Minus)) {
         m_sortShortcutArmed = true;
         m_sortShortcutHeld = 0.f;
-    } else if (m_sortShortcutArmed && input.isHeld(nxui::Button::R)) {
+    } else if (m_sortShortcutArmed && input.isHeld(nxui::Button::Minus)) {
         m_sortShortcutHeld += dt;
     }
-    if (!input.isUp(nxui::Button::R))
+    if (!input.isUp(nxui::Button::Minus))
         return;
     const bool armed = m_sortShortcutArmed;
     const float held = m_sortShortcutHeld;
@@ -878,9 +878,6 @@ void WiiUMenuApp::handleSortShortcutRelease(float dt) {
     m_sortShortcutHeld = 0.f;
     if (!armed)
         return;
-    // Only a tap sorts. Holding R is how the homebrew override reaches Sphaira,
-    // and a player doing that is not asking for the grid to be reordered when
-    // they let go -- which is what made the shortcut feel like it fired twice.
     if (held > kSortShortcutTapSeconds)
         return;
     // Anything with its own R meaning, or any overlay covering the grid, keeps
